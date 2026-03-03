@@ -1,0 +1,23 @@
+[project]
+name = "reportgenerator"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "lpofredc",email = "frederic.cloitre@lpo.fr"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "python-docx (>=1.2.0,<2.0.0)",
+    "psycopg[binary] (>=3.3.3,<4.0.0)"
+]
+
+[tool.poetry.scripts]
+reportgenerator = "cli:main"
+
+[tool.poetry]
+packages = [{include = "reportgenerator", from = "src"}]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
