@@ -112,8 +112,8 @@ def generate_report(service_name: str, output_file: str, id_area: int, referee: 
     dir_maps = OUTPUT_DIR / "maps"
 
     print(f"Génération du rapport Word à partir du template {output_file}...")
-    print(f"chemin pour dataviz {dir_dataviz}...")
-    print(f"chemin pour carte {dir_maps}...")
+    #print(f"chemin pour dataviz {dir_dataviz}...")
+    #print(f"chemin pour carte {dir_maps}...")
 
     document = Document(template_path)
 
@@ -128,8 +128,8 @@ def generate_report(service_name: str, output_file: str, id_area: int, referee: 
 
     insert_table_after_placeholder(document, "{{TABLE_TAXO}}", tableau_data)
 
-    #insert_images_from_folder(document, output_dirs["dataviz"])
-    #insert_images_from_folder(document, output_dirs["maps"])
+    insert_images_from_folder(document, dir_dataviz)
+    insert_images_from_folder(document, dir_maps)
     
     document.save(output_file)
 
