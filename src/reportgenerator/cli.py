@@ -7,10 +7,10 @@ from report import generate_report
 from pathlib import Path
 from db_auth import get_connection
 from reportgenerator.queries import SyntheseQueries
-from analyses.common.filesystem import create_analysis_dirs
-from analyses.etat_connaissance.analysis import run as run_etat_connaissance
-from analyses.cartography.analysis import run_cartography
-from analyses.common.models import AnalysisResult
+from analysis.common.filesystem import create_analysis_dirs
+from analysis.knowledge_status.analysis import run as run_knowledge_status
+from analysis.cartography.analysis import run_cartography
+
 
 
 logger = logging.getLogger(__name__)
@@ -69,9 +69,11 @@ def main():
 
     args = parser.parse_args()
 
-    time_launch =  datetime.now().strftime("%H:%M:%S")
-    print(f"Début de génération du rapport {args.area_name} - à {time_launch} :")
-    logger.info(f"Début de génération du rapport {args.area_name} - à {time_launch} :")
+    time_launch =  datetime.now()
+    print(f"Début de génération du rapport {args.area_name} - à {time_launch.strftime('%H:%M:%S')} :")
+    #logger.info(f"Début de génération du rapport {args.area_name} - à {time_launch} :")
+
+
     # Créer les répertoires de sortie
     output_dir = (Path(__file__).resolve().parent / "outputs" / args.area_name)
     output_dirs = create_analysis_dirs(output_dir)
@@ -84,7 +86,7 @@ def main():
                 buffer=args.buffer
             )
 
-            analysis_result = run_etat_connaissance(
+            analysis_result = run_knowledge_status(
                 context=args,
                 synthese_queries=synthese_queries,
                 output_dirs=output_dirs
@@ -108,6 +110,13 @@ def main():
          area_name=args.area_name,
          analysis_result=analysis_result 
      )
+    
+    
+    time_end = datetime.now()
+    duration = time_end - time_launch
+
+    print(f"Fin de génération - à {time_end.strftime('%H:%M:%S')}")
+    print(f"Temps total d'exécution : {duration}")
 
 
 if __name__ == "__main__":

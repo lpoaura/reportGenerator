@@ -76,21 +76,31 @@ def insert_table_after_placeholder(document, placeholder, data):
             break
         
 def insert_image(document, placeholder, image_path):
-
     for paragraph in document.paragraphs:
-
         if placeholder in paragraph.text:
-
             paragraph.text = paragraph.text.replace(placeholder, "")
-
             run = paragraph.add_run()
             run.add_picture(image_path, width=Inches(6))
-
             break
+
+
+
+def insert_images_from_folder(document, folder: Path):
+    folder = Path(folder)
+    images = list(folder.glob("*.png"))
+    for img in images:
+        placeholder = f"{{{{{img.name}}}}}"  # {{filename.png}}
+        for paragraph in document.paragraphs:
+            if placeholder in paragraph.text:
+                paragraph.text = paragraph.text.replace(placeholder, "")
+                run = paragraph.add_run()
+                run.add_picture(str(img), width=Inches(6))
+                break
 
 def generate_report(service_name: str, output_file: str, id_area: int, referee: str, list_analyse: str, buffer: int, area_name: str, analysis_result: dict):
 
     TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
+    OUTPUT_DIR = Path(__file__).resolve().parent / "outputs" / area_name
 
     with get_connection(service_name) as conn:
         synthese_queries = SyntheseQueries(conn=conn, id_area=id_area, buffer=buffer)
@@ -98,6 +108,12 @@ def generate_report(service_name: str, output_file: str, id_area: int, referee: 
         tableau_data = synthese_queries.get_resum_taxo_group()
 
     template_path = TEMPLATE_DIR / "Rapport_template.docx"
+    dir_dataviz = OUTPUT_DIR / "dataviz"
+    dir_maps = OUTPUT_DIR / "maps"
+
+    print(f"Génération du rapport Word à partir du template {output_file}...")
+    print(f"chemin pour dataviz {dir_dataviz}...")
+    print(f"chemin pour carte {dir_maps}...")
 
     document = Document(template_path)
 
@@ -112,7 +128,8 @@ def generate_report(service_name: str, output_file: str, id_area: int, referee: 
 
     insert_table_after_placeholder(document, "{{TABLE_TAXO}}", tableau_data)
 
-    insert_image(document, "{{CHART_EVOLUTION}}", str(analysis_result.files["chart_evolution"]))
+    #insert_images_from_folder(document, output_dirs["dataviz"])
+    #insert_images_from_folder(document, output_dirs["maps"])
     
     document.save(output_file)
 
