@@ -1,36 +1,119 @@
 #!/bin/python3
 
 from docx import Document
+from docx.shared import Inches
+from pathlib import Path
 from db_auth import get_connection
 from queries import SyntheseQueries
 
-def generate_report(service_name: str, output_file: str, id_dataset: int):
+
+
+def replace_text(document, replacements: dict):
+
+    # 1. Paragraphes classiques
+    for paragraph in document.paragraphs:
+        for key, value in replacements.items():
+            placeholder = "{{" + key + "}}"
+            if placeholder in paragraph.text:
+                paragraph.text = paragraph.text.replace(
+                    placeholder,
+                    str(value)
+                )
+
+    # 2. Tableaux (IMPORTANT)
+    for table in document.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    for key, value in replacements.items():
+                        placeholder = "{{" + key + "}}"
+                        if placeholder in paragraph.text:
+                            paragraph.text = paragraph.text.replace(
+                                placeholder,
+                                str(value)
+                            )
+
+def insert_table_after_placeholder(document, placeholder, data):
+
+    for paragraph in document.paragraphs:
+
+        if placeholder in paragraph.text:
+
+            paragraph.text = paragraph.text.replace(placeholder, "")
+
+            table = document.add_table(rows=1, cols=10)
+
+            header = table.rows[0].cells
+
+            header[0].text = "Groupe taxonomique"
+            header[1].text = "Nombre de données"
+            header[2].text = "Nombre d'espèces"
+            header[3].text = "Nombre d'espèces nicheuses"
+            header[4].text = "Nombre d'espèces protégées"
+            header[5].text = "Nombre d'espèces protégées nicheuses"
+            header[6].text = "Nombre d'espèces en danger"
+            header[7].text = "Nombre d'espèces en danger nicheuses"
+            header[8].text = "Nombre de données mortalité"
+            header[9].text = "Nombre espèces mortalité"
+
+            for item in data:
+
+                row = table.add_row().cells
+
+                row[0].text = str(item["group_taxo"])
+                row[1].text = str(item["nb_data_tot"])
+                row[2].text = str(item["nb_espece"])
+                row[3].text = str(item["nb_espece_nicheuse"])
+                row[4].text = str(item["nb_espece_protege"])
+                row[5].text = str(item["nb_espece_protege_nicheuse"])
+                row[6].text = str(item["nb_espece_lr"])
+                row[7].text = str(item["nb_espece_lr_nicheuse"])
+                row[8].text = str(item["nb_data_mortalite"])
+                row[9].text = str(item["nb_esp_mortalite"])
+
+            paragraph._element.addnext(table._element)
+
+            break
+        
+def insert_image(document, placeholder, image_path):
+
+    for paragraph in document.paragraphs:
+
+        if placeholder in paragraph.text:
+
+            paragraph.text = paragraph.text.replace(placeholder, "")
+
+            run = paragraph.add_run()
+            run.add_picture(image_path, width=Inches(6))
+
+            break
+
+def generate_report(service_name: str, output_file: str, id_area: int, referee: str, list_analyse: str, buffer: int, area_name: str, analysis_result: dict):
+
+    TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 
     with get_connection(service_name) as conn:
-        synthese_queries = SyntheseQueries(conn=conn, id_dataset=id_dataset)
-        count_data = synthese_queries.get_global_count()
-        count_by_taxo_group = synthese_queries.get_count_by_taxo_group()
+        synthese_queries = SyntheseQueries(conn=conn, id_area=id_area, buffer=buffer)
+        synthese_queries.set_global_data()
+        tableau_data = synthese_queries.get_resum_taxo_group()
 
-    document = Document()
-    document.add_heading("Rapport de synthèse", level=1)
+    template_path = TEMPLATE_DIR / "Rapport_template.docx"
 
-    # Résumé
-    document.add_heading("Nombre total de données", level=2)
-    document.add_paragraph(
-        f"Nombre total de données : {count_data['count_data']}"
-    )
+    document = Document(template_path)
 
-    # Tableau clients
-    document.add_heading("Par groupe taxo", level=2)
+    tableau_data_dict = tableau_data[0]
 
-    table = document.add_table(rows=1, cols=2)
-    header = table.rows[0].cells
-    header[0].text = "Groupe taxonomique"
-    header[1].text = "Nombre de données"
+    replace_text(document, {
+    "AREA_NAME": area_name,
+    "REFEREE": referee,
+    #"DATE_REPORT": date.today(),
+    "NB_DATA": tableau_data_dict["nb_data_tot"],
+    })
 
-    for data in count_by_taxo_group:
-        row = table.add_row().cells
-        row[0].text = str(data["taxo_group"])
-        row[1].text = str(data["count_data"])
+    insert_table_after_placeholder(document, "{{TABLE_TAXO}}", tableau_data)
+
+    insert_image(document, "{{CHART_EVOLUTION}}", str(analysis_result.files["chart_evolution"]))
     
     document.save(output_file)
+
+
