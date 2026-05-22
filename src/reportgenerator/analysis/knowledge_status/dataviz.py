@@ -1,4 +1,5 @@
 import plotly.graph_objects as go
+from analysis.common.theme import LPO_COLORS
 
 def safe_int(value):
     if value is None:
@@ -6,10 +7,10 @@ def safe_int(value):
     return int(value)
 
 
-
 def create_temporal_evolution_chart(data, output_path: str):
 
     print("Création du graphique d'évolution temporelle...")
+
     years = [safe_int(row["annee"]) for row in data]
     nb_data = [safe_int(row["nb_data_tot"]) for row in data]
     nb_species = [safe_int(row["nb_espece"]) for row in data]
@@ -20,7 +21,16 @@ def create_temporal_evolution_chart(data, output_path: str):
         x=years,
         y=nb_data,
         name="Nombre de données",
-        mode="lines+markers"
+        mode="lines+markers",
+        line=dict(
+            shape="spline",
+            smoothing=0.8,
+            color=LPO_COLORS["blue"],
+            width=4
+        ),
+        marker=dict(
+            size=7
+        )
     ))
 
     fig.add_trace(go.Scatter(
@@ -28,13 +38,31 @@ def create_temporal_evolution_chart(data, output_path: str):
         y=nb_species,
         name="Nombre d'espèces",
         mode="lines+markers",
-        yaxis="y2"
+        yaxis="y2",
+        line=dict(
+            shape="spline",
+            smoothing=0.8,
+            color=LPO_COLORS["orange"],
+            width=4
+        ),
+        marker=dict(
+            size=7
+        )
     ))
 
     fig.update_layout(
-        title="Évolution temporelle",
-        xaxis=dict(title="Année"),
-        yaxis=dict(title="Nombre de données"),
+
+        title="Évolution temporelle des connaissances",
+
+        
+        xaxis=dict(
+            title="Année"
+        ),
+
+        yaxis=dict(
+            title="Nombre de données"
+        ),
+
         yaxis2=dict(
             title="Nombre d'espèces",
             overlaying="y",
@@ -42,4 +70,9 @@ def create_temporal_evolution_chart(data, output_path: str):
         )
     )
 
-    fig.write_image(output_path, width=1200, height=600)
+    fig.write_image(
+        output_path,
+        width=1400,
+        height=700,
+        scale=2
+    )

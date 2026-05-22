@@ -1,5 +1,5 @@
 <!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
-<qgis version="3.40.15-Bratislava" projectname="" saveUser="afourneyron" saveUserFull="Axel FOURNEYRON" saveDateTime="2026-05-22T14:46:39">
+<qgis version="3.40.15-Bratislava" projectname="" saveUser="afourneyron" saveUserFull="Axel FOURNEYRON" saveDateTime="2026-05-22T14:46:13">
   <homePath path=""/>
   <title></title>
   <transaction mode="Disabled"/>
@@ -2429,7 +2429,7 @@ def my_form_open(dialog, layer, feature):
                 <Option value="3x:0,0,0,0,0,0" type="QString" name="outline_width_map_unit_scale"/>
                 <Option value="MM" type="QString" name="outline_width_unit"/>
                 <Option value="diameter" type="QString" name="scale_method"/>
-                <Option value="1.4" type="QString" name="size"/>
+                <Option value="1" type="QString" name="size"/>
                 <Option value="3x:0,0,0,0,0,0" type="QString" name="size_map_unit_scale"/>
                 <Option value="MM" type="QString" name="size_unit"/>
                 <Option value="1" type="QString" name="vertical_anchor_point"/>
@@ -2501,8 +2501,8 @@ def my_form_open(dialog, layer, feature):
       <customproperties>
         <Option type="Map">
           <Option value="0" type="int" name="embeddedWidgets/count"/>
-          <Option name="variableNames"/>
-          <Option name="variableValues"/>
+          <Option type="invalid" name="variableNames"/>
+          <Option type="invalid" name="variableValues"/>
         </Option>
       </customproperties>
       <blendMode>0</blendMode>
@@ -5624,7 +5624,7 @@ def my_form_open(dialog, layer, feature):
       </spatialrefsys>
     </CoordinateCustomCrs>
   </ProjectDisplaySettings>
-  <ProjectGpsSettings destinationLayerName="mortalite" autoCommitFeatures="0" destinationFollowsActiveLayer="1" destinationLayerSource="C:/Users/afourneyron/Documents/reportGenerator/src/reportgenerator/outputs/MONPROJETTEST/data/toutes_les_donnees.gpkg|layername=donnees_brutes|subset=&quot;mortality&quot; = 'True'" autoAddTrackVertices="0" destinationLayer="raw_data_71b77bac_3e29_4a06_a27f_20817728bfd7" destinationLayerProvider="ogr">
+  <ProjectGpsSettings destinationLayerName="observations_brutes" autoCommitFeatures="0" destinationFollowsActiveLayer="1" destinationLayerSource="C:/Users/afourneyron/Documents/reportGenerator/src/reportgenerator/outputs/MONPROJETTEST/data/toutes_les_donnees.gpkg|layername=donnees_brutes" autoAddTrackVertices="0" destinationLayer="raw_data_48241655_484e_42f4_9717_c1a1f5572deb" destinationLayerProvider="ogr">
     <timeStampFields/>
   </ProjectGpsSettings>
 </qgis>

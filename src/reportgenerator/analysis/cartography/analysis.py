@@ -12,6 +12,8 @@ def run_cartography(synthese_queries, output_dirs, area_name):
     # 2. QGIS PROJECT
     BASE_DIR = Path(__file__).resolve().parents[2]
     template_path = BASE_DIR / "templates" / "projet_modele.qgs"
+    project_path = BASE_DIR / area_name / "projet_modele.qgs"
+
     project_path = copy_qgis_project(
         template_path=template_path,
         output_path=output_dirs["root"]
@@ -19,6 +21,6 @@ def run_cartography(synthese_queries, output_dirs, area_name):
 
     # 3. RENDER QGIS
     launch_qgis_render(
-    project_path=template_path,
+    project_path=project_path,
     output_dir=output_dirs["maps"]
     )

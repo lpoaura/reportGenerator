@@ -151,6 +151,7 @@ class SyntheseQueries:
                             , count(distinct(s.id_synthese)) filter ( where mortality_cause in ('ROAD_VEHICLE','UNKNOWN_TRANSPORT','OTHER_TRANSPORT') )as nb_data_mortalite
                             , count(distinct(s.cd_ref)) filter ( where mortality_cause in ('ROAD_VEHICLE','UNKNOWN_TRANSPORT','OTHER_TRANSPORT') )as nb_esp_mortalite
                     from lpoaura_afo.vm_reportgenerator_data s
+                    where extract(year from s.date_max) >= 2000
                     group by extract(year from s.date_max) ;
             """
             )
@@ -168,4 +169,93 @@ class SyntheseQueries:
             )
             return cur.fetchall()
         print("Données géographiques brutes récupérées")
+
+
+    def get_species_data(self):
+        with self.conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                f"""
+                  with prep as ( select row_number()over() as id,
+                                        s.cd_ref,
+                                        REPLACE(REPLACE(REPLACE(split_part(s.vn_nom_fr, ', ', 1),'(La)',''),'(Le)',''),'(L'')','') as nom_vern,
+                                        case when s.vn_nom_sci = 'Anas clypeata' then 'Spatula clypeata'
+                                            when s.vn_nom_sci = 'Egretta alba' then 'Ardea alba'
+                                            when s.vn_nom_sci = 'Larus ridibundus' then 'Chroicocephalus ridibundus'
+                                            when s.vn_nom_sci = 'Miliaria calandra' then 'Emberiza calandra'
+                                            when s.vn_nom_sci = 'Emberiza calandra calandra' then 'Emberiza calandra'
+                                            when s.vn_nom_sci = 'Emberiza calandra parroti' then 'Emberiza calandra'
+                                            else s.vn_nom_sci end as lb_nom,
+                                        s.tx_group2_inpn_v2,
+                                        MAX(EXTRACT(YEAR FROM s.date_max)) AS derniere_annee_observation, -- Dernière année d'observation
+                                        MIN(EXTRACT(YEAR FROM s.date_max)) AS premiere_annee_observation, -- Première année d'observation
+                                        COUNT(DISTINCT EXTRACT(YEAR FROM s.date_max)) AS nb_annees_observation, -- Nombre d'années d'observation distinctes
+                                        COUNT(distinct s.id_synthese) AS nb_observations, -- Nombre total d'observations
+                                        COUNT(distinct s.observers) AS nb_observateur, -- Nombre total d'observteur
+                                        COUNT(distinct s.id_synthese) filter(where s.mortality is true ) AS nb_data_mortalité, -- Nombre total de données ed moratlité
+                                        string_agg(distinct s.mortality_cause, ', ') AS liste_cause_mortalité,
+                                        max(s.count_max) AS nb_effectif_max, -- Nombre max d'individus
+                                        COUNT(distinct s.id_synthese) filter(where s.oiso_status_nidif in ('Possible','Probable','Certain') ) AS nb_data_nidif, -- Nombre total d'observations
+                                        lr_auv,
+                                        lr_ra,
+                                        lr_aura,
+                                        lr_france,
+                                        lr_fr_nich,
+                                        lr_fr_hiv,
+                                        lr_fr_migr,
+                                        lr_euro,
+                                        lr_monde,
+                                        prot_nat,
+                                        n2k,
+                                        conv_berne,
+                                        conv_bonn,
+                                        pna_en_cours,
+                                        pna_ex,
+                                        case when lr_aura is null and lr_auv is null then lr_ra
+                                            when lr_aura is null and lr_ra is null then lr_auv
+                                            when lr_aura is null and lr_ra is null and lr_auv is null then lr_france
+                                            else lr_aura
+                                        end as lr_qgis
+                                from  lpoaura_afo.vm_reportgenerator_data s
+                                GROUP BY  lr_auv,
+                                        lr_ra,
+                                        lr_aura,
+                                        lr_france,
+                                        lr_fr_nich,
+                                        lr_fr_hiv,
+                                        lr_fr_migr,
+                                        lr_euro,
+                                        lr_monde,
+                                        prot_nat,
+                                        n2k,
+                                        conv_berne,
+                                        conv_bonn,
+                                        pna_en_cours,
+                                        pna_ex,  s.cd_ref,
+                                        REPLACE(REPLACE(REPLACE(split_part(s.vn_nom_fr, ', ', 1),'(La)',''),'(Le)',''),'(L'')',''),
+                                        case when s.vn_nom_sci = 'Anas clypeata' then 'Spatula clypeata'
+                                            when s.vn_nom_sci = 'Egretta alba' then 'Ardea alba'
+                                            when s.vn_nom_sci = 'Larus ridibundus' then 'Chroicocephalus ridibundus'
+                                            when s.vn_nom_sci = 'Miliaria calandra' then 'Emberiza calandra'
+                                            when s.vn_nom_sci = 'Emberiza calandra calandra' then 'Emberiza calandra'
+                                            when s.vn_nom_sci = 'Emberiza calandra parroti' then 'Emberiza calandra'
+                                            else s.vn_nom_sci end ,
+                                        s.tx_group2_inpn_v2
+                                    )
+                                select *,
+                                    case when lr_qgis ='EX' then '#000000'
+                                        when lr_qgis ='EW' then '#3d1851'
+                                        when lr_qgis ='RE' then '#5b1a62'
+                                        when lr_qgis ='CR' then '#d20019'
+                                        when lr_qgis ='EN' then '#fabf00'
+                                        when lr_qgis ='VU' then '#ffed00'
+                                        when lr_qgis ='NT' then '#faf2c7'
+                                        when lr_qgis ='LC' then '#78b747'
+                                        when lr_qgis ='DD' then '#d4d4d4'
+                                    else '#ffffff'
+                                    end as lr_qgis_color
+                                from prep
+                                order by nom_vern
+            """
+            )
+            return cur.fetchall()
             
