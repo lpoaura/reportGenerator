@@ -13,6 +13,22 @@ from qgis.core import (
 )
 
 
+def reload_project(project, project_path):
+    print("Sauvegarde du projet...")
+    project.write(str(project_path))
+
+    print("Rechargement du projet...")
+    project.clear()
+    loaded = project.read(str(project_path))
+    
+    if not loaded:
+        raise Exception(f"Impossible de recharger le projet : {project_path}")
+    
+    print("Projet rechargé avec succès")
+    return project
+
+
+
 def zoom_layout_maps_to_layer(project, layout, layer_name, margin_ratio=0.1):
     print(f"Recalcul emprise layout : {layout.name()}")
     layers = project.mapLayersByName(layer_name)
@@ -24,7 +40,7 @@ def zoom_layout_maps_to_layer(project, layout, layer_name, margin_ratio=0.1):
     if not layer.isValid():
         print(f"Couche invalide : {layer_name}")
         return
-
+    
     # important
     layer.updateExtents()
     extent = QgsRectangle(layer.extent())
@@ -97,9 +113,10 @@ def main():
 
     args = parser.parse_args()
 
-    project_path = Path(args.project) / "projet_modele.qgs"
+    project_path = Path(args.project)
     output_path = Path(args.output)
-    data_path = project_path.parent / "data" / "toutes_les_donnees.gpkg"
+    area_name = project_path.stem.split("_")[-1]
+    data_path = project_path.parent / "data" / f"data_{area_name}.gpkg"
 
     print("Lancement du rendu QGIS...")
     print(f"Project path: {project_path}")
@@ -109,11 +126,7 @@ def main():
 
 
     # Init QGIS
-    QgsApplication.setPrefixPath(
-        "C:/Program Files/QGIS/3_40",
-        True
-    )
-
+    QgsApplication.setPrefixPath("C:/Program Files/QGIS/3_40", True )
     qgs = QgsApplication([], False)
     qgs.initQgis()
 
@@ -133,8 +146,7 @@ def main():
     model = project.mapThemeCollection()
 
     relink_gpkg_layers(project, data_path)
-
-
+    reload_project(project, project_path)
 
     print("Layouts disponibles :")
     layouts_to_export = []

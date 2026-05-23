@@ -90,12 +90,13 @@ class SyntheseQueries:
             left join gn_synthese.cor_area_synthese cas on s.id_synthese = cas.id_synthese
             left join ref_geo.l_areas la on cas.id_area = la.id_area
             where la.id_type = ref_geo.get_id_area_type('M1'::character varying)
+            and tx_group2_inpn_v2 in ('Amphibiens','Chauves-souris','Mammifères','Odonates','Oiseaux','Papillons de jour','Poissons','Reptiles')
+            and (ST_GeometryType(s.the_geom_local) = 'ST_Point')
             ;
         """
         with self.conn.cursor() as cur:
             cur.execute(sql)
         self.conn.commit()
-        print("Vue matérialisée créée : lpoaura_afo.vm_reportgenerator_data")
 
 
     def get_resum_taxo_group(self):
@@ -125,9 +126,69 @@ class SyntheseQueries:
             """
             )
             return cur.fetchall()
-        print("Données résumées par groupe taxonomique récupérées")
 
-
+    def get_resum_data(self):
+        buffer_km = int(self.buffer) 
+        id_area = int(self.id_area)  
+        sql = f"""   WITH study_area AS (
+                            SELECT geom
+                            FROM ref_geo.l_areas
+                            WHERE id_area = {id_area}
+                            AND id_type = ref_geo.get_id_area_type('LPO_REPORT_STUDY')
+                            ),
+                            buffer_area AS (
+                                SELECT ST_Buffer( geom,{buffer_km} * 1000 ) AS geom
+                                FROM study_area
+                            ),
+                            donut_area AS (
+                                SELECT ST_Difference(
+                                    b.geom,
+                                    s.geom
+                                ) AS geom
+                                FROM buffer_area b
+                                CROSS JOIN study_area s
+                            ),
+                            study_data AS (
+                                SELECT d.*
+                                FROM lpoaura_afo.vm_reportgenerator_data d
+                                CROSS JOIN study_area s
+                                WHERE ST_Intersects( d.the_geom_local,s.geom )
+                            ),
+                            donut_data AS (
+                                SELECT d.*
+                                FROM lpoaura_afo.vm_reportgenerator_data d
+                                CROSS JOIN donut_area a
+                                WHERE ST_Intersects(d.the_geom_local, a.geom )
+                            ),
+                            global_data AS (
+                                SELECT d.*
+                                FROM lpoaura_afo.vm_reportgenerator_data d    
+                            )
+                        SELECT
+                            'zone_etude' AS secteur,
+                            COUNT(DISTINCT id_synthese) AS nb_observations,
+                            COUNT(DISTINCT cd_ref) AS nb_especes,
+                            MAX(date_max) AS derniere_observation
+                        FROM study_data
+                        UNION ALL
+                        SELECT
+                            'buffer_seul' AS secteur,
+                            COUNT(DISTINCT id_synthese),
+                            COUNT(DISTINCT cd_ref),
+                            MAX(date_max)
+                        FROM donut_data
+                        UNION ALL
+                        SELECT
+                            'ensemble' AS secteur,
+                            COUNT(DISTINCT id_synthese),
+                            COUNT(DISTINCT cd_ref),
+                            MAX(date_max)
+                        FROM global_data
+                        ;
+        """
+        with self.conn.cursor() as cur:
+            cur.execute(sql)
+            return cur.fetchall()
 
 
     def get_resum_temporal_evolution(self):

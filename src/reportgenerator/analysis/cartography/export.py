@@ -20,13 +20,12 @@ def export_raw_gpkg(rows, output_path, layer_name):
         crs="EPSG:2154"
     )
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+   # output_path.parent.mkdir(parents=True, exist_ok=True)
     gdf.to_file(
         output_path,
         layer=layer_name,
         driver="GPKG"
     )
-
 
 ## copie du projet QGIS template dans le dossier de sortie pour que l'utilisateur puisse ouvrir le projet avec les données exportées
 def copy_qgis_project(template_path: Path, output_path: Path):
