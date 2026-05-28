@@ -27,8 +27,6 @@ def reload_project(project, project_path):
     print("Projet rechargé avec succès")
     return project
 
-
-
 def zoom_layout_maps_to_layer(project, layout, layer_name, margin_ratio=0.1):
     print(f"Recalcul emprise layout : {layout.name()}")
     layers = project.mapLayersByName(layer_name)
@@ -62,7 +60,6 @@ def zoom_layout_maps_to_layer(project, layout, layer_name, margin_ratio=0.1):
             print(f"Zoom carte : {item.displayName()}")
             item.zoomToExtent(extent)
             item.refresh()
-
 
 def relink_gpkg_layers(project, gpkg_path):
 

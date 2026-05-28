@@ -10,7 +10,7 @@ from reportgenerator.queries import SyntheseQueries
 from analysis.common.filesystem import create_analysis_dirs
 from analysis.knowledge_status.analysis import run as run_knowledge_status
 from analysis.cartography.analysis import run_cartography
-
+from analysis.atlas.analysis import run_atlas
 
 
 logger = logging.getLogger(__name__)
@@ -92,11 +92,18 @@ def main():
                 output_dirs=output_dirs
             )
 
-            carto_result = run_cartography(
+            run_cartography(
                 synthese_queries=synthese_queries,
                 output_dirs=output_dirs,
                 area_name=args.area_name
             )
+
+            run_atlas(
+                    synthese_queries=synthese_queries,
+                    output_dirs=output_dirs,
+                    area_name=args.area_name,
+                    run_render=True,
+                )
 
     
     # Générer le rapport Word

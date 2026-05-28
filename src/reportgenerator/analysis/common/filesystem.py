@@ -14,6 +14,7 @@ def create_analysis_dirs(base_dir: Path):
         "tables": base_dir / "tables",
         "maps": base_dir / "maps",
         "dataviz": base_dir / "dataviz",
+        "atlas": base_dir / "atlas",
     }
 
     for path in directories.values():
