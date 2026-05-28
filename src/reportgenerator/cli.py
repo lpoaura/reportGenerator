@@ -98,12 +98,13 @@ def main():
                 area_name=args.area_name
             )
 
-            run_atlas(
-                    synthese_queries=synthese_queries,
-                    output_dirs=output_dirs,
-                    area_name=args.area_name,
-                    run_render=True,
-                )
+            if "atlas_nicheur" in args.list_analyse:
+                run_atlas(
+                        synthese_queries=synthese_queries,
+                        output_dirs=output_dirs,
+                        area_name=args.area_name,
+                        run_render=True,
+                    )
 
     
     # Générer le rapport Word

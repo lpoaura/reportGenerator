@@ -387,6 +387,7 @@ class SyntheseQueries:
                                         COUNT(distinct s.id_synthese) filter (where EXTRACT(year FROM s.date_max) = 2026 ) AS _26
                                 from lpoaura_afo.vm_reportgenerator_data s
                                 left join ref_nomenclatures.t_nomenclatures tn ON tn.cd_nomenclature = s.oiso_code_nidif::text AND tn.id_type = 118 -- a verif
+                                -- On ne prend que les espèces avec des codes de nidification possibles, probables ou certains ou les espèces protégées pour la génération de l'atlas
                                 GROUP BY s.cd_ref, s.vn_nom_sci,lr_aura, lr_france, s.tx_group2_inpn_v2,REPLACE(REPLACE(REPLACE(split_part(s.vn_nom_fr, ', ', 1),'(La)',''),'(Le)',''),'(L'')','') )
                     select id, cd_ref,lb_nom,nom_vern,code_repro_max,nb_annee,nb_observations,group_taxo,nb_effectif_max, nb_data_nidif,nb_maille,lr_qgis,emprise_presence,
                           case  when lr_qgis ='EX' then '#000000'
@@ -430,7 +431,8 @@ class SyntheseQueries:
                         case when _24>0 then '✔' else '-' end as _24,
                         case when _25>0 then '✔' else '-' end as _25,
                         case when _26>0 then '✔' else '-' end as _26
-                        from prep;
+                        from prep
+                         WHERE ( code_repro_max in ( 'Possible', 'Probable', 'Certain') OR lr_qgis in ('CR','EN','VU','NT') ) ;
                         """)
             return cur.fetchall()
 
@@ -455,7 +457,7 @@ class SyntheseQueries:
                                         else 'Absence de code'
                                     end AS code_repro_max
                                 from lpoaura_afo.vm_reportgenerator_data s
-                                left join ref_nomenclatures.t_nomenclatures tn ON tn.cd_nomenclature = s.oiso_code_nidif::text AND tn.id_type = 118 -- a verif
+                                left join ref_nomenclatures.t_nomenclatures tn ON tn.cd_nomenclature = s.oiso_code_nidif::text AND tn.id_type = 118 -- a verif                            
                                 GROUP BY s.cd_ref,group_taxo,s.vn_nom_sci,s.geom_maille,REPLACE(REPLACE(REPLACE(split_part(s.vn_nom_fr, ', ', 1),'(La)',''),'(Le)',''),'(L'')','');
                                 """)
             return cur.fetchall()
