@@ -1,5 +1,5 @@
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 
 def launch_qgis_atlas_render(project_path, output_path, layout_name="atlas_species"):
@@ -8,10 +8,16 @@ def launch_qgis_atlas_render(project_path, output_path, layout_name="atlas_speci
 
     print("Lancement du rendu atlas QGIS...")
 
-    subprocess.run([
-        str(qgis_python),
-        str(script_path),
-        "--project", str(project_path),
-        "--output", str(output_path),
-        "--layout", layout_name,
-    ], check=True)
+    subprocess.run(
+        [
+            str(qgis_python),
+            str(script_path),
+            "--project",
+            str(project_path),
+            "--output",
+            str(output_path),
+            "--layout",
+            layout_name,
+        ],
+        check=True,
+    )

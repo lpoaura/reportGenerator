@@ -1,13 +1,13 @@
-from docx.shared import Inches, Pt
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
+from docx.shared import Inches, Pt
 
-from analysis.common.tables.utils import (
+from reportgenerator.analysis.common.tables.utils import (
     apply_status_style_species,
     italicize_cell_species,
     set_cell_background,
-    set_cell_text_color,
     set_cell_font,
+    set_cell_text_color,
 )
 
 # =========================================================
@@ -75,30 +75,21 @@ LPO_GREY = "626a6e"
 # INSERTION TABLEAU
 # =========================================================
 
-def insert_species_table(
-    document,
-    placeholder,
-    data
-):
+
+def insert_species_table(document, placeholder, data):
 
     for paragraph in document.paragraphs:
 
         if placeholder not in paragraph.text:
             continue
 
-        paragraph.text = paragraph.text.replace(
-            placeholder,
-            ""
-        )
+        paragraph.text = paragraph.text.replace(placeholder, "")
 
         # =====================================================
         # CREATION TABLE
         # =====================================================
 
-        table = document.add_table(
-            rows=1,
-            cols=len(SPECIES_COLUMNS)
-        )
+        table = document.add_table(rows=1, cols=len(SPECIES_COLUMNS))
 
         table.alignment = WD_TABLE_ALIGNMENT.CENTER
         table.autofit = False
@@ -119,23 +110,13 @@ def insert_species_table(
             cell.width = COLUMN_WIDTHS[field]
 
             # style fond
-            set_cell_background(
-                cell,
-                LPO_BLUE
-            )
+            set_cell_background(cell, LPO_BLUE)
 
             # texte
-            set_cell_text_color(
-                cell,
-                LPO_WHITE
-            )
+            set_cell_text_color(cell, LPO_WHITE)
 
             # police
-            set_cell_font(
-                cell,
-                bold=True,
-                size=10
-            )
+            set_cell_font(cell, bold=True, size=10)
 
             # alignement
             paragraph_header = cell.paragraphs[0]
@@ -165,38 +146,27 @@ def insert_species_table(
                 cell.width = COLUMN_WIDTHS[field]
 
                 # police générale
-                set_cell_font(
-                    cell,
-                    size=10
-                )
+                set_cell_font(cell, size=10)
 
                 # centrage
                 if field in CENTER_FIELDS:
 
-                    cell.paragraphs[0].alignment = (
-                        WD_PARAGRAPH_ALIGNMENT.CENTER
-                    )
+                    cell.paragraphs[0].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
                 # italique scientifique
                 if field in SCIENTIFIC_FIELDS:
 
                     italicize_cell_species(cell)
 
-
                 # couleurs statuts
                 if field in STATUS_FIELDS:
 
-                    apply_status_style_species(
-                        cell,
-                        str(value)
-                    )
+                    apply_status_style_species(cell, str(value))
 
         # =====================================================
         # INSERTION
         # =====================================================
 
-        paragraph._element.addnext(
-            table._element
-        )
+        paragraph._element.addnext(table._element)
 
         break

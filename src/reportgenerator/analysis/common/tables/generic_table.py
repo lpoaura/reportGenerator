@@ -1,27 +1,17 @@
 from docx.shared import Inches
-from analysis.common.tables.utils import style_header_cell
+
+from reportgenerator.analysis.common.tables.utils import style_header_cell
 
 
-def insert_generic_table(
-    document,
-    placeholder,
-    data,
-    columns
-):
+def insert_generic_table(document, placeholder, data, columns):
 
     for paragraph in document.paragraphs:
 
         if placeholder in paragraph.text:
 
-            paragraph.text = paragraph.text.replace(
-                placeholder,
-                ""
-            )
+            paragraph.text = paragraph.text.replace(placeholder, "")
 
-            table = document.add_table(
-                rows=1,
-                cols=len(columns)
-            )
+            table = document.add_table(rows=1, cols=len(columns))
 
             table.style = "Table Grid"
 
@@ -47,6 +37,7 @@ def insert_generic_table(
 
             break
 
+
 def insert_general_table(document, placeholder, data, columns):
 
     for paragraph in document.paragraphs:
@@ -54,10 +45,7 @@ def insert_general_table(document, placeholder, data, columns):
         if placeholder in paragraph.text:
 
             paragraph.text = paragraph.text.replace(placeholder, "")
-            table = document.add_table(
-                rows=1,
-                cols=len(columns)
-            )
+            table = document.add_table(rows=1, cols=len(columns))
             table.style = "Grid Table 4 Accent 6"
             # HEADER
             header = table.rows[0].cells
@@ -67,15 +55,15 @@ def insert_general_table(document, placeholder, data, columns):
 
             # DATA
             for item in data:
-                #print("ITEM =", item)
+                # print("ITEM =", item)
                 row = table.add_row().cells
 
                 for i, col in enumerate(columns):
-                    #print("COL =", col)
+                    # print("COL =", col)
                     key = col[1]
-                    #print("KEY =", key)
+                    # print("KEY =", key)
                     value = item.get(key, "")
-                    #print("VALUE =", value)
+                    # print("VALUE =", value)
                     row[i].text = str(value)
             paragraph._element.addnext(table._element)
 

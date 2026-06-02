@@ -1,5 +1,7 @@
 import plotly.graph_objects as go
-from analysis.common.theme import LPO_COLORS
+
+from reportgenerator.analysis.common.theme import LPO_COLORS
+
 
 def safe_int(value):
     if value is None:
@@ -17,62 +19,36 @@ def create_temporal_evolution_chart(data, output_path: str):
 
     fig = go.Figure()
 
-    fig.add_trace(go.Scatter(
-        x=years,
-        y=nb_data,
-        name="Nombre de données",
-        mode="lines+markers",
-        line=dict(
-            shape="spline",
-            smoothing=0.8,
-            color=LPO_COLORS["blue"],
-            width=4
-        ),
-        marker=dict(
-            size=7
+    fig.add_trace(
+        go.Scatter(
+            x=years,
+            y=nb_data,
+            name="Nombre de données",
+            mode="lines+markers",
+            line=dict(shape="spline", smoothing=0.8, color=LPO_COLORS["blue"], width=4),
+            marker=dict(size=7),
         )
-    ))
+    )
 
-    fig.add_trace(go.Scatter(
-        x=years,
-        y=nb_species,
-        name="Nombre d'espèces",
-        mode="lines+markers",
-        yaxis="y2",
-        line=dict(
-            shape="spline",
-            smoothing=0.8,
-            color=LPO_COLORS["orange"],
-            width=4
-        ),
-        marker=dict(
-            size=7
+    fig.add_trace(
+        go.Scatter(
+            x=years,
+            y=nb_species,
+            name="Nombre d'espèces",
+            mode="lines+markers",
+            yaxis="y2",
+            line=dict(
+                shape="spline", smoothing=0.8, color=LPO_COLORS["orange"], width=4
+            ),
+            marker=dict(size=7),
         )
-    ))
+    )
 
     fig.update_layout(
-
         title="Évolution temporelle des connaissances",
-
-        
-        xaxis=dict(
-            title="Année"
-        ),
-
-        yaxis=dict(
-            title="Nombre de données"
-        ),
-
-        yaxis2=dict(
-            title="Nombre d'espèces",
-            overlaying="y",
-            side="right"
-        )
+        xaxis=dict(title="Année"),
+        yaxis=dict(title="Nombre de données"),
+        yaxis2=dict(title="Nombre d'espèces", overlaying="y", side="right"),
     )
 
-    fig.write_image(
-        output_path,
-        width=1400,
-        height=700,
-        scale=2
-    )
+    fig.write_image(output_path, width=1400, height=700, scale=2)

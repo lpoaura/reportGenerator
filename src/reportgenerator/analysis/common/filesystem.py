@@ -1,5 +1,5 @@
+import shutil
 from pathlib import Path
-import shutil 
 
 
 def create_analysis_dirs(base_dir: Path):

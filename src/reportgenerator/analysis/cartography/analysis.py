@@ -1,6 +1,11 @@
-from analysis.cartography.export import export_raw_gpkg, copy_qgis_project
-from analysis.cartography.qgis_launcher import launch_qgis_render
 from pathlib import Path
+
+from reportgenerator.analysis.cartography.export import (
+    copy_qgis_project,
+    export_raw_gpkg,
+)
+from reportgenerator.analysis.cartography.qgis_launcher import launch_qgis_render
+
 
 def run_cartography(synthese_queries, output_dirs, area_name):
 
@@ -14,13 +19,9 @@ def run_cartography(synthese_queries, output_dirs, area_name):
     template_path = BASE_DIR / "templates" / "projet_modele.qgs"
     output_path = f"{output_dirs['root']}/projet_{area_name}.qgs"
 
-    project_path = copy_qgis_project(   
-        template_path=template_path,
-        output_path=output_path
+    project_path = copy_qgis_project(
+        template_path=template_path, output_path=output_path
     )
 
     # 3. RENDER QGIS
-    launch_qgis_render(
-    project_path=output_path,
-    output_dir=output_dirs["maps"]
-    )
+    launch_qgis_render(project_path=output_path, output_dir=output_dirs["maps"])

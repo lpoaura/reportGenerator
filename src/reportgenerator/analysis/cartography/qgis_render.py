@@ -5,11 +5,11 @@ from pathlib import Path
 
 from qgis.core import (
     QgsApplication,
-    QgsProject,
     QgsLayoutExporter,
-    QgsVectorLayer,
+    QgsLayoutItemMap,
+    QgsProject,
     QgsRectangle,
-    QgsLayoutItemMap
+    QgsVectorLayer,
 )
 
 
@@ -20,12 +20,13 @@ def reload_project(project, project_path):
     print("Rechargement du projet...")
     project.clear()
     loaded = project.read(str(project_path))
-    
+
     if not loaded:
         raise Exception(f"Impossible de recharger le projet : {project_path}")
-    
+
     print("Projet rechargé avec succès")
     return project
+
 
 def zoom_layout_maps_to_layer(project, layout, layer_name, margin_ratio=0.1):
     print(f"Recalcul emprise layout : {layout.name()}")
@@ -38,7 +39,7 @@ def zoom_layout_maps_to_layer(project, layout, layer_name, margin_ratio=0.1):
     if not layer.isValid():
         print(f"Couche invalide : {layer_name}")
         return
-    
+
     # important
     layer.updateExtents()
     extent = QgsRectangle(layer.extent())
@@ -61,6 +62,7 @@ def zoom_layout_maps_to_layer(project, layout, layer_name, margin_ratio=0.1):
             item.zoomToExtent(extent)
             item.refresh()
 
+
 def relink_gpkg_layers(project, gpkg_path):
 
     print("Relink des couches GPKG...")
@@ -81,13 +83,10 @@ def relink_gpkg_layers(project, gpkg_path):
         print(f"Relink : {layer.name()}")
         print(f"  -> {new_source}")
 
-        layer.setDataSource(
-            new_source,
-            layer.name(),
-            "ogr"
-        )
+        layer.setDataSource(new_source, layer.name(), "ogr")
 
         layer.reload()
+
 
 def set_group_visibility(project, group_name, visibility):
 
@@ -121,9 +120,8 @@ def main():
 
     output_path.mkdir(parents=True, exist_ok=True)
 
-
     # Init QGIS
-    QgsApplication.setPrefixPath("C:/Program Files/QGIS/3_40", True )
+    QgsApplication.setPrefixPath("C:/Program Files/QGIS/3_40", True)
     qgs = QgsApplication([], False)
     qgs.initQgis()
 
@@ -133,10 +131,7 @@ def main():
     loaded = project.read(str(project_path))
     print("Projet chargé :", loaded)
     if not loaded:
-        raise Exception(
-            f"Impossible de charger le projet : {project_path}"
-        )
-
+        raise Exception(f"Impossible de charger le projet : {project_path}")
 
     manager = project.layoutManager()
     root = project.layerTreeRoot()

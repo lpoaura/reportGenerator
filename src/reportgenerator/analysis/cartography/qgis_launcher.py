@@ -1,6 +1,7 @@
 import subprocess
 from pathlib import Path
 
+
 def launch_qgis_render(project_path, output_dir):
 
     qgis_python = Path(r"C:\Program Files\QGIS\3_40\bin\python-qgis-ltr.bat")
@@ -9,9 +10,14 @@ def launch_qgis_render(project_path, output_dir):
 
     print("Lancement du rendu QGIS...")
 
-    subprocess.run([
-        qgis_python,
-        str(script),
-        "--project", str(project_path),
-        "--output", str(output_dir)
-    ], check=True)
+    subprocess.run(
+        [
+            qgis_python,
+            str(script),
+            "--project",
+            str(project_path),
+            "--output",
+            str(output_dir),
+        ],
+        check=True,
+    )

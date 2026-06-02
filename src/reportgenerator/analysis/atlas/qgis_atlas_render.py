@@ -1,17 +1,18 @@
-from pathlib import Path
 import argparse
+from pathlib import Path
 
 from qgis.core import (
     QgsApplication,
-    QgsProject,
-    QgsVectorLayer,
+    QgsFeatureRequest,
     QgsLayoutExporter,
-    QgsRectangle,
     QgsLayoutItemMap,
-    QgsFeatureRequest
+    QgsProject,
+    QgsRectangle,
+    QgsVectorLayer,
 )
 
 QGIS_PREFIX = r"C:\Program Files\QGIS\3_40"
+
 
 def reload_project(project, project_path):
     print("Sauvegarde du projet...")
@@ -20,12 +21,13 @@ def reload_project(project, project_path):
     print("Rechargement du projet...")
     project.clear()
     loaded = project.read(str(project_path))
-    
+
     if not loaded:
         raise Exception(f"Impossible de recharger le projet : {project_path}")
-    
+
     print("Projet rechargé avec succès")
     return project
+
 
 def relink_gpkg_layers(project, gpkg_path):
 
@@ -47,15 +49,18 @@ def relink_gpkg_layers(project, gpkg_path):
         print(f"Relink : {layer.name()}")
         print(f"  -> {new_source}")
 
-        layer.setDataSource(
-            new_source,
-            layer.name(),
-            "ogr"
-        )
+        layer.setDataSource(new_source, layer.name(), "ogr")
 
         layer.reload()
 
-def get_area_zone_extent(project,layer_name="atlas_area_zone",feature_name="Périmètres d'étude",name_field="secteur",margin_ratio=0.10,):
+
+def get_area_zone_extent(
+    project,
+    layer_name="atlas_area_zone",
+    feature_name="Périmètres d'étude",
+    name_field="secteur",
+    margin_ratio=0.10,
+):
 
     print("Calcul emprise atlas fixe...")
     layers = project.mapLayersByName(layer_name)
@@ -63,12 +68,12 @@ def get_area_zone_extent(project,layer_name="atlas_area_zone",feature_name="Pér
         raise Exception(f"Couche introuvable : {layer_name}")
 
     layer = layers[0]
-    expression = f'"{name_field}" = \'{feature_name}\''
+    expression = f"\"{name_field}\" = '{feature_name}'"
     request = QgsFeatureRequest().setFilterExpression(expression)
     features = list(layer.getFeatures(request))
 
     if not features:
-        raise Exception( f"Feature introuvable : {feature_name}"  )
+        raise Exception(f"Feature introuvable : {feature_name}")
 
     feature = features[0]
     geom = feature.geometry()
@@ -85,6 +90,7 @@ def get_area_zone_extent(project,layer_name="atlas_area_zone",feature_name="Pér
     print(extent.toString())
     return extent
 
+
 def apply_extent_to_layout_maps(layout, extent):
     map_count = 0
     for item in layout.items():
@@ -94,15 +100,16 @@ def apply_extent_to_layout_maps(layout, extent):
             item.invalidateCache()
             item.refresh()
             map_count += 1
-            
+
     print(f"{map_count} cartes mises à jour")
+
 
 def run_atlas(project_path: Path, output_path: Path, layout_name: str):
 
     QgsApplication.setPrefixPath(QGIS_PREFIX, True)
     qgs = QgsApplication([], False)
     qgs.initQgis()
-    gpkg_path = ( Path(project_path).parent / "data" / "atlas.gpkg" )
+    gpkg_path = Path(project_path).parent / "data" / "atlas.gpkg"
 
     print("ATLAS render...")
     print(f"Project path: {project_path}")
@@ -115,7 +122,7 @@ def run_atlas(project_path: Path, output_path: Path, layout_name: str):
         project = QgsProject.instance()
         ok = project.read(str(project_path))
         if not ok:
-            raise Exception( f"Impossible de charger le projet : {project_path}")
+            raise Exception(f"Impossible de charger le projet : {project_path}")
         print("Projet chargé")
 
         # -----------------------------
@@ -135,7 +142,7 @@ def run_atlas(project_path: Path, output_path: Path, layout_name: str):
         layout = layout_manager.layoutByName(layout_name)
 
         if layout is None:
-            raise Exception( f"Layout introuvable : {layout_name}"  )
+            raise Exception(f"Layout introuvable : {layout_name}")
 
         print(f"Layout trouvé : {layout.name()}")
 
@@ -144,29 +151,33 @@ def run_atlas(project_path: Path, output_path: Path, layout_name: str):
         # -----------------------------
         # Emprise atlas fixe
         # -----------------------------
-        fixed_extent = get_area_zone_extent(project,layer_name="atlas_area_zone",feature_name="Périmètres d''étude",name_field="secteur",margin_ratio=0.10)
+        fixed_extent = get_area_zone_extent(
+            project,
+            layer_name="atlas_area_zone",
+            feature_name="Périmètres d''étude",
+            name_field="secteur",
+            margin_ratio=0.10,
+        )
 
         # -----------------------------
         # Atlas
         # -----------------------------
         atlas = layout.atlas()
         if not atlas.enabled():
-            raise Exception( f"L'atlas n'est pas activé : {layout_name}" )
+            raise Exception(f"L'atlas n'est pas activé : {layout_name}")
         print("Atlas activé")
         atlas.updateFeatures()
         feature_count = atlas.count()
         print(f"{feature_count} pages atlas détectées")
 
         if feature_count == 0:
-            raise Exception(
-                "Aucune feature atlas détectée"
-            )
+            raise Exception("Aucune feature atlas détectée")
 
         # -----------------------------
         # Dossier export
         # -----------------------------
         export_folder = output_path.parent
-        export_folder.mkdir( parents=True, exist_ok=True )
+        export_folder.mkdir(parents=True, exist_ok=True)
         # -----------------------------
         # Rendu atlas
         # -----------------------------
@@ -193,18 +204,18 @@ def run_atlas(project_path: Path, output_path: Path, layout_name: str):
             except Exception:
                 species_name = f"species_{i+1}"
             print(f"Espèce : {species_name}")
-            safe_name = (str(species_name).replace(" ", "_").replace("/", "_")  )
+            safe_name = str(species_name).replace(" ", "_").replace("/", "_")
             # -----------------------------
             # Export image
             # -----------------------------
-            image_path = ( export_folder / f"{i+1:03d}_{safe_name}.png")
+            image_path = export_folder / f"{i+1:03d}_{safe_name}.png"
             print(f"Export : {image_path.name}")
             exporter = QgsLayoutExporter(layout)
             settings = QgsLayoutExporter.ImageExportSettings()
             settings.dpi = 150
-            result = exporter.exportToImage( str(image_path), settings )
+            result = exporter.exportToImage(str(image_path), settings)
             if result != QgsLayoutExporter.Success:
-                print( f"Erreur export pour : {species_name}" )
+                print(f"Erreur export pour : {species_name}")
             else:
                 print(f"Export OK : {image_path.name}")
         atlas.endRender()

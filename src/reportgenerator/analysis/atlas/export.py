@@ -1,7 +1,9 @@
-import pandas as pd
-import geopandas as gpd
-from shapely import wkt, wkb
 from pathlib import Path
+
+import geopandas as gpd
+import pandas as pd
+from shapely import wkb, wkt
+
 
 def _to_geom(value):
     if value is None or value == "":

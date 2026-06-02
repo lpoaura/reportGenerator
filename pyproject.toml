@@ -3,7 +3,7 @@ name = "reportgenerator"
 version = "0.1.0"
 description = ""
 authors = [
-    {name = "lpofredc",email = "frederic.cloitre@lpo.fr"}
+    {name = "afourneyron", email = "axel.fourneyron@lpo.fr"}
 ]
 readme = "README.md"
 requires-python = ">=3.12"
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [tool.poetry.scripts]
-reportgenerator = "cli:main"
+reportgenerator = "reportgenerator.cli:main"
 
 [tool.poetry]
 packages = [{include = "reportgenerator", from = "src"}]
@@ -25,3 +25,9 @@ packages = [{include = "reportgenerator", from = "src"}]
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[dependency-groups]
+dev = [
+    "black (>=26.5.1,<27.0.0)",
+    "isort (>=8.0.1,<9.0.0)"
+]

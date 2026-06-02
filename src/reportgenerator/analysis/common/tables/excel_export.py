@@ -1,49 +1,23 @@
 from pathlib import Path
 
 import pandas as pd
-
 from openpyxl import Workbook
-from openpyxl.styles import (
-    PatternFill,
-    Font,
-    Alignment,
-    Border,
-    Side
-)
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
-
 
 # =========================================================
 # STYLES LPO
 # =========================================================
 
-HEADER_FILL = PatternFill(
-    start_color="0088cc",
-    end_color="0088cc",
-    fill_type="solid"
-)
+HEADER_FILL = PatternFill(start_color="0088cc", end_color="0088cc", fill_type="solid")
 
-HEADER_FONT = Font(
-    color="FFFFFF",
-    bold=True
-)
+HEADER_FONT = Font(color="FFFFFF", bold=True)
 
-THIN_BORDER = Border(
-    bottom=Side(
-        border_style="thin",
-        color="CCCCCC"
-    )
-)
+THIN_BORDER = Border(bottom=Side(border_style="thin", color="CCCCCC"))
 
-ITALIC_FONT = Font(
-    italic=True,
-    color="606060"
-)
+ITALIC_FONT = Font(italic=True, color="606060")
 
-CENTER = Alignment(
-    horizontal="center",
-    vertical="center"
-)
+CENTER = Alignment(horizontal="center", vertical="center")
 
 STATUS_COLORS = {
     "EX": ("000000", "FFFFFF"),
@@ -62,10 +36,8 @@ STATUS_COLORS = {
 # EXPORT EXCEL
 # =========================================================
 
-def export_species_excel(
-    data,
-    output_path
-):
+
+def export_species_excel(data, output_path):
 
     print("Export Excel espèces...")
 
@@ -103,23 +75,12 @@ def export_species_excel(
     # STYLES COLONNES
     # =====================================================
 
-    status_fields = [
-        "lr_france",
-        "lr_aura",
-        "lr_ra",
-        "lr_auv"
-    ]
+    status_fields = ["lr_france", "lr_aura", "lr_ra", "lr_auv"]
 
-    scientific_fields = [
-        "lb_nom",
-        "sci_name"
-    ]
+    scientific_fields = ["lb_nom", "sci_name"]
 
     # mapping nom colonne -> index
-    col_index = {
-        col: idx + 1
-        for idx, col in enumerate(headers)
-    }
+    col_index = {col: idx + 1 for idx, col in enumerate(headers)}
 
     # -----------------------------------------------------
     # noms scientifiques
@@ -159,16 +120,9 @@ def export_species_excel(
 
                 bg, fg = STATUS_COLORS[value]
 
-                cell.fill = PatternFill(
-                    start_color=bg,
-                    end_color=bg,
-                    fill_type="solid"
-                )
+                cell.fill = PatternFill(start_color=bg, end_color=bg, fill_type="solid")
 
-                cell.font = Font(
-                    color=fg,
-                    bold=True
-                )
+                cell.font = Font(color=fg, bold=True)
 
                 cell.alignment = CENTER
 
@@ -178,16 +132,11 @@ def export_species_excel(
 
     for column_cells in ws.columns:
 
-        length = max(
-            len(str(cell.value or ""))
-            for cell in column_cells
-        )
+        length = max(len(str(cell.value or "")) for cell in column_cells)
 
         adjusted = min(length + 4, 40)
 
-        ws.column_dimensions[
-            get_column_letter(column_cells[0].column)
-        ].width = adjusted
+        ws.column_dimensions[get_column_letter(column_cells[0].column)].width = adjusted
 
     # =====================================================
     # OPTIONS EXCEL
@@ -203,10 +152,7 @@ def export_species_excel(
 
     output_path = Path(output_path)
 
-    output_path.parent.mkdir(
-        parents=True,
-        exist_ok=True
-    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     wb.save(output_path)
 

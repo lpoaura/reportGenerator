@@ -1,17 +1,14 @@
-from docx.shared import Pt
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.oxml import OxmlElement, parse_xml
-from docx.oxml.ns import qn, nsdecls
+from docx.oxml.ns import nsdecls, qn
 from docx.shared import Pt, RGBColor
 
-
-from analysis.common.tables.styles import (
+from reportgenerator.analysis.common.tables.styles import (
     LPO_BLUE,
-    LPO_WHITE,
     LPO_GREY,
-    STATUS_COLORS
+    LPO_WHITE,
+    STATUS_COLORS,
 )
-
 
 
 def style_header_cell(cell):
@@ -43,13 +40,9 @@ def italicize_cell(cell):
 
 def set_cell_background(cell, color):
 
-    shading_elm = parse_xml(
-        rf'<w:shd {nsdecls("w")} w:fill="{color}"/>'
-    )
+    shading_elm = parse_xml(rf'<w:shd {nsdecls("w")} w:fill="{color}"/>')
 
-    cell._tc.get_or_add_tcPr().append(
-        shading_elm
-    )
+    cell._tc.get_or_add_tcPr().append(shading_elm)
 
 
 def set_cell_text_color(cell, color):
@@ -58,14 +51,11 @@ def set_cell_text_color(cell, color):
         for run in paragraph.runs:
             run.font.color.rgb = RGBColor.from_string(color)
 
+
 bytes.fromhex
-def set_cell_font(
-    cell,
-    bold=False,
-    italic=False,
-    size=10,
-    font_name="LPO-Regular"
-):
+
+
+def set_cell_font(cell, bold=False, italic=False, size=10, font_name="LPO-Regular"):
 
     for paragraph in cell.paragraphs:
 
@@ -111,10 +101,7 @@ def apply_status_style_species(cell, status):
 
     bg_color, text_color = colors[status]
 
-    set_cell_background(
-        cell,
-        bg_color
-    )
+    set_cell_background(cell, bg_color)
     for paragraph in cell.paragraphs:
         for run in paragraph.runs:
             run.font.bold = True

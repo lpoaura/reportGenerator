@@ -1,32 +1,24 @@
 import shutil
-import pandas as pd
-import geopandas as gpd
-from shapely import wkt, wkb
 from pathlib import Path
+
+import geopandas as gpd
+import pandas as pd
+from shapely import wkb, wkt
 from shapely.geometry.base import BaseGeometry
 
 
 ## export des données brutes pour cartographie QGIS
 def export_raw_gpkg(rows, output_path, layer_name):
 
-    print('Export des données brutes pour cartographie QGIS...')
+    print("Export des données brutes pour cartographie QGIS...")
     df = pd.DataFrame.from_records(rows)
-    df["geometry"] = df["the_geom_local"].apply(
-        lambda x: wkt.loads(x)
-    )
+    df["geometry"] = df["the_geom_local"].apply(lambda x: wkt.loads(x))
     df = df.drop(columns=["the_geom_local"])
-    gdf = gpd.GeoDataFrame(
-        df,
-        geometry="geometry",
-        crs="EPSG:2154"
-    )
+    gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:2154")
 
-   # output_path.parent.mkdir(parents=True, exist_ok=True)
-    gdf.to_file(
-        output_path,
-        layer=layer_name,
-        driver="GPKG"
-    )
+    # output_path.parent.mkdir(parents=True, exist_ok=True)
+    gdf.to_file(output_path, layer=layer_name, driver="GPKG")
+
 
 ## copie du projet QGIS template dans le dossier de sortie pour que l'utilisateur puisse ouvrir le projet avec les données exportées
 def copy_qgis_project(template_path: Path, output_path: Path):
@@ -49,7 +41,7 @@ def copy_qgis_project(template_path: Path, output_path: Path):
 
     attachments = template_path.with_suffix("")  # enlève .qgs
     attachments = attachments.parent / f"{template_path.stem}_attachments"
-  
+
     print("Attachments source:", attachments)
 
     if attachments.is_dir():
@@ -87,20 +79,13 @@ def parse_geometry(value):
 
     return value
 
-def export_gpkg(
-    data,
-    gpkg_path,
-    layer_name,
-    geom_col="geometry",
-    crs="EPSG:2154"
-):
+
+def export_gpkg(data, gpkg_path, layer_name, geom_col="geometry", crs="EPSG:2154"):
 
     print(f"\n--- Export GPKG : {layer_name} ---")
 
     if not data:
-        raise ValueError(
-            f"Aucune donnée fournie pour : {layer_name}"
-        )
+        raise ValueError(f"Aucune donnée fournie pour : {layer_name}")
 
     # dataframe
     df = pd.DataFrame.from_records(data)
@@ -109,9 +94,7 @@ def export_gpkg(
     print(list(df.columns))
 
     if geom_col not in df.columns:
-        raise ValueError(
-            f"Colonne géométrique absente : {geom_col}"
-        )
+        raise ValueError(f"Colonne géométrique absente : {geom_col}")
 
     print(f"Géométrie utilisée : {geom_col}")
 
@@ -145,9 +128,7 @@ def export_gpkg(
 
         print("Type géométrie détecté : WKT")
 
-        df["geometry"] = df[geom_col].apply(
-            lambda x: wkt.loads(x) if x else None
-        )
+        df["geometry"] = df[geom_col].apply(lambda x: wkt.loads(x) if x else None)
 
     # ---------------------------------------------------
     # CAS 3 : WKB HEX
@@ -163,9 +144,7 @@ def export_gpkg(
 
     else:
 
-        raise ValueError(
-            f"Type géométrie non supporté : {type(first_geom)}"
-        )
+        raise ValueError(f"Type géométrie non supporté : {type(first_geom)}")
 
     # suppression ancienne géométrie
     if geom_col != "geometry":
@@ -173,28 +152,17 @@ def export_gpkg(
         df = df.drop(columns=[geom_col])
 
     # création geodataframe
-    gdf = gpd.GeoDataFrame(
-        df,
-        geometry="geometry",
-        crs=crs
-    )
+    gdf = gpd.GeoDataFrame(df, geometry="geometry", crs=crs)
 
     # création dossier
     gpkg_path = Path(gpkg_path)
 
-    gpkg_path.parent.mkdir(
-        parents=True,
-        exist_ok=True
-    )
+    gpkg_path.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"Export vers : {gpkg_path}")
     print(f"Nombre d'entités : {len(gdf)}")
 
     # export
-    gdf.to_file(
-        gpkg_path,
-        layer=layer_name,
-        driver="GPKG"
-    )
+    gdf.to_file(gpkg_path, layer=layer_name, driver="GPKG")
 
     print(f"Couche exportée : {layer_name}")

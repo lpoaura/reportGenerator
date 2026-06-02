@@ -13,8 +13,8 @@ class SyntheseQueries:
 
     def set_global_data(self):
         """Création de la vue matérialisée pour le rapport"""
-        buffer_km = int(self.buffer) 
-        id_area = int(self.id_area)  
+        buffer_km = int(self.buffer)
+        id_area = int(self.id_area)
 
         sql = f"""
             drop materialized view if exists lpoaura_afo.vm_reportgenerator_data;
@@ -110,11 +110,9 @@ class SyntheseQueries:
             cur.execute(sql)
         self.conn.commit()
 
-
     def get_resum_taxo_group(self):
         with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                f"""
+            cur.execute(f"""
                   with   list_esp_lr as (
                         select distinct s.id_synthese from lpoaura_afo.vm_reportgenerator_data s
                         where ( s.lr_aura in ('CR','EN','VU','NT') and s.tx_group2_inpn_v2 = 'Oiseaux' and oiso_status_nidif in ('Certain','Possible','Probable') )
@@ -135,13 +133,12 @@ class SyntheseQueries:
                             , count(distinct(s.cd_ref)) filter ( where mortality_cause in ('ROAD_VEHICLE','UNKNOWN_TRANSPORT','OTHER_TRANSPORT') )as nb_esp_mortalite
                     from lpoaura_afo.vm_reportgenerator_data s
                     group by s.tx_group2_inpn_v2
-            """
-            )
+            """)
             return cur.fetchall()
 
     def get_resum_data(self):
-        buffer_km = int(self.buffer) 
-        id_area = int(self.id_area)  
+        buffer_km = int(self.buffer)
+        id_area = int(self.id_area)
         sql = f"""   WITH study_area AS (
                             SELECT geom
                             FROM ref_geo.l_areas
@@ -202,11 +199,9 @@ class SyntheseQueries:
             cur.execute(sql)
             return cur.fetchall()
 
-
     def get_resum_temporal_evolution(self):
         with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                f"""
+            cur.execute(f"""
                   with   list_esp_lr as (
                         select distinct s.id_synthese from lpoaura_afo.vm_reportgenerator_data s
                         where ( s.lr_aura in ('CR','EN','VU','NT') and s.tx_group2_inpn_v2 = 'Oiseaux' and oiso_status_nidif in ('Certain','Possible','Probable') )
@@ -226,28 +221,22 @@ class SyntheseQueries:
                     from lpoaura_afo.vm_reportgenerator_data s
                     where extract(year from s.date_max) >= 2000
                     group by extract(year from s.date_max) ;
-            """
-            )
+            """)
             return cur.fetchall()
-        
 
     def get_raw_geodata(self):
         with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                """
+            cur.execute("""
                 SELECT id_synthese, date_max, cd_ref, count_max, oiso_code_nidif, oiso_status_nidif, ST_AsText(the_geom_local) as the_geom_local, comment_description, observers,behaviour,
                        mortality, mortality_cause, ordre, famille, vn_nom_fr, vn_nom_sci, tx_group2_inpn_v2
                 FROM lpoaura_afo.vm_reportgenerator_data
-                """
-            )
+                """)
             return cur.fetchall()
         print("Données géographiques brutes récupérées")
 
-
     def get_species_data(self):
         with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                f"""
+            cur.execute(f"""
                   with prep as ( select row_number()over() as id,
                                         s.cd_ref,
                                         REPLACE(REPLACE(REPLACE(split_part(s.vn_nom_fr, ', ', 1),'(La)',''),'(Le)',''),'(L'')','') as nom_vern,
@@ -328,13 +317,13 @@ class SyntheseQueries:
                                     end as lr_qgis_color
                                 from prep
                                 order by nom_vern
-            """
-            )
+            """)
             return cur.fetchall()
 
     def get_atlas_species_grid(self):
         with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(""" with prep as (select row_number() over ()                                                                            as id,
+            cur.execute(
+                """ with prep as (select row_number() over ()                                                                            as id,
                                         s.cd_ref,
                                         s.vn_nom_sci as lb_nom,
                                         s.tx_group2_inpn_v2 as group_taxo,
@@ -433,9 +422,9 @@ class SyntheseQueries:
                         case when _26>0 then '✔' else '-' end as _26
                         from prep
                          WHERE ( code_repro_max in ( 'Possible', 'Probable', 'Certain') OR lr_qgis in ('CR','EN','VU','NT') ) ;
-                        """)
+                        """
+            )
             return cur.fetchall()
-
 
     def get_atlas_species_summary(self):
         with self.conn.cursor(row_factory=dict_row) as cur:
@@ -461,11 +450,10 @@ class SyntheseQueries:
                                 GROUP BY s.cd_ref,group_taxo,s.vn_nom_sci,s.geom_maille,REPLACE(REPLACE(REPLACE(split_part(s.vn_nom_fr, ', ', 1),'(La)',''),'(Le)',''),'(L'')','');
                                 """)
             return cur.fetchall()
-       
 
     def get_atlas_area_zone(self):
-        buffer_km = int(self.buffer) 
-        id_area = int(self.id_area)  
+        buffer_km = int(self.buffer)
+        id_area = int(self.id_area)
         sql = f"""
                 select ST_Buffer(l.geom, {buffer_km} * 1000) as geom, 'Périmètres d''étude' as secteur
                 from ref_geo.l_areas l
