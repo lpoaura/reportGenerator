@@ -71,9 +71,7 @@ def main():
     # logger.info(f"Début de génération du rapport {args.area_name} - à {time_launch} :")
 
     # Créer les répertoires de sortie
-    output_dir = args.output_dir or (
-        Path(__file__).resolve().parent / "outputs" / args.area_name
-    )
+    output_dir = (args.output_dir or (Path(__file__).resolve().parent / "outputs" )) / args.area_name
     output_dirs = create_analysis_dirs(output_dir)
 
     with get_connection(args.service) as conn:

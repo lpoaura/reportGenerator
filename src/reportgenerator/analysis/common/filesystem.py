@@ -2,11 +2,18 @@ import shutil
 from pathlib import Path
 
 
+def clear_directory_contents(directory: Path):
+    for child in directory.iterdir():
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+
+
 def create_analysis_dirs(base_dir: Path):
 
-    # Supprimer le répertoire s'il existe déjà
     if base_dir.exists() and base_dir.is_dir():
-        shutil.rmtree(base_dir)
+        clear_directory_contents(base_dir)
 
     directories = {
         "root": base_dir,

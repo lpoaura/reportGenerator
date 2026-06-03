@@ -1,5 +1,8 @@
 import shutil
 from pathlib import Path
+import shutil
+import tempfile
+
 
 import geopandas as gpd
 import pandas as pd
@@ -163,6 +166,18 @@ def export_gpkg(data, gpkg_path, layer_name, geom_col="geometry", crs="EPSG:2154
     print(f"Nombre d'entités : {len(gdf)}")
 
     # export
-    gdf.to_file(gpkg_path, layer=layer_name, driver="GPKG")
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_gpkg = Path(tmp) / "temp.gpkg"
+
+        # Écriture locale
+        gdf.to_file(
+            tmp_gpkg,
+            layer=layer_name,
+            driver="GPKG",
+        )
+
+        # Copie vers CIFS/Samba une fois le GPKG fermé
+        shutil.copy2(tmp_gpkg, gpkg_path)
+    # gdf.to_file(gpkg_path, layer=layer_name, driver="GPKG")
 
     print(f"Couche exportée : {layer_name}")
