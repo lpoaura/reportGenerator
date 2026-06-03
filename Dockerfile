@@ -1,6 +1,5 @@
 FROM python:3.13-slim AS poetry
 
-
 RUN apt update && apt install gdal-bin -y 
 
 RUN apt install -y curl && \
@@ -15,12 +14,18 @@ RUN cd /src && poetry install && poetry build -f wheel
 RUN ls dist
 
 FROM qgis/qgis:3.40
+
+ENV PGSERVICEFILE=/config/pg_service.conf
+ENV BROWSER_PATH=/usr/bin/chromium
 COPY --from=builder /src/dist/*.whl /tmp/
-RUN apt update && apt install -y python3-pip python3-venv
+RUN apt update && apt install -y python3-pip python3-venv chromium
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install /tmp/*.whl && rm /tmp/*.whl
-VOLUME /output
+
+VOLUME ["/output", "/config"]
+
+# COPY ["docker/entrypoint.sh", "/entrypoint.sh"]
 
 ENTRYPOINT ["reportgenerator"]
 

@@ -30,6 +30,15 @@ def main():
     parser.add_argument("--output", required=True, help="Fichier Word de sortie")
 
     parser.add_argument(
+        "--output_dir",
+        type=Path,
+        help=(
+            "Répertoire de sortie des analyses et du rapport "
+            "(par défaut : outputs/<area_name>)"
+        ),
+    )
+
+    parser.add_argument(
         "--id_area",
         type=int,
         required=True,
@@ -62,7 +71,9 @@ def main():
     # logger.info(f"Début de génération du rapport {args.area_name} - à {time_launch} :")
 
     # Créer les répertoires de sortie
-    output_dir = Path(__file__).resolve().parent / "outputs" / args.area_name
+    output_dir = args.output_dir or (
+        Path(__file__).resolve().parent / "outputs" / args.area_name
+    )
     output_dirs = create_analysis_dirs(output_dir)
 
     with get_connection(args.service) as conn:
@@ -99,6 +110,7 @@ def main():
         buffer=args.buffer,
         area_name=args.area_name,
         analysis_result=analysis_result,
+        output_dir=output_dir,
     )
 
     time_end = datetime.now()

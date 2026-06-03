@@ -162,10 +162,10 @@ def generate_report(
     buffer: int,
     area_name: str,
     analysis_result: dict,
+    output_dir: Path,
 ):
 
     TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
-    OUTPUT_DIR = Path(__file__).resolve().parent / "outputs" / area_name
 
     with get_connection(service_name) as conn:
         synthese_queries = SyntheseQueries(conn=conn, id_area=id_area, buffer=buffer)
@@ -174,9 +174,9 @@ def generate_report(
         tableau_resum = synthese_queries.get_resum_data()
 
     template_path = TEMPLATE_DIR / "Rapport_template.docx"
-    dir_dataviz = OUTPUT_DIR / "dataviz"
-    dir_maps = OUTPUT_DIR / "maps"
-    dir_tables = OUTPUT_DIR / "tables"
+    dir_dataviz = output_dir / "dataviz"
+    dir_maps = output_dir / "maps"
+    dir_tables = output_dir / "tables"
 
     print(f"Génération du rapport Word à partir du template {output_file}...")
 
