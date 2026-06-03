@@ -15,10 +15,12 @@ RUN ls dist
 
 FROM qgis/qgis:3.40
 
+
 ENV PGSERVICEFILE=/config/pg_service.conf
-ENV BROWSER_PATH=/usr/bin/chromium
+ENV QT_QPA_PLATFORM=offscreen
+
 COPY --from=builder /src/dist/*.whl /tmp/
-RUN apt update && apt install -y python3-pip python3-venv chromium
+RUN apt update && apt install -y python3-pip python3-venv
 RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install /tmp/*.whl && rm /tmp/*.whl

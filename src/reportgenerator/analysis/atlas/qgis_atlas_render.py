@@ -11,7 +11,7 @@ from qgis.core import (
     QgsVectorLayer,
 )
 
-QGIS_PREFIX = r"C:\Program Files\QGIS\3_40"
+from reportgenerator.analysis.qgis_runtime import resolve_qgis_prefix
 
 
 def reload_project(project, project_path):
@@ -106,7 +106,7 @@ def apply_extent_to_layout_maps(layout, extent):
 
 def run_atlas(project_path: Path, output_path: Path, layout_name: str):
 
-    QgsApplication.setPrefixPath(QGIS_PREFIX, True)
+    QgsApplication.setPrefixPath(str(resolve_qgis_prefix()), True)
     qgs = QgsApplication([], False)
     qgs.initQgis()
     gpkg_path = Path(project_path).parent / "data" / "atlas.gpkg"

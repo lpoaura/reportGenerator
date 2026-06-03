@@ -216,7 +216,11 @@ __marimo__/
 .streamlit/secrets.toml
 
 # Generated docx
-*.docx
+# *.docx
+
+# QGIS
+*.~qgs
 
 # Generated folder
 src/reportgenerator/outputs/
+

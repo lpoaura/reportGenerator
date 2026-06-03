@@ -12,6 +12,8 @@ from qgis.core import (
     QgsVectorLayer,
 )
 
+from reportgenerator.analysis.qgis_runtime import resolve_qgis_prefix
+
 
 def reload_project(project, project_path):
     print("Sauvegarde du projet...")
@@ -121,7 +123,7 @@ def main():
     output_path.mkdir(parents=True, exist_ok=True)
 
     # Init QGIS
-    QgsApplication.setPrefixPath("C:/Program Files/QGIS/3_40", True)
+    QgsApplication.setPrefixPath(str(resolve_qgis_prefix()), True)
     qgs = QgsApplication([], False)
     qgs.initQgis()
 

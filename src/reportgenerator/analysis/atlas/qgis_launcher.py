@@ -1,12 +1,15 @@
 import subprocess
 from pathlib import Path
 
+from reportgenerator.analysis.qgis_runtime import qgis_subprocess_env, resolve_qgis_python
+
 
 def launch_qgis_atlas_render(project_path, output_path, layout_name="atlas_species"):
-    qgis_python = Path(r"C:\Program Files\QGIS\3_40\bin\python-qgis-ltr.bat")
+    qgis_python = resolve_qgis_python()
     script_path = Path(__file__).with_name("qgis_atlas_render.py")
 
     print("Lancement du rendu atlas QGIS...")
+    print("QGIS PYTHON =", qgis_python)
 
     subprocess.run(
         [
@@ -20,4 +23,5 @@ def launch_qgis_atlas_render(project_path, output_path, layout_name="atlas_speci
             layout_name,
         ],
         check=True,
+        env=qgis_subprocess_env(),
     )
