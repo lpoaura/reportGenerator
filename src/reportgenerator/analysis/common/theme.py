@@ -1,5 +1,24 @@
-import plotly.graph_objects as go
-from plotly import io as pio
+from pathlib import Path
+from matplotlib import pyplot as plt
+import matplotlib.font_manager as fm
+from matplotlib.font_manager import FontProperties
+
+print("Chargement du thème LPO...")
+
+FONT_DIR = Path(__file__).parent.parent.parent / "templates" / "fonts"
+
+fm.fontManager.addfont(
+    str(FONT_DIR / "LPO-Regular.otf")
+)
+
+fm.fontManager.addfont(
+    str(FONT_DIR / "LPO-Bold.otf")
+)
+
+font_path = FONT_DIR / "LPO-Regular.otf"
+prop = FontProperties(fname=str(font_path))
+print('Proprietes de la police:', prop.get_name())
+fm.fontManager.addfont(str(font_path))
 
 LPO_COLORS = {
     "blue": "#0088cc",
@@ -13,27 +32,30 @@ LPO_COLORS = {
 }
 
 
-lpo_template = go.layout.Template(
-    layout=go.Layout(
-        font=dict(family="LPO-Regular", size=16, color=LPO_COLORS["black"]),
-        title=dict(
-            font=dict(family="LPO-Bold", size=24, color=LPO_COLORS["dark"]),
-            x=0.02,
-            xanchor="left",
-        ),
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        hovermode="x unified",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        margin=dict(l=60, r=60, t=80, b=60),
-        xaxis=dict(
-            showgrid=True, gridcolor="#DDDDDD", zeroline=False, linecolor="#AAAAAA"
-        ),
-        yaxis=dict(
-            showgrid=True, gridcolor="#DDDDDD", zeroline=False, linecolor="#AAAAAA"
-        ),
+def apply_lpo_theme():
+    """
+    Applique la charte graphique LPO à Matplotlib.
+    """
+    plt.rcParams.update(
+        {
+            "font.family": "LPO",
+            "font.size": 11,
+            "axes.titlesize": 16,
+            "axes.titleweight": "bold",
+            "axes.labelsize": 12,
+            "xtick.labelsize": 10,
+            "ytick.labelsize": 10,
+            "legend.fontsize": 10,
+            "figure.facecolor": "white",
+            "axes.facecolor": "white",
+            "axes.edgecolor": "#AAAAAA",
+            "axes.linewidth": 1,
+            "grid.color": "#DDDDDD",
+            "grid.linestyle": "--",
+            "grid.linewidth": 0.8,
+            "savefig.bbox": "tight",
+            "savefig.pad_inches": 0.1,
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+        }
     )
-)
-
-pio.templates["lpo"] = lpo_template
-pio.templates.default = "lpo"

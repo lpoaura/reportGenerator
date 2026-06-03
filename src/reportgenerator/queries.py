@@ -468,3 +468,15 @@ class SyntheseQueries:
         with self.conn.cursor() as cur:
             cur.execute(sql)
             return cur.fetchall()
+
+    def update_date_reportgenerator(self):
+        print(f"Update date_reportgenerator pour id_area={self.id_area}")
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT src_gestion.update_reportgenerator_date(%s)
+                """,
+                (self.id_area,)
+            )
+        self.conn.commit()
+        print("Update terminé")

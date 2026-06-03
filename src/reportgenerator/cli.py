@@ -119,6 +119,15 @@ def main():
     print(f"Fin de génération - à {time_end.strftime('%H:%M:%S')}")
     print(f"Temps total d'exécution : {duration}")
 
+    # update uniquement si tout s'est bien passé
+    with get_connection(args.service) as conn:
+        synthese_queries = SyntheseQueries(
+            conn=conn,
+            id_area=args.id_area,
+            buffer=args.buffer
+        )
+        synthese_queries.update_date_reportgenerator()
+
 
 if __name__ == "__main__":
     main()
