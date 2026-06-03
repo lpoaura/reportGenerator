@@ -476,7 +476,7 @@ class SyntheseQueries:
                 """
                 SELECT src_gestion.update_reportgenerator_date(%s)
                 """,
-                (self.id_area,)
+                (self.id_area,),
             )
         self.conn.commit()
         print("Update terminé")

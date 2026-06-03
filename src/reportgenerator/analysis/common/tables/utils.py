@@ -3,12 +3,9 @@ from docx.oxml import OxmlElement, parse_xml
 from docx.oxml.ns import nsdecls, qn
 from docx.shared import Pt, RGBColor
 
-from reportgenerator.analysis.common.tables.styles import (
-    LPO_BLUE,
-    LPO_GREY,
-    LPO_WHITE,
-    STATUS_COLORS,
-)
+from reportgenerator.analysis.common.tables.styles import (LPO_BLUE, LPO_GREY,
+                                                           LPO_WHITE,
+                                                           STATUS_COLORS)
 
 
 def style_header_cell(cell):

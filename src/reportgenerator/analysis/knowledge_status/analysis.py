@@ -1,7 +1,6 @@
 from reportgenerator.analysis.common.models import AnalysisResult
-from reportgenerator.analysis.knowledge_status.dataviz import (
-    create_temporal_evolution_chart,
-)
+from reportgenerator.analysis.knowledge_status.dataviz import \
+    create_temporal_evolution_chart
 
 
 def run(context, synthese_queries, output_dirs):

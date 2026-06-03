@@ -5,19 +5,19 @@ from pathlib import Path
 
 import pandas as pd
 from docx import Document
-from docx.enum.section import WD_SECTION
-from docx.enum.style import WD_STYLE_TYPE
+# from docx.enum.section import WD_SECTION
+# from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.shared import Inches, Mm
 from docx.text.paragraph import Paragraph
 
-from reportgenerator.analysis.common.tables.excel_export import export_species_excel
-from reportgenerator.analysis.common.tables.generic_table import (
-    insert_general_table,
-    insert_generic_table,
-)
-from reportgenerator.analysis.common.tables.species_table import insert_species_table
+from reportgenerator.analysis.common.tables.excel_export import \
+    export_species_excel
+from reportgenerator.analysis.common.tables.generic_table import \
+    insert_general_table
+from reportgenerator.analysis.common.tables.species_table import \
+    insert_species_table
 from reportgenerator.db_auth import get_connection
 from reportgenerator.queries import SyntheseQueries
 
@@ -84,24 +84,24 @@ def replace_text(document, replacements: dict):
             header[8].text = "Nombre de données mortalité"
             header[9].text = "Nombre espèces mortalité"
 
-            for item in data:
+            # for item in data:
 
-                row = table.add_row().cells
+            #     row = table.add_row().cells
 
-                row[0].text = str(item["group_taxo"])
-                row[1].text = str(item["nb_data_tot"])
-                row[2].text = str(item["nb_espece"])
-                row[3].text = str(item["nb_espece_nicheuse"])
-                row[4].text = str(item["nb_espece_protege"])
-                row[5].text = str(item["nb_espece_protege_nicheuse"])
-                row[6].text = str(item["nb_espece_lr"])
-                row[7].text = str(item["nb_espece_lr_nicheuse"])
-                row[8].text = str(item["nb_data_mortalite"])
-                row[9].text = str(item["nb_esp_mortalite"])
+            #     row[0].text = str(item["group_taxo"])
+            #     row[1].text = str(item["nb_data_tot"])
+            #     row[2].text = str(item["nb_espece"])
+            #     row[3].text = str(item["nb_espece_nicheuse"])
+            #     row[4].text = str(item["nb_espece_protege"])
+            #     row[5].text = str(item["nb_espece_protege_nicheuse"])
+            #     row[6].text = str(item["nb_espece_lr"])
+            #     row[7].text = str(item["nb_espece_lr_nicheuse"])
+            #     row[8].text = str(item["nb_data_mortalite"])
+            #     row[9].text = str(item["nb_esp_mortalite"])
 
-            paragraph._element.addnext(table._element)
+            # paragraph._element.addnext(table._element)
 
-            break
+            # break
 
 
 def insert_image(document, placeholder, image_path):

@@ -1,10 +1,9 @@
 from pathlib import Path
 
-from reportgenerator.analysis.cartography.export import (
-    copy_qgis_project,
-    export_gpkg,
-)
-from reportgenerator.analysis.cartography.qgis_launcher import launch_qgis_render
+from reportgenerator.analysis.cartography.export import (copy_qgis_project,
+                                                         export_gpkg)
+from reportgenerator.analysis.cartography.qgis_launcher import \
+    launch_qgis_render
 
 
 def run_cartography(synthese_queries, output_dirs, area_name):
@@ -12,7 +11,13 @@ def run_cartography(synthese_queries, output_dirs, area_name):
     # 1. DATA
     raw = synthese_queries.get_raw_geodata()
     gpkg_path = f"{output_dirs['data']}/data.gpkg"
-    export_gpkg(raw, gpkg_path, layer_name ="donnees_brutes", geom_col="the_geom_local", crs="EPSG:2154")
+    export_gpkg(
+        raw,
+        gpkg_path,
+        layer_name="donnees_brutes",
+        geom_col="the_geom_local",
+        crs="EPSG:2154",
+    )
 
     # 2. QGIS PROJECT
     BASE_DIR = Path(__file__).resolve().parents[2]

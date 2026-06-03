@@ -1,7 +1,9 @@
 from pathlib import Path
 
-from reportgenerator.analysis.atlas.qgis_launcher import launch_qgis_atlas_render
-from reportgenerator.analysis.cartography.export import copy_qgis_project, export_gpkg
+from reportgenerator.analysis.atlas.qgis_launcher import \
+    launch_qgis_atlas_render
+from reportgenerator.analysis.cartography.export import (copy_qgis_project,
+                                                         export_gpkg)
 
 
 def run_atlas(synthese_queries, output_dirs, area_name, run_render=True):

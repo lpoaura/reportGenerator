@@ -1,23 +1,20 @@
 from pathlib import Path
-from matplotlib import pyplot as plt
+
 import matplotlib.font_manager as fm
+from matplotlib import pyplot as plt
 from matplotlib.font_manager import FontProperties
 
 print("Chargement du thème LPO...")
 
 FONT_DIR = Path(__file__).parent.parent.parent / "templates" / "fonts"
 
-fm.fontManager.addfont(
-    str(FONT_DIR / "LPO-Regular.otf")
-)
+fm.fontManager.addfont(str(FONT_DIR / "LPO-Regular.otf"))
 
-fm.fontManager.addfont(
-    str(FONT_DIR / "LPO-Bold.otf")
-)
+fm.fontManager.addfont(str(FONT_DIR / "LPO-Bold.otf"))
 
 font_path = FONT_DIR / "LPO-Regular.otf"
 prop = FontProperties(fname=str(font_path))
-print('Proprietes de la police:', prop.get_name())
+print("Proprietes de la police:", prop.get_name())
 fm.fontManager.addfont(str(font_path))
 
 LPO_COLORS = {

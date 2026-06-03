@@ -1,8 +1,6 @@
 import shutil
-from pathlib import Path
-import shutil
 import tempfile
-
+from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd

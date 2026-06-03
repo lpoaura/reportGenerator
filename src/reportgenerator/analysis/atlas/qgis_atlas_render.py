@@ -1,15 +1,9 @@
 import argparse
 from pathlib import Path
 
-from qgis.core import (
-    QgsApplication,
-    QgsFeatureRequest,
-    QgsLayoutExporter,
-    QgsLayoutItemMap,
-    QgsProject,
-    QgsRectangle,
-    QgsVectorLayer,
-)
+from qgis.core import (QgsApplication, QgsFeatureRequest, QgsLayoutExporter,
+                       QgsLayoutItemMap, QgsProject, QgsRectangle,
+                       QgsVectorLayer)
 
 from reportgenerator.analysis.qgis_runtime import resolve_qgis_prefix
 

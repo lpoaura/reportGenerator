@@ -8,9 +8,8 @@ from pathlib import Path
 from reportgenerator.analysis.atlas.analysis import run_atlas
 from reportgenerator.analysis.cartography.analysis import run_cartography
 from reportgenerator.analysis.common.filesystem import create_analysis_dirs
-from reportgenerator.analysis.knowledge_status.analysis import (
-    run as run_knowledge_status,
-)
+from reportgenerator.analysis.knowledge_status.analysis import \
+    run as run_knowledge_status
 from reportgenerator.db_auth import get_connection
 from reportgenerator.queries import SyntheseQueries
 from reportgenerator.report import generate_report
@@ -71,7 +70,9 @@ def main():
     # logger.info(f"Début de génération du rapport {args.area_name} - à {time_launch} :")
 
     # Créer les répertoires de sortie
-    output_dir = (args.output_dir or (Path(__file__).resolve().parent / "outputs" )) / args.area_name
+    output_dir = (
+        args.output_dir or (Path(__file__).resolve().parent / "outputs")
+    ) / args.area_name
     output_dirs = create_analysis_dirs(output_dir)
 
     with get_connection(args.service) as conn:
@@ -120,9 +121,7 @@ def main():
     # update uniquement si tout s'est bien passé
     with get_connection(args.service) as conn:
         synthese_queries = SyntheseQueries(
-            conn=conn,
-            id_area=args.id_area,
-            buffer=args.buffer
+            conn=conn, id_area=args.id_area, buffer=args.buffer
         )
         synthese_queries.update_date_reportgenerator()
 

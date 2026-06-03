@@ -3,12 +3,8 @@ from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.shared import Inches, Pt
 
 from reportgenerator.analysis.common.tables.utils import (
-    apply_status_style_species,
-    italicize_cell_species,
-    set_cell_background,
-    set_cell_font,
-    set_cell_text_color,
-)
+    apply_status_style_species, italicize_cell_species, set_cell_background,
+    set_cell_font, set_cell_text_color)
 
 # =========================================================
 # CONFIGURATION STANDARD DU TABLEAU ESPÈCES
