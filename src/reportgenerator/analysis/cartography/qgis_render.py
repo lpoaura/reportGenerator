@@ -111,8 +111,8 @@ def main():
 
     project_path = Path(args.project)
     output_path = Path(args.output)
-    area_name = project_path.stem.split("_")[-1]
-    data_path = project_path.parent / "data" / f"data_{area_name}.gpkg"
+
+    data_path = project_path.parent / "data" / "data.gpkg"
 
     print("Lancement du rendu QGIS...")
     print(f"Project path: {project_path}")

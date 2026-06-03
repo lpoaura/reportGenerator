@@ -11,7 +11,7 @@ def run_cartography(synthese_queries, output_dirs, area_name):
 
     # 1. DATA
     raw = synthese_queries.get_raw_geodata()
-    gpkg_path = f"{output_dirs['data']}/data_{area_name}.gpkg"
+    gpkg_path = f"{output_dirs['data']}/data.gpkg"
     export_raw_gpkg(raw, gpkg_path, "donnees_brutes")
 
     # 2. QGIS PROJECT
