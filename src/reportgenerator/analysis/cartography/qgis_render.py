@@ -6,7 +6,6 @@ from pathlib import Path
 from qgis.core import (QgsApplication, QgsLayoutExporter, QgsLayoutItemMap,
                        QgsProject, QgsRectangle, QgsVectorLayer)
 
-from reportgenerator.analysis.qgis_runtime import resolve_qgis_prefix
 
 
 def reload_project(project, project_path):
@@ -74,7 +73,7 @@ def relink_gpkg_layers(project, gpkg_path):
             continue
 
         layer_name = source.split("|layername=")[1]
-        new_source = f"{gpkg_path}|layername={layer_name}"
+        new_source = f"{gpkg_path}/{layer_name}.gpkg|layername={layer_name}"
 
         print(f"Relink : {layer.name()}")
         print(f"  -> {new_source}")
@@ -108,7 +107,7 @@ def main():
     project_path = Path(args.project)
     output_path = Path(args.output)
 
-    data_path = project_path.parent / "data" / "data.gpkg"
+    data_path = project_path.parent / "data" 
 
     print("Lancement du rendu QGIS...")
     print(f"Project path: {project_path}")
@@ -117,7 +116,10 @@ def main():
     output_path.mkdir(parents=True, exist_ok=True)
 
     # Init QGIS
-    QgsApplication.setPrefixPath(str(resolve_qgis_prefix()), True)
+    #from reportgenerator.analysis.qgis_runtime import resolve_qgis_prefix
+    #QgsApplication.setPrefixPath(str(resolve_qgis_prefix()), True)
+    QgsApplication.setPrefixPath("C:/Program Files/QGIS/3_40", True )
+   
     qgs = QgsApplication([], False)
     qgs.initQgis()
 

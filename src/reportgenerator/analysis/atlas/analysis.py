@@ -12,7 +12,7 @@ def run_atlas(synthese_queries, output_dirs, area_name, run_render=True):
     # 1. Données
     grid_rows = synthese_queries.get_atlas_species_grid()
     summary_rows = synthese_queries.get_atlas_species_summary()
-    area_zone_rows = synthese_queries.get_atlas_area_zone()
+    area_zone_rows = synthese_queries.get_area_zone()
 
     # 2. Export GPKG
     atlas_gpkg_path = output_dirs["data"] / "atlas.gpkg"

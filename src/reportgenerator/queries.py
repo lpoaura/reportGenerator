@@ -111,6 +111,7 @@ class SyntheseQueries:
         self.conn.commit()
 
     def get_resum_taxo_group(self):
+        """Tableau de synthèse par groupe taxonomique pour le rapport"""
         with self.conn.cursor(row_factory=dict_row) as cur:
             cur.execute(f"""
                   with   list_esp_lr as (
@@ -137,6 +138,7 @@ class SyntheseQueries:
             return cur.fetchall()
 
     def get_resum_data(self):
+        """Tableau de synthèse global par zone étude et périmètre pour le rapport"""
         buffer_km = int(self.buffer)
         id_area = int(self.id_area)
         sql = f"""   WITH study_area AS (
@@ -200,6 +202,7 @@ class SyntheseQueries:
             return cur.fetchall()
 
     def get_resum_temporal_evolution(self):
+        """Graphique des évolutions temporelles pour le rapport"""
         with self.conn.cursor(row_factory=dict_row) as cur:
             cur.execute(f"""
                   with   list_esp_lr as (
@@ -225,6 +228,7 @@ class SyntheseQueries:
             return cur.fetchall()
 
     def get_raw_geodata(self):
+        """Données brutes géographiques pour le volet cartographie du rapport + extraction données"""
         with self.conn.cursor(row_factory=dict_row) as cur:
             cur.execute("""
                 SELECT id_synthese, date_max, cd_ref, count_max, oiso_code_nidif, oiso_status_nidif, ST_AsText(the_geom_local) as the_geom_local, comment_description, observers,behaviour,
@@ -451,7 +455,7 @@ class SyntheseQueries:
                                 """)
             return cur.fetchall()
 
-    def get_atlas_area_zone(self):
+    def get_area_zone(self):
         buffer_km = int(self.buffer)
         id_area = int(self.id_area)
         sql = f"""
@@ -480,3 +484,42 @@ class SyntheseQueries:
             )
         self.conn.commit()
         print("Update terminé")
+
+    def delete_reportgenerator_view(self):
+        """Suppression de la vue matérialisée pour le rapport"""
+        sql = f"""
+            drop materialized view if exists lpoaura_afo.vm_reportgenerator_data;
+            ;
+        """
+        with self.conn.cursor() as cur:
+            cur.execute(sql)
+        self.conn.commit()
+
+    def get_knowledge_status_grid(self):
+        with self.conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(""" select row_number() over () as id,
+                                    s.geom_maille,
+                                    COUNT(distinct s.id_synthese) as nb_observations,
+                                    COUNT(distinct s.tx_group2_inpn_v2) as nb_group_taxo,
+                                    string_agg(distinct s.tx_group2_inpn_v2, ', ') as list_group_taxo,
+                                    COUNT(distinct s.id_synthese) filter (where tn."hierarchy"::numeric >= 30) as nb_observation_nidif,
+                                    COUNT(distinct s.cd_ref) as nb_especes,
+                                    string_agg(distinct s.vn_nom_sci, ', ') as list_esp_nom_sci,
+                                    string_agg(distinct s.vn_nom_fr, ', ') as list_esp_nom_fr,
+                                    COUNT(distinct s.cd_ref) filter (where tn."hierarchy"::numeric >= 30) as nb_especes_nidif,
+                                    string_agg(distinct s.vn_nom_sci, ', ') filter (where tn."hierarchy"::numeric >= 30) as list_esp_nidif_nom_sci,
+                                    string_agg(distinct s.vn_nom_fr, ', ') filter (where tn."hierarchy"::numeric >= 30) as list_esp_nidif_nom_fr,
+                                    COUNT(distinct EXTRACT(year FROM s.date_max)) as nb_annee,
+                                    COUNT(distinct s.date_max::date) as nb_jour_observations,
+                                    case when MAX(tn."hierarchy"::numeric) = 0 then 'Espèce absente'
+                                    when MAX(tn."hierarchy"::numeric) < 30 then 'Absence de code'
+                                    when MAX(tn."hierarchy"::numeric) < 40 then 'Possible'
+                                    when MAX(tn."hierarchy"::numeric) < 50 then 'Probable'
+                                    when MAX(tn."hierarchy"::numeric) >= 50 then 'Certain'
+                                    else 'Absence de code'
+                                    end AS code_repro_max
+                            from lpoaura_afo.vm_reportgenerator_data s
+                            left join ref_nomenclatures.t_nomenclatures tn ON tn.cd_nomenclature = s.oiso_code_nidif::text AND tn.id_type = 118 -- a verif
+                            GROUP BY s.geom_maille;
+                                """)
+            return cur.fetchall()

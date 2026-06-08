@@ -124,6 +124,7 @@ def main():
             conn=conn, id_area=args.id_area, buffer=args.buffer
         )
         synthese_queries.update_date_reportgenerator()
+        synthese_queries.delete_reportgenerator_view()
 
 
 if __name__ == "__main__":

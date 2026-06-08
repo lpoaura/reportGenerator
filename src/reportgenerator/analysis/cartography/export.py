@@ -156,7 +156,7 @@ def export_gpkg(data, gpkg_path, layer_name, geom_col="geometry", crs="EPSG:2154
     gdf = gpd.GeoDataFrame(df, geometry="geometry", crs=crs)
 
     # création dossier
-    gpkg_path = Path(gpkg_path)
+    gpkg_path = Path(gpkg_path)/f"{layer_name}.gpkg"
 
     gpkg_path.parent.mkdir(parents=True, exist_ok=True)
 
