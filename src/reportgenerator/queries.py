@@ -66,8 +66,11 @@ class SyntheseQueries:
                                     left join ref_nomenclatures.t_nomenclatures tn on s.id_nomenclature_behaviour = tn.id_nomenclature
                                     where s.id_nomenclature_observation_status = 89
                                     and (t.id_rang = 'ES' or t.id_rang = 'SSES')
-                                    and s.id_nomenclature_valid_status = ANY (ARRAY[ref_nomenclatures.get_id_nomenclature('STATUT_VALID'::character varying, '2'::character varying), ref_nomenclatures.get_id_nomenclature('STATUT_VALID'::character varying, '1'::character varying)]) is true
-                                    --and s.date_max <= date (CONCAT(extract( year from date(now()) - interval '10 year'),'-01-01'))
+                                    AND (s.id_nomenclature_valid_status = ANY(ARRAY [
+                                ref_nomenclatures.get_id_nomenclature('STATUT_VALID'::character varying,'2'::character varying),
+                                ref_nomenclatures.get_id_nomenclature('STATUT_VALID'::character varying, '1'::character varying), 
+                                ref_nomenclatures.get_id_nomenclature('STATUT_VALID'::character varying, '0'::character varying)
+                                                                ])) IS TRUE
                                     and  ST_Within(s.the_geom_local, (select geom from zone_etude ))
                 ),
                 obs_final as ( select  s.*
