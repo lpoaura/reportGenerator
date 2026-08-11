@@ -236,10 +236,16 @@ def generate_report(
     STATUS_COLS = ["lr_auv", "lr_ra", "lr_aura", "lr_france"]
     STATUS_FILTER = ["CR", "EN", "VU", "NT"]
 
+    
+
     tableau_species_lr = pd.DataFrame(tableau_species)
+
+    print(tableau_species_lr[STATUS_COLS].head(20))
+
     mask = tableau_species_lr[STATUS_COLS].isin(STATUS_FILTER).any(axis=1)
     tableau_species_lr = tableau_species_lr[mask]
     tableau_species_lr = tableau_species_lr.to_dict(orient="records")
+
 
     # insertion des tableaux dans le document
     insert_species_table(

@@ -12,6 +12,7 @@ def run_cartography(synthese_queries, output_dirs, area_name):
     raw = synthese_queries.get_raw_geodata()
     area_zone_rows = synthese_queries.get_area_zone()
     knowledge_status_grid = synthese_queries.get_knowledge_status_grid()
+    protected_areas = synthese_queries.get_knowledge_protected_area()
 
     gpkg_path = f"{output_dirs['data']}"
     export_gpkg(
@@ -35,6 +36,14 @@ def run_cartography(synthese_queries, output_dirs, area_name):
         gpkg_path,
         layer_name="statut_connaissance",
         geom_col="geom_maille",
+        crs="EPSG:2154",
+    )
+
+    export_gpkg(
+        protected_areas,
+        gpkg_path,
+        layer_name="zones_protegees",
+        geom_col="geom",
         crs="EPSG:2154",
     )
 

@@ -242,6 +242,7 @@ class SyntheseQueries:
         print("Données géographiques brutes récupérées")
 
     def get_species_data(self):
+        """Données par espèce pour le volet cartographie du rapport + extraction données"""
         with self.conn.cursor(row_factory=dict_row) as cur:
             cur.execute(f"""
                   with prep as ( select row_number()over() as id,
@@ -328,6 +329,7 @@ class SyntheseQueries:
             return cur.fetchall()
 
     def get_atlas_species_grid(self):
+        """Tableau de synthèse par espèce, pour calcule des grilles de l'atlas, analyses de la phénologie, nidification, année d'observation"""
         with self.conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 """ with prep as (select row_number() over ()                                                                            as id,
@@ -434,6 +436,7 @@ class SyntheseQueries:
             return cur.fetchall()
 
     def get_atlas_species_summary(self):
+        """Synthèse des données espèces à la maille pour l'atlas"""
         with self.conn.cursor(row_factory=dict_row) as cur:
             cur.execute(""" select row_number() over () as id,
                                     s.geom_maille,
@@ -459,9 +462,15 @@ class SyntheseQueries:
             return cur.fetchall()
 
     def get_area_zone(self):
+        """Récupération de la zone d'étude et du buffer pour le rapport"""
         buffer_km = int(self.buffer)
         id_area = int(self.id_area)
         sql = f"""
+                select ST_Buffer(l.geom, 50 * 1000) as geom, 'Alentour de la zone d''étude' as secteur
+                from ref_geo.l_areas l
+                where l.id_area = {id_area}
+                and l.id_type = ref_geo.get_id_area_type('LPO_REPORT_STUDY'::character varying)  
+                union 
                 select ST_Buffer(l.geom, {buffer_km} * 1000) as geom, 'Périmètres d''étude' as secteur
                 from ref_geo.l_areas l
                 where l.id_area = {id_area}
@@ -499,6 +508,7 @@ class SyntheseQueries:
         self.conn.commit()
 
     def get_knowledge_status_grid(self):
+        """Tableau de synthèse par maille pour l'état des connaissances : nombre d'observations, nombre d'espèces, nombre d'espèces nicheuses, liste des espèces nicheuses, nombre d'années d'observation, nombre de jours d'observation, code de nidification max"""
         with self.conn.cursor(row_factory=dict_row) as cur:
             cur.execute(""" select row_number() over () as id,
                                     s.geom_maille,
@@ -525,4 +535,74 @@ class SyntheseQueries:
                             left join ref_nomenclatures.t_nomenclatures tn ON tn.cd_nomenclature = s.oiso_code_nidif::text AND tn.id_type = 118 -- a verif
                             GROUP BY s.geom_maille;
                                 """)
+            return cur.fetchall()
+
+
+    def get_knowledge_protected_area(self):
+        """Récupération des différents zonages de protections"""
+        buffer_km = int(self.buffer)
+        id_area = int(self.id_area)
+        sql = f"""with geom_fusion as ( select ST_Buffer(l.geom, {buffer_km} * 10000) as geom_10km -- 10 km pour une emprise plus large des zones de protection
+                                        from ref_geo.l_areas l
+                                        where l.id_area = {id_area}
+                                        and l.id_type = ref_geo.get_id_area_type('LPO_REPORT_STUDY'::character varying) ),
+                    pnr  as (  select bat.type_code, la2.geom as geom
+                                from geom_fusion, ref_geo.l_areas la2
+                                inner join ref_geo.bib_areas_types bat on la2.id_type = bat.id_type
+                                where st_intersects(la2.geom, geom_fusion.geom_10km)
+                                and bat.type_code in ('PNR') ),
+                    apb  as (  select bat.type_code, la2.geom as geom
+                                from geom_fusion, ref_geo.l_areas la2
+                                inner join ref_geo.bib_areas_types bat on la2.id_type = bat.id_type
+                                where st_intersects(la2.geom, geom_fusion.geom_10km)
+                                and bat.type_code in ('APB') ),
+                    znieff  as (  select bat.type_code, la2.geom as geom
+                                from geom_fusion, ref_geo.l_areas la2
+                                inner join ref_geo.bib_areas_types bat on la2.id_type = bat.id_type
+                                where st_intersects(la2.geom, geom_fusion.geom_10km)
+                                and bat.type_code in ('ZNIEFF1') ),
+                    znieff2  as (  select bat.type_code, la2.geom as geom
+                                from geom_fusion, ref_geo.l_areas la2
+                                inner join ref_geo.bib_areas_types bat on la2.id_type = bat.id_type
+                                where st_intersects(la2.geom, geom_fusion.geom_10km)
+                                and bat.type_code in ('ZNIEFF2') ),
+                    rnr  as (  select bat.type_code, la2.geom as geom
+                                from geom_fusion, ref_geo.l_areas la2
+                                inner join ref_geo.bib_areas_types bat on la2.id_type = bat.id_type
+                                where st_intersects(la2.geom, geom_fusion.geom_10km)
+                                and bat.type_code in ('RNR') ),
+                    rnn  as (  select bat.type_code, la2.geom as geom
+                                from geom_fusion, ref_geo.l_areas la2
+                                inner join ref_geo.bib_areas_types bat on la2.id_type = bat.id_type
+                                where st_intersects(la2.geom, geom_fusion.geom_10km)
+                                and bat.type_code in ('RNN') ),
+                    natura as ( select 'Natura 2000' as type_code, ST_Union(la2.geom) as geom
+                                from geom_fusion, ref_geo.l_areas la2
+                                inner join ref_geo.bib_areas_types bat on la2.id_type = bat.id_type
+                                where st_intersects(la2.geom, geom_fusion.geom_10km)
+                                and bat.type_code in ('ZSC','ZPS','SIC')),
+                    /*pn as ( select 'Parc National' as type_code, ST_Union(la2.geom) as geom
+                                from geom_fusion, ref_geo.l_areas la2
+                                inner join ref_geo.bib_areas_types bat on la2.id_type = bat.id_type
+                                where st_intersects(la2.geom, geom_fusion.geom_10km)
+                                and bat.type_code in ('ZC')),*/
+                    all_zone as (/*select * from pn
+                                union*/
+                                select * from pnr
+                                union
+                                select * from znieff
+                                union
+                                select * from znieff2
+                                union
+                                select * from rnn
+                                union
+                                select * from apb
+                                union
+                                select * from rnr
+                                union
+                                select * from natura)
+                select ROW_NUMBER() OVER () as id, * from all_zone;
+        """
+        with self.conn.cursor() as cur:
+            cur.execute(sql)
             return cur.fetchall()

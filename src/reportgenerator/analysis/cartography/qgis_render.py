@@ -116,6 +116,8 @@ def main():
     output_path.mkdir(parents=True, exist_ok=True)
 
     # Init QGIS
+    ### /!\ à décommenter si on veut utiliser le QGIS installé sur serveur. /!\
+
     #from reportgenerator.analysis.qgis_runtime import resolve_qgis_prefix
     #QgsApplication.setPrefixPath(str(resolve_qgis_prefix()), True)
     QgsApplication.setPrefixPath("C:/Program Files/QGIS/3_40", True )
