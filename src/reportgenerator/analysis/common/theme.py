@@ -17,6 +17,26 @@ prop = FontProperties(fname=str(font_path))
 print("Proprietes de la police:", prop.get_name())
 fm.fontManager.addfont(str(font_path))
 
+
+TAXO_COLORS = {
+    "Oiseaux": "#4a90c4",             # bleu ciel
+    "Papillons de jour": "#f2a900",   # orange/jaune vif
+    "Mammifères": "#7a5230",          # brun
+    "Poissons": "#1f5c7a",            # bleu profond
+    "Odonates": "#00a8a0",            # cyan/turquoise
+    "Papillons de nuit": "#4b2e5a",   # violet sombre
+    "Chauves-souris": "#8c7fa8",      # gris-mauve
+    "Orthoptères": "#6faa2c",         # vert vif
+    "Amphibiens": "#4f7942",          # vert olive
+    "Reptiles": "#a68b5b",            # kaki
+}
+
+TAXO_DEFAULT_COLOR = "#999999"  # gris neutre pour tout taxon non listé
+
+
+def get_taxo_color(group_name: str) -> str:
+    return TAXO_COLORS.get(group_name, TAXO_DEFAULT_COLOR)
+
 LPO_COLORS = {
     "blue": "#0088cc",
     "orange": "#eb5f1a",

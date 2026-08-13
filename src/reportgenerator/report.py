@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from pathlib import Path
-
 import pandas as pd
 from docx import Document
 # from docx.enum.section import WD_SECTION
@@ -18,8 +17,16 @@ from reportgenerator.analysis.common.tables.generic_table import \
     insert_general_table
 from reportgenerator.analysis.common.tables.species_table import \
     insert_species_table
+from reportgenerator.analysis.common.tables.zonage_table import \
+    insert_zonage_table
+from reportgenerator.analysis.environmental_zones.summary_text import \
+    build_zonage_summary_text, pivot_zonage_data
+from reportgenerator.analysis.environmental_zones.zone_presentation import \
+    build_zone_presentation_text
+
 from reportgenerator.db_auth import get_connection
 from reportgenerator.queries import SyntheseQueries
+
 
 LAYOUTS = {
     "normal": {
@@ -172,6 +179,7 @@ def generate_report(
         tableau_data = synthese_queries.get_resum_taxo_group()
         tableau_species = synthese_queries.get_species_data()
         tableau_resum = synthese_queries.get_resum_data()
+        zonage_raw = synthese_queries.get_zonage_surfaces()
 
     template_path = TEMPLATE_DIR / "Rapport_template.docx"
     dir_dataviz = output_dir / "dataviz"
@@ -219,6 +227,16 @@ def generate_report(
             "LAST_OBS_GLOBAL": str(ensemble["derniere_observation"]),
         },
     )
+
+    # récupération des zonages environnementaux et génération du texte de synthèse
+    zonage_data = pivot_zonage_data(zonage_raw)
+    zonage_texte = build_zonage_summary_text(zonage_data)
+
+    replace_text(document, {"ZONAGE_TEXTE": zonage_texte})
+    insert_zonage_table(document=document, placeholder="{{TABLE_ZONAGES}}", data=zonage_data)
+
+    zonage_presentation = build_zone_presentation_text(zonage_data)
+    replace_text(document, {"ZONAGE_PRESENTATION": zonage_presentation})
 
     # 2 . Gestion des tableaux dans le fichiers word
     # ===============================================

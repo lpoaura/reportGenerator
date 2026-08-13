@@ -533,10 +533,10 @@ class SyntheseQueries:
                                     end AS code_repro_max
                             from lpoaura_afo.vm_reportgenerator_data s
                             left join ref_nomenclatures.t_nomenclatures tn ON tn.cd_nomenclature = s.oiso_code_nidif::text AND tn.id_type = 118 -- a verif
+                            left join taxonomie.t_taxons t ON t.cd_ref = s.cd_ref
                             GROUP BY s.geom_maille;
                                 """)
             return cur.fetchall()
-
 
     def get_knowledge_protected_area(self):
         """Récupération des différents zonages de protections"""
@@ -605,4 +605,91 @@ class SyntheseQueries:
         """
         with self.conn.cursor() as cur:
             cur.execute(sql)
+            return cur.fetchall()
+
+    def get_zonage_surfaces(self):
+        """Surfaces (km²) par type de zonage environnemental, réparties par anneau
+        (zone d'étude / buffer / 10km), sans chevauchement."""
+        buffer_km = int(self.buffer)
+        id_area = int(self.id_area)
+        sql = f"""
+            with zone_etude as (
+                select l.geom as geom
+                from ref_geo.l_areas l
+                where l.id_area = {id_area}
+                and l.id_type = ref_geo.get_id_area_type('LPO_REPORT_STUDY'::character varying)
+            ),
+            zone_buffer as (
+                select ST_Difference(
+                    ST_Buffer(z.geom, {buffer_km} * 1000),
+                    z.geom
+                ) as geom
+                from zone_etude z
+            ),
+            zone_10km as (
+                select ST_Difference(
+                    ST_Buffer(z.geom, {buffer_km} * 10000),
+                    ST_Buffer(z.geom, {buffer_km} * 1000)
+                ) as geom
+                from zone_etude z
+            ),
+            zones as (
+                select 'zone_etude' as zone_name, 1 as zone_order, geom from zone_etude
+                union all
+                select 'buffer', 2, geom from zone_buffer
+                union all
+                select '10km', 3, geom from zone_10km
+            ),
+            zonages as (
+                select bat.type_code, la2.geom as geom
+                from ref_geo.l_areas la2
+                inner join ref_geo.bib_areas_types bat on la2.id_type = bat.id_type
+                where bat.type_code in ('PNR','APB','ZNIEFF1','ZNIEFF2','RNR','RNN')
+                and st_intersects(la2.geom, (select ST_Buffer(geom, {buffer_km} * 10000) from zone_etude))
+                union all
+                select 'Natura 2000' as type_code, la2.geom as geom
+                from ref_geo.l_areas la2
+                inner join ref_geo.bib_areas_types bat on la2.id_type = bat.id_type
+                where bat.type_code in ('ZSC','ZPS','SIC')
+                and st_intersects(la2.geom, (select ST_Buffer(geom, {buffer_km} * 10000) from zone_etude))
+            ),
+            zonages_union as (
+                select type_code, ST_Union(geom) as geom
+                from zonages
+                group by type_code
+            )
+            select
+                zu.type_code,
+                z.zone_name,
+                z.zone_order,
+                round((ST_Area(ST_Intersection(zu.geom, z.geom)) / 1000000.0)::numeric, 2) as surface_km2
+            from zonages_union zu
+            cross join zones z
+            where ST_Intersects(zu.geom, z.geom)
+            order by zu.type_code, z.zone_order;
+        """
+        with self.conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(sql)
+            return cur.fetchall()
+
+    def get_number_esp_per_taxonomy(self):
+         """Tableau du nombre d'espèces par groupe taxonomique, pour le graphique de l'état des connaissances"""
+         with self.conn.cursor(row_factory=dict_row) as cur:
+            cur.execute("""  select distinct case when mccvt.groupe_taxo_fr is not null then mccvt.groupe_taxo_fr
+                                                when mccvt.groupe_taxo_fr is null and t.group3_inpn = 'Lépidoptères' and t.cd_ref in (1015437, 249667, 716457, 716458, 961903)  then 'Papillons de nuit'
+                                                when mccvt.groupe_taxo_fr is null and t.group3_inpn = 'Lépidoptères' and t.cd_ref in (716692)  then 'Papillons de jour'
+                                                when mccvt.groupe_taxo_fr is null and t.group2_inpn in ('Insectes','Arachnides') then t.group3_inpn
+                                                when mccvt.groupe_taxo_fr is null and t.group2_inpn in ('Oiseaux','Mammifères','Poissons', 'Amphibiens')  then t.group2_inpn
+                                                else t.group2_inpn end  as tx_group2_inpn_v2,
+                                    count( distinct t.cd_ref ) as nb_esp
+                            from gn_synthese.synthese s
+                            left join taxonomie.taxref t on s.cd_nom = t.cd_nom
+                            left join taxonomie.mv_c_cor_vn_taxref mccvt on s.cd_nom = mccvt.cd_nom
+                            where s.id_nomenclature_observation_status = 89
+                            and t.id_rang = 'ES'
+                            and s.id_nomenclature_valid_status = ANY (ARRAY[ref_nomenclatures.get_id_nomenclature('STATUT_VALID'::character varying, '2'::character varying), ref_nomenclatures.get_id_nomenclature('STATUT_VALID'::character varying, '1'::character varying)]) is true
+                            and s.date_max >= date (CONCAT(extract( year from date(now()) - interval '20 year'),'-01-01'))
+                            group by 1
+                            order by 2 desc;
+                                """)
             return cur.fetchall()
