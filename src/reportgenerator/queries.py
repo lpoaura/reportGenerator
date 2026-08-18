@@ -510,7 +510,7 @@ class SyntheseQueries:
     def get_knowledge_status_grid(self):
         """Tableau de synthèse par maille pour l'état des connaissances : nombre d'observations, nombre d'espèces, nombre d'espèces nicheuses, liste des espèces nicheuses, nombre d'années d'observation, nombre de jours d'observation, code de nidification max"""
         with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(""" select row_number() over () as id,
+            cur.execute("""   select row_number() over () as id,
                                     s.geom_maille,
                                     COUNT(distinct s.id_synthese) as nb_observations,
                                     COUNT(distinct s.tx_group2_inpn_v2) as nb_group_taxo,
@@ -523,7 +523,12 @@ class SyntheseQueries:
                                     string_agg(distinct s.vn_nom_sci, ', ') filter (where tn."hierarchy"::numeric >= 30) as list_esp_nidif_nom_sci,
                                     string_agg(distinct s.vn_nom_fr, ', ') filter (where tn."hierarchy"::numeric >= 30) as list_esp_nidif_nom_fr,
                                     COUNT(distinct EXTRACT(year FROM s.date_max)) as nb_annee,
+                                    COUNT(distinct EXTRACT(year FROM s.date_max)) filter (where tn."hierarchy"::numeric >= 30) as nb_annee_nidifi,
                                     COUNT(distinct s.date_max::date) as nb_jour_observations,
+                                    count(distinct(s.cd_ref)) filter ( where mcs.prot_nat is not null and tn."hierarchy"::numeric >= 30 )as nb_espece_protege_nicheuse,
+                                    count(distinct(s.cd_ref)) filter ( where mcs.prot_nat is not null ) as nb_espece_protege,
+                                    count(distinct(s.cd_ref)) filter ( where  mcs.lr_france in ('CR','EN','VU','NT') or  mcs.lr_aura in ('CR','EN','VU','NT')) as nb_espece_lr,
+                                    count(distinct(s.cd_ref)) filter ( where  (mcs.lr_france in ('CR','EN','VU','NT') or  mcs.lr_aura in ('CR','EN','VU','NT')) and tn."hierarchy"::numeric >= 30 ) as nb_espece_lr_nicheuse,
                                     case when MAX(tn."hierarchy"::numeric) = 0 then 'Espèce absente'
                                     when MAX(tn."hierarchy"::numeric) < 30 then 'Absence de code'
                                     when MAX(tn."hierarchy"::numeric) < 40 then 'Possible'
@@ -533,7 +538,8 @@ class SyntheseQueries:
                                     end AS code_repro_max
                             from lpoaura_afo.vm_reportgenerator_data s
                             left join ref_nomenclatures.t_nomenclatures tn ON tn.cd_nomenclature = s.oiso_code_nidif::text AND tn.id_type = 118 -- a verif
-                            left join taxonomie.t_taxons t ON t.cd_ref = s.cd_ref
+                            left join taxonomie.taxref t ON t.cd_ref = s.cd_ref
+                            left join taxonomie.mv_c_statut mcs on mcs.cd_ref = t.cd_ref
                             GROUP BY s.geom_maille;
                                 """)
             return cur.fetchall()

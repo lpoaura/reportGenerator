@@ -264,7 +264,6 @@ def create_species_double_bar_chart(observed_data, reference_data, output_path: 
     plt.close(fig)
     print(f"Graphique enregistré : {output_path}")
 
-
 def create_species_coverage_chart(observed_data, reference_data, output_path: str):
     """Graphique A : taux de connaissance (% du pool régional observé), par taxon."""
     print("Création du graphique du taux de connaissance par taxon...")
@@ -301,119 +300,6 @@ def create_species_coverage_chart(observed_data, reference_data, output_path: st
             bar.get_width() + 1,
             bar.get_y() + bar.get_height() / 2,
             f"{value:.0f}%",
-            va="center",
-            fontsize=9,
-        )
-
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-
-    plt.savefig(output_path, dpi=150)
-    plt.close(fig)
-    print(f"Graphique enregistré : {output_path}")
-    print("Création du graphique du nombre de données par groupe taxonomique...")
-
-    apply_lpo_theme()
-
-    data_sorted = sorted(data, key=lambda row: safe_int(row["nb_data_tot"]), reverse=True)
-    groups = [row["group_taxo"] for row in data_sorted]
-    values = [safe_int(row["nb_data_tot"]) for row in data_sorted]
-    colors = [get_taxo_color(group) for group in groups]
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    bars = ax.barh(groups, values, color=colors)
-    ax.invert_yaxis()
-
-    ax.set_xlabel("Nombre de données")
-    ax.grid(True, axis="x")
-
-    plt.title("Nombre de données par groupe taxonomique", loc="left", pad=20)
-
-    max_value = max(values) if values else 0
-    for bar, value in zip(bars, values):
-        ax.text(
-            bar.get_width() + max_value * 0.01,
-            bar.get_y() + bar.get_height() / 2,
-            f"{value:,}".replace(",", " "),
-            va="center",
-            fontsize=9,
-        )
-
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-
-    plt.savefig(output_path, dpi=150)
-    plt.close(fig)
-    print(f"Graphique enregistré : {output_path}")
-
-
-    print("Création du graphique du nombre de données par groupe taxonomique...")
-
-    apply_lpo_theme()
-
-    data_sorted = sorted(data, key=lambda row: safe_int(row["nb_data_tot"]), reverse=True)
-    groups = [row["group_taxo"] for row in data_sorted]
-    values = [safe_int(row["nb_data_tot"]) for row in data_sorted]
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    bars = ax.barh(groups, values, color=LPO_COLORS["blue"])
-    ax.invert_yaxis()  # groupe avec le plus de données en haut
-
-    ax.set_xlabel("Nombre de données")
-    ax.grid(True, axis="x")
-
-    plt.title(
-        "Nombre de données par groupe taxonomique",
-        loc="left",
-        pad=20,
-    )
-
-    max_value = max(values) if values else 0
-    for bar, value in zip(bars, values):
-        ax.text(
-            bar.get_width() + max_value * 0.01,
-            bar.get_y() + bar.get_height() / 2,
-            f"{value:,}".replace(",", " "),
-            va="center",
-            fontsize=9,
-        )
-
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-
-    plt.savefig(output_path, dpi=150)
-    plt.close(fig)
-    print(f"Graphique enregistré : {output_path}")
-    print("Création du graphique du nombre de données par groupe taxonomique...")
-
-    apply_lpo_theme()
-
-    data_sorted = sorted(data, key=lambda row: safe_int(row["nb_data_tot"]), reverse=True)
-    groups = [row["group_taxo"] for row in data_sorted]
-    values = [safe_int(row["nb_data_tot"]) for row in data_sorted]
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    bars = ax.barh(groups, values, color=LPO_COLORS["blue"])
-    ax.invert_yaxis()  # groupe avec le plus de données en haut
-
-    ax.set_xlabel("Nombre de données")
-    ax.grid(True, axis="x")
-
-    plt.title(
-        "Nombre de données par groupe taxonomique",
-        loc="left",
-        pad=20,
-    )
-
-    max_value = max(values) if values else 0
-    for bar, value in zip(bars, values):
-        ax.text(
-            bar.get_width() + max_value * 0.01,
-            bar.get_y() + bar.get_height() / 2,
-            f"{value:,}".replace(",", " "),
             va="center",
             fontsize=9,
         )
