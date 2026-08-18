@@ -23,7 +23,8 @@ from reportgenerator.analysis.environmental_zones.summary_text import \
     build_zonage_summary_text, pivot_zonage_data
 from reportgenerator.analysis.environmental_zones.zone_presentation import \
     build_zone_presentation_text
-
+from reportgenerator.analysis.knowledge_status.summary_text import \
+    TEXTE_CONNAISSANCE
 from reportgenerator.db_auth import get_connection
 from reportgenerator.queries import SyntheseQueries
 
@@ -237,6 +238,10 @@ def generate_report(
 
     zonage_presentation = build_zone_presentation_text(zonage_data)
     replace_text(document, {"ZONAGE_PRESENTATION": zonage_presentation})
+
+    # 
+    replace_text(document, { "TEXTE_CONNAISSANCE": TEXTE_CONNAISSANCE})
+    
 
     # 2 . Gestion des tableaux dans le fichiers word
     # ===============================================

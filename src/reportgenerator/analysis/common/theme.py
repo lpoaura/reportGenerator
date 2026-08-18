@@ -33,6 +33,7 @@ TAXO_COLORS = {
 
 TAXO_DEFAULT_COLOR = "#999999"  # gris neutre pour tout taxon non listé
 
+TAXO_POOL_COLOR = "#F0F0EB"  # gris neutre pour tout taxon non listé
 
 def get_taxo_color(group_name: str) -> str:
     return TAXO_COLORS.get(group_name, TAXO_DEFAULT_COLOR)
