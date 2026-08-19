@@ -27,6 +27,7 @@ from reportgenerator.analysis.knowledge_status.summary_text import \
     TEXTE_CONNAISSANCE
 from reportgenerator.db_auth import get_connection
 from reportgenerator.queries import SyntheseQueries
+from reportgenerator.analysis.common.timing import RunTimer
 
 
 LAYOUTS = {
@@ -174,13 +175,19 @@ def generate_report(
 ):
 
     TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
+    timer = RunTimer()
 
+    
     with get_connection(service_name) as conn:
-        synthese_queries = SyntheseQueries(conn=conn, id_area=id_area, buffer=buffer)
-        tableau_data = synthese_queries.get_resum_taxo_group()
-        tableau_species = synthese_queries.get_species_data()
-        tableau_resum = synthese_queries.get_resum_data()
-        zonage_raw = synthese_queries.get_zonage_surfaces()
+            synthese_queries = SyntheseQueries(conn=conn, id_area=id_area, buffer=buffer)
+            with timer.step("Récupération get_resum_taxo_group"):
+                tableau_data = synthese_queries.get_resum_taxo_group()
+            with timer.step("Récupération get_species_data"):
+                tableau_species = synthese_queries.get_species_data()
+            with timer.step("Récupération get_resum_data"):
+                tableau_resum = synthese_queries.get_resum_data()
+            with timer.step("Récupération get_zonage_surfaces"):
+                zonage_raw = synthese_queries.get_zonage_surfaces()
 
     template_path = TEMPLATE_DIR / "Rapport_template.docx"
     dir_dataviz = output_dir / "dataviz"
@@ -189,109 +196,114 @@ def generate_report(
 
     print(f"Génération du rapport Word à partir du template {output_file}...")
 
-    document = Document(template_path)
+    with timer.step("Récupération du template Word"):
+        document = Document(template_path)
 
     # 1 . Gestion des variables dans le fichiers word
     # ===============================================
+    with timer.step("Insertion des variables textes dans le document Word"):
+        # récupération des données générales pour le résumé
+        tableau_data_dict = tableau_data[0]
 
-    # récupération des données générales pour le résumé
-    tableau_data_dict = tableau_data[0]
+        zone_etude = next(row for row in tableau_resum if row["secteur"] == "zone_etude")
+        buffer_seul = next(row for row in tableau_resum if row["secteur"] == "buffer_seul")
+        ensemble = next(row for row in tableau_resum if row["secteur"] == "ensemble")
 
-    zone_etude = next(row for row in tableau_resum if row["secteur"] == "zone_etude")
-    buffer_seul = next(row for row in tableau_resum if row["secteur"] == "buffer_seul")
-    ensemble = next(row for row in tableau_resum if row["secteur"] == "ensemble")
+        year_doc = (
+            "("
+            + str(int(datetime.now().strftime("%Y")) - 10)
+            + "-"
+            + datetime.now().strftime("%Y")
+            + ")"
+        )
 
-    year_doc = (
-        "("
-        + str(int(datetime.now().strftime("%Y")) - 10)
-        + "-"
-        + datetime.now().strftime("%Y")
-        + ")"
-    )
+        replace_text(
+            document,
+            {
+                "AREA_NAME": area_name,
+                "REFEREE": referee,
+                "DATE_REPORT": year_doc,
+                "BUFFER": buffer,
+                "NB_DATA": tableau_data_dict["nb_data_tot"],
+                "NB_OBS_ZONE": f"{zone_etude['nb_observations']:,}".replace(",", " "),
+                "NB_SPECIES_ZONE": f"{zone_etude['nb_especes']:,}".replace(",", " "),
+                "LAST_OBS_ZONE": str(zone_etude["derniere_observation"]),
+                "NB_OBS_BUFFER": f"{buffer_seul['nb_observations']:,}".replace(",", " "),
+                "NB_SPECIES_BUFFER": f"{buffer_seul['nb_especes']:,}".replace(",", " "),
+                "LAST_OBS_BUFFER": str(buffer_seul["derniere_observation"]),
+                "NB_OBS_GLOBAL": f"{ensemble['nb_observations']:,}".replace(",", " "),
+                "NB_SPECIES_GLOBAL": f"{ensemble['nb_especes']:,}".replace(",", " "),
+                "LAST_OBS_GLOBAL": str(ensemble["derniere_observation"]),
+            },
+        )
 
-    replace_text(
-        document,
-        {
-            "AREA_NAME": area_name,
-            "REFEREE": referee,
-            "DATE_REPORT": year_doc,
-            "BUFFER": buffer,
-            "NB_DATA": tableau_data_dict["nb_data_tot"],
-            "NB_OBS_ZONE": f"{zone_etude['nb_observations']:,}".replace(",", " "),
-            "NB_SPECIES_ZONE": f"{zone_etude['nb_especes']:,}".replace(",", " "),
-            "LAST_OBS_ZONE": str(zone_etude["derniere_observation"]),
-            "NB_OBS_BUFFER": f"{buffer_seul['nb_observations']:,}".replace(",", " "),
-            "NB_SPECIES_BUFFER": f"{buffer_seul['nb_especes']:,}".replace(",", " "),
-            "LAST_OBS_BUFFER": str(buffer_seul["derniere_observation"]),
-            "NB_OBS_GLOBAL": f"{ensemble['nb_observations']:,}".replace(",", " "),
-            "NB_SPECIES_GLOBAL": f"{ensemble['nb_especes']:,}".replace(",", " "),
-            "LAST_OBS_GLOBAL": str(ensemble["derniere_observation"]),
-        },
-    )
+        # récupération des zonages environnementaux et génération du texte de synthèse
+        zonage_data = pivot_zonage_data(zonage_raw)
+        zonage_texte = build_zonage_summary_text(zonage_data)
 
-    # récupération des zonages environnementaux et génération du texte de synthèse
-    zonage_data = pivot_zonage_data(zonage_raw)
-    zonage_texte = build_zonage_summary_text(zonage_data)
+        replace_text(document, {"ZONAGE_TEXTE": zonage_texte})
+        insert_zonage_table(document=document, placeholder="{{TABLE_ZONAGES}}", data=zonage_data)
 
-    replace_text(document, {"ZONAGE_TEXTE": zonage_texte})
-    insert_zonage_table(document=document, placeholder="{{TABLE_ZONAGES}}", data=zonage_data)
+        zonage_presentation = build_zone_presentation_text(zonage_data)
+        replace_text(document, {"ZONAGE_PRESENTATION": zonage_presentation})
 
-    zonage_presentation = build_zone_presentation_text(zonage_data)
-    replace_text(document, {"ZONAGE_PRESENTATION": zonage_presentation})
-
-    # 
-    replace_text(document, { "TEXTE_CONNAISSANCE": TEXTE_CONNAISSANCE})
+        # 
+        replace_text(document, { "TEXTE_CONNAISSANCE": TEXTE_CONNAISSANCE})
     
 
     # 2 . Gestion des tableaux dans le fichiers word
     # ===============================================
-    # préparation des données pour les tableaux
-    columns_taxo = [
-        ("Groupe taxo.", "group_taxo"),
-        ("Nombre\nde données", "nb_data_tot"),
-        ("Nombre\nd'espèces", "nb_espece"),
-        ("Espèces\nnicheuses", "nb_espece_nicheuse"),
-        ("Espèces\nprotégées", "nb_espece_protege"),
-        ("Espèces\nen danger", "nb_espece_lr"),
-        # ("Espèces en danger nicheuses", 'nb_espece_lr_nicheuse'),
-    ]
+    with timer.step("Insertion des tableaux dans le document Word"):
+        # préparation des données pour les tableaux
+        columns_taxo = [
+            ("Groupe taxo.", "group_taxo"),
+            ("Nombre\nde données", "nb_data_tot"),
+            ("Nombre\nd'espèces", "nb_espece"),
+            ("Espèces\nnicheuses", "nb_espece_nicheuse"),
+            ("Espèces\nprotégées", "nb_espece_protege"),
+            ("Espèces\nen danger", "nb_espece_lr"),
+            # ("Espèces en danger nicheuses", 'nb_espece_lr_nicheuse'),
+        ]
 
-    STATUS_COLS = ["lr_aura", "lr_fr_nich",  "lr_fr_hiv",  "lr_fr_migr"]
-    STATUS_FILTER = ["CR", "EN", "VU", "NT"]
+        STATUS_COLS = ["lr_aura", "lr_fr_nich",  "lr_fr_hiv",  "lr_fr_migr"]
+        STATUS_FILTER = ["CR", "EN", "VU", "NT"]
 
-    
+        
 
-    tableau_species_lr = pd.DataFrame(tableau_species)
+        tableau_species_lr = pd.DataFrame(tableau_species)
 
-    mask = tableau_species_lr[STATUS_COLS].isin(STATUS_FILTER).any(axis=1)
-    tableau_species_lr = tableau_species_lr[mask]
-    tableau_species_lr = tableau_species_lr.to_dict(orient="records")
+        mask = tableau_species_lr[STATUS_COLS].isin(STATUS_FILTER).any(axis=1)
+        tableau_species_lr = tableau_species_lr[mask]
+        tableau_species_lr = tableau_species_lr.to_dict(orient="records")
 
-    # insertion des tableaux dans le document
-    insert_species_table(
-        document=document, placeholder="{{TABLE_ESP}}", data=tableau_species
-    )
+        # insertion des tableaux dans le document
+        insert_species_table(
+            document=document, placeholder="{{TABLE_ESP}}", data=tableau_species
+        )
 
-    insert_general_table(
-        document=document,
-        placeholder="{{TABLE_TAXO}}",
-        data=tableau_data,
-        columns=columns_taxo,
-    )
+        insert_general_table(
+            document=document,
+            placeholder="{{TABLE_TAXO}}",
+            data=tableau_data,
+            columns=columns_taxo,
+        )
 
-    insert_species_table(
-        document=document, placeholder="{{TABLE_ESP_LR}}", data=tableau_species_lr
-    )
+        insert_species_table(
+            document=document, placeholder="{{TABLE_ESP_LR}}", data=tableau_species_lr
+        )
 
-    # export Excel des tableaux
-    export_species_excel(
-        data=tableau_species, output_path=(dir_tables / "tableau_especes.xlsx")
-    )
+        # export Excel des tableaux
+        export_species_excel(
+            data=tableau_species, output_path=(dir_tables / "tableau_especes.xlsx")
+        )
 
     # 3 . Gestion des images dans le fichier word
     # ===============================================
+    with timer.step("Insertion des images dans le document Word"):
+        insert_images_from_folder(document, dir_dataviz, "normal")
+        insert_images_from_folder(document, dir_maps, "A4")
 
-    insert_images_from_folder(document, dir_dataviz, "normal")
-    insert_images_from_folder(document, dir_maps, "A4")
+    with timer.step("Enregistrement du document Word final"):
+        document.save(output_file)
 
-    document.save(output_file)
+    total = timer.summary()

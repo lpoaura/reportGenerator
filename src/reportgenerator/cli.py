@@ -126,7 +126,7 @@ def main():
     duration = time_end - time_launch
 
     total = timer.summary()
-    timer.save_json(output_dir / "timing.json", meta={"area_name": args.area_name, "id_area": args.id_area})
+    #timer.save_json(output_dir / "timing.json", meta={"area_name": args.area_name, "id_area": args.id_area})
 
     print(f"Fin de génération - à {time_end.strftime('%H:%M:%S')}")
     print(f"Temps total d'exécution : {duration}")

@@ -1,12 +1,14 @@
 from pathlib import Path
 
+from reportgenerator.analysis.common.timing import RunTimer
+from reportgenerator.analysis.cartography.qgis_launcher import launch_qgis_render
 from reportgenerator.analysis.cartography.export import (copy_qgis_project,
                                                          export_gpkg)
-from reportgenerator.analysis.cartography.qgis_launcher import \
-    launch_qgis_render
 
 
 def run_cartography(synthese_queries, output_dirs, area_name):
+
+    timer = RunTimer()
 
     # 1. DATA
     raw = synthese_queries.get_raw_geodata()
@@ -15,37 +17,42 @@ def run_cartography(synthese_queries, output_dirs, area_name):
     protected_areas = synthese_queries.get_knowledge_protected_area()
 
     gpkg_path = f"{output_dirs['data']}"
-    export_gpkg(
-        raw,
-        gpkg_path,
-        layer_name="donnees_brutes",
-        geom_col="the_geom_local",
-        crs="EPSG:2154",
+
+    with timer.step("Export data GPKG données brutes"):
+        export_gpkg(
+            raw,
+            gpkg_path,
+            layer_name="donnees_brutes",
+            geom_col="the_geom_local",
+            crs="EPSG:2154",
+        )
+
+    with timer.step("Export data GPKG Zone d'étude"):
+        export_gpkg(
+            area_zone_rows,
+            gpkg_path,
+            layer_name="zone_etude",
+            geom_col="geom",
+            crs="EPSG:2154",
+        )
+
+    with timer.step("Export data GPKG Statut de connaissance"):
+        export_gpkg(
+            knowledge_status_grid,
+            gpkg_path,
+            layer_name="statut_connaissance",
+            geom_col="geom_maille",
+            crs="EPSG:2154",
     )
 
-    export_gpkg(
-        area_zone_rows,
-        gpkg_path,
-        layer_name="zone_etude",
-        geom_col="geom",
-        crs="EPSG:2154",
-    )
-
-    export_gpkg(
-        knowledge_status_grid,
-        gpkg_path,
-        layer_name="statut_connaissance",
-        geom_col="geom_maille",
-        crs="EPSG:2154",
-    )
-
-    export_gpkg(
-        protected_areas,
-        gpkg_path,
-        layer_name="zones_protegees",
-        geom_col="geom",
-        crs="EPSG:2154",
-    )
+    with timer.step("Export data GPKG Zones protégées"):
+        export_gpkg(
+            protected_areas,
+            gpkg_path,
+            layer_name="zones_protegees",
+            geom_col="geom",
+            crs="EPSG:2154",
+        )
 
     # 2. QGIS PROJECT
     BASE_DIR = Path(__file__).resolve().parents[2]
@@ -57,4 +64,7 @@ def run_cartography(synthese_queries, output_dirs, area_name):
     )
 
     # 3. RENDER QGIS
-    launch_qgis_render(project_path=output_path, output_dir=output_dirs["maps"])
+    with timer.step("Production des cartes QGIS"):
+        launch_qgis_render(project_path=output_path, output_dir=output_dirs["maps"])
+
+    total = timer.summary()
