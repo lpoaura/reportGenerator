@@ -5,14 +5,17 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+
 from reportgenerator.analysis.atlas.analysis import run_atlas
 from reportgenerator.analysis.cartography.analysis import run_cartography
 from reportgenerator.analysis.common.filesystem import create_analysis_dirs
+from reportgenerator.analysis.common.timing import RunTimer
 from reportgenerator.analysis.knowledge_status.analysis import \
     run as run_knowledge_status
 from reportgenerator.db_auth import get_connection
 from reportgenerator.queries import SyntheseQueries
 from reportgenerator.report import generate_report
+
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +66,7 @@ def main():
 
     args = parser.parse_args()
 
+    
     time_launch = datetime.now()
     print(
         f"Début de génération du rapport {args.area_name} - à {time_launch.strftime('%H:%M:%S')} :"
@@ -75,45 +79,54 @@ def main():
     ) / args.area_name
     output_dirs = create_analysis_dirs(output_dir)
 
+    timer = RunTimer()
+
     with get_connection(args.service) as conn:
 
         synthese_queries = SyntheseQueries(
-            conn=conn, id_area=args.id_area, buffer=args.buffer
-        )
+                conn=conn, id_area=args.id_area, buffer=args.buffer
+            )
 
-        analysis_result = run_knowledge_status(
-            context=args, synthese_queries=synthese_queries, output_dirs=output_dirs
-        )
+        with timer.step("Vue matérialisée + analyse état des connaissances"):
+            analysis_result = run_knowledge_status(
+                context=args, synthese_queries=synthese_queries, output_dirs=output_dirs
+            )
 
-        run_cartography(
-            synthese_queries=synthese_queries,
-            output_dirs=output_dirs,
-            area_name=args.area_name,
-        )
-
-        if "atlas_nicheur" in args.list_analyse:
-            run_atlas(
+        with timer.step("Cartographie QGIS"):
+            run_cartography(
                 synthese_queries=synthese_queries,
                 output_dirs=output_dirs,
                 area_name=args.area_name,
-                run_render=True,
             )
 
+        if "atlas_nicheur" in args.list_analyse:
+            with timer.step("Atlas QGIS"):
+                run_atlas(
+                    synthese_queries=synthese_queries,
+                    output_dirs=output_dirs,
+                    area_name=args.area_name,
+                    run_render=True,
+                )
+
     # Générer le rapport Word
-    generate_report(
-        service_name=args.service,
-        output_file=output_dir / args.output,
-        id_area=args.id_area,
-        referee=args.referee,
-        list_analyse=args.list_analyse,
-        buffer=args.buffer,
-        area_name=args.area_name,
-        analysis_result=analysis_result,
-        output_dir=output_dir,
-    )
+    with timer.step("Génération du rapport Word"):
+        generate_report(
+            service_name=args.service,
+            output_file=output_dir / args.output,
+            id_area=args.id_area,
+            referee=args.referee,
+            list_analyse=args.list_analyse,
+            buffer=args.buffer,
+            area_name=args.area_name,
+            analysis_result=analysis_result,
+            output_dir=output_dir,
+        )
 
     time_end = datetime.now()
     duration = time_end - time_launch
+
+    total = timer.summary()
+    timer.save_json(output_dir / "timing.json", meta={"area_name": args.area_name, "id_area": args.id_area})
 
     print(f"Fin de génération - à {time_end.strftime('%H:%M:%S')}")
     print(f"Temps total d'exécution : {duration}")

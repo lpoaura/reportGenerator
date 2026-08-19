@@ -13,19 +13,25 @@ def _to_geom(value):
     if hasattr(value, "geom_type"):
         return value
 
-    # mémoire / bytes / wkb
+    # mémoire / bytes / wkb binaire
     if isinstance(value, (bytes, bytearray, memoryview)):
         try:
             return wkb.loads(bytes(value))
         except Exception:
             pass
 
-    # texte wkt
     if isinstance(value, str):
+        # WKB hex (EWKB), format par défaut renvoyé par psycopg pour une colonne geometry
+        try:
+            return wkb.loads(value, hex=True)
+        except Exception:
+            pass
+
+        # WKT, au cas où
         try:
             return wkt.loads(value)
         except Exception:
-            pass
+            raise ValueError(f"Impossible de convertir la géométrie: {value!r}")
 
     return value
 
@@ -43,33 +49,20 @@ def _rows_to_gdf(rows, geom_col, crs="EPSG:2154"):
     return gdf
 
 
-def export_atlas_gpkg(grid_rows, summary_rows, output_path: Path, crs="EPSG:2154"):
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+# atlas/export.py
 
-    # couche maille
-    grid_gdf = _rows_to_gdf(
-        grid_rows,
-        geom_col="geom_maille",
-        crs=crs,
-    )
-    grid_gdf.to_file(
-        output_path,
-        layer="atlas_species_grid",
-        driver="GPKG",
-    )
+def export_atlas_gpkg(data, gpkg_path, layer_name, geom_col="geometry", crs="EPSG:2154"):
 
-    # couche espèce (1 ligne par espèce)
-    summary_gdf = _rows_to_gdf(
-        summary_rows,
-        geom_col="emprise_presence",
-        crs=crs,
-    )
-    summary_gdf.to_file(
-        output_path,
-        layer="atlas_species_summary",
-        driver="GPKG",
-    )
+    gpkg_path = Path(gpkg_path)
+    gpkg_path.parent.mkdir(parents=True, exist_ok=True)
 
-    print(f"Atlas GPKG exporté : {output_path}")
-    return output_path
+    gdf = _rows_to_gdf(data, geom_col=geom_col, crs=crs)
+
+    # si le fichier gpkg existe déjà (couches précédentes), on ajoute
+    # la nouvelle couche dedans, sinon on crée le fichier
+    mode = "a" if gpkg_path.exists() else "w"
+
+    gdf.to_file(gpkg_path, layer=layer_name, driver="GPKG", mode=mode)
+
+    print(f"Couche '{layer_name}' exportée dans : {gpkg_path}")
+    return gpkg_path

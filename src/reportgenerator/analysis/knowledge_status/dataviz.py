@@ -310,3 +310,72 @@ def create_species_coverage_chart(observed_data, reference_data, output_path: st
     plt.savefig(output_path, dpi=150)
     plt.close(fig)
     print(f"Graphique enregistré : {output_path}")
+
+def safe_year(value):
+    return int(value) if value is not None else None
+
+
+def create_disparition_chart(data, output_path: str, max_species=30):
+    print("Création de la frise des espèces en régression / disparues...")
+
+    if not data:
+        print("Aucune espèce en régression ou disparue à afficher.")
+        return
+
+    apply_lpo_theme()
+
+    # priorité : disparues d'abord, puis les plus anciennes, limité à max_species
+    data_sorted = sorted(
+        data,
+        key=lambda r: (r["statut_disparition"] != "Disparue", r["derniere_annee"]),
+    )[:max_species]
+
+    # ordre d'affichage : la plus préoccupante en haut
+    data_sorted = list(reversed(data_sorted))
+
+    fig, ax = plt.subplots(figsize=(12, max(4, 0.35 * len(data_sorted))))
+
+    status_colors = {
+        "Disparue": LPO_COLORS["red"],
+        "En régression": LPO_COLORS["orange"],
+    }
+
+    for i, row in enumerate(data_sorted):
+        premiere = safe_year(row["premiere_annee"])
+        derniere = safe_year(row["derniere_annee"])
+        color = status_colors.get(row["statut_disparition"], LPO_COLORS["black"])
+
+        ax.plot([premiere, derniere], [i, i], color=color, linewidth=3,
+                solid_capstyle="round", zorder=1, alpha=0.7)
+        ax.scatter(premiere, i, color=LPO_COLORS["blue"], s=45,
+                   edgecolors="white", linewidth=1, zorder=3)
+        ax.scatter(derniere, i, color=color, s=70,
+                   edgecolors="white", linewidth=1, zorder=3)
+
+    labels = [f"{r['nom_vern']} ({r['lb_nom']})" for r in data_sorted]
+    ax.set_yticks(range(len(data_sorted)))
+    ax.set_yticklabels(labels, fontsize=9, style="italic")
+
+    ax.set_xlabel("Année")
+    ax.set_title("Espèces en régression ou disparues du territoire", loc="left", pad=20)
+
+    ax.grid(True, axis="x")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_visible(False)
+
+    # légende manuelle
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Line2D([0], [0], marker="o", color="w", markerfacecolor=LPO_COLORS["blue"],
+               label="Première observation", markersize=8),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor=LPO_COLORS["orange"],
+               label="Dernière obs. (en régression)", markersize=8),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor=LPO_COLORS["red"],
+               label="Dernière obs. (disparue)", markersize=8),
+    ]
+    ax.legend(handles=legend_elements, loc="upper right", frameon=False)
+
+    plt.savefig(output_path, dpi=150)
+    plt.close(fig)
+    print(f"Frise disparition enregistrée : {output_path}")

@@ -1,5 +1,5 @@
 <!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
-<qgis version="3.40.15-Bratislava" saveUserFull="Axel FOURNEYRON" projectname="" saveUser="afourneyron" saveDateTime="2026-08-18T14:31:56">
+<qgis version="3.40.15-Bratislava" saveUserFull="Axel FOURNEYRON" projectname="" saveUser="afourneyron" saveDateTime="2026-08-18T14:32:01">
   <homePath path=""/>
   <title></title>
   <transaction mode="Disabled"/>
@@ -141,7 +141,7 @@
         <Option/>
       </customproperties>
     </layer-tree-group>
-    <layer-tree-group groupLayer="" expanded="1" checked="Qt::Checked" name="FDC">
+    <layer-tree-group groupLayer="" expanded="0" checked="Qt::Checked" name="FDC">
       <customproperties>
         <Option/>
       </customproperties>
@@ -306,7 +306,7 @@
     <legendgroup open="true" checked="Qt::Checked" name="à venir"/>
     <legendgroup open="true" checked="Qt::Checked" name="à venir"/>
     <legendgroup open="true" checked="Qt::Checked" name="statut_protection"/>
-    <legendgroup open="true" checked="Qt::Checked" name="FDC">
+    <legendgroup open="false" checked="Qt::Checked" name="FDC">
       <legendlayer drawingOrder="-1" open="true" checked="Qt::Checked" showFeatureCount="0" name="Zone d'étude">
         <filegroup hidden="false" open="true">
           <legendlayerfile layerid="zone_etude_0334f52a_5e35_486b_883e_643c9d12d1dc" visible="1" isInOverview="0"/>

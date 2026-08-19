@@ -1,5 +1,5 @@
 <!DOCTYPE qgis PUBLIC 'http://mrcc.com/qgis.dtd' 'SYSTEM'>
-<qgis version="3.40.15-Bratislava" saveUserFull="Axel FOURNEYRON" projectname="" saveUser="afourneyron" saveDateTime="2026-08-18T14:32:01">
+<qgis version="3.40.15-Bratislava" saveUserFull="Axel FOURNEYRON" projectname="" saveUser="afourneyron" saveDateTime="2026-08-18T15:02:45">
   <homePath path=""/>
   <title></title>
   <transaction mode="Disabled"/>
@@ -18046,7 +18046,7 @@ def my_form_open(dialog, layer, feature):
           </dd_properties>
         </text-style>
       </LayoutItem>
-      <LayoutItem wrapChar="" itemRotation="0" positionOnPage="63.7449,250.797,mm" symbolHeight="3" boxSpace="2" positionLock="false" legendFilterByAtlas="0" map_uuid="{86f4377b-61ff-4ac3-8fa0-9d013402aeff}" blendMode="0" resizeToContents="1" legendFilterByMap="1" background="false" maxSymbolSize="0" referencePoint="0" wmsLegendHeight="26" titleAlignment="1" symbolAlignment="1" frameJoinStyle="miter" symbolWidth="6" rasterBorderWidth="0" templateUuid="{a23d6fe6-ae9c-4822-9436-02d06c6b0009}" outlineWidthM="0.3,mm" visibility="1" minSymbolSize="0" id="" opacity="1" equalColumnWidth="0" uuid="{a23d6fe6-ae9c-4822-9436-02d06c6b0009}" title="" columnSpace="6" zValue="26" wmsLegendWidth="50" position="63.7449,250.797,mm" excludeFromExports="0" groupUuid="" size="51.9351,35.7781,mm" rasterBorder="1" columnCount="1" splitLayer="0" type="65642" frame="false" rasterBorderColor="0,0,0,255,rgb:0,0,0,1">
+      <LayoutItem wrapChar="" itemRotation="0" positionOnPage="62.7449,250.797,mm" symbolHeight="3" boxSpace="2" positionLock="false" legendFilterByAtlas="0" map_uuid="{86f4377b-61ff-4ac3-8fa0-9d013402aeff}" blendMode="0" resizeToContents="1" legendFilterByMap="1" background="false" maxSymbolSize="0" referencePoint="0" wmsLegendHeight="26" titleAlignment="1" symbolAlignment="1" frameJoinStyle="miter" symbolWidth="6" rasterBorderWidth="0" templateUuid="{a23d6fe6-ae9c-4822-9436-02d06c6b0009}" outlineWidthM="0.3,mm" visibility="1" minSymbolSize="0" id="" opacity="1" equalColumnWidth="0" uuid="{a23d6fe6-ae9c-4822-9436-02d06c6b0009}" title="" columnSpace="6" zValue="26" wmsLegendWidth="50" position="62.7449,250.797,mm" excludeFromExports="0" groupUuid="" size="51.9351,35.7781,mm" rasterBorder="1" columnCount="1" splitLayer="0" type="65642" frame="false" rasterBorderColor="0,0,0,255,rgb:0,0,0,1">
         <FrameColor alpha="255" blue="0" red="0" green="0"/>
         <BackgroundColor alpha="255" blue="255" red="255" green="255"/>
         <LayoutObject>
@@ -18316,16 +18316,12 @@ def my_form_open(dialog, layer, feature):
             </customproperties>
             <layer-tree-layer source="./data/zone_etude.gpkg|layername=zone_etude|subset=&quot;secteur&quot; = 'Zone d''étude'" legend_split_behavior="0" id="zone_etude_0334f52a_5e35_486b_883e_643c9d12d1dc" patch_size="-1,-1" providerKey="ogr" checked="Qt::Checked" expanded="1" legend_exp="" name="Zone d'étude">
               <customproperties>
-                <Option type="Map">
-                  <Option type="QString" value="Zone d'étude" name="cached_name"/>
-                </Option>
+                <Option/>
               </customproperties>
             </layer-tree-layer>
             <layer-tree-layer source="./data/zone_etude.gpkg|layername=zone_etude|subset=&quot;secteur&quot; = 'Périmètres d''étude'" legend_split_behavior="0" id="zone_etude_9195e313_e980_4728_8d1c_0db2a9658a2e" patch_size="-1,-1" providerKey="ogr" checked="Qt::Checked" expanded="1" legend_exp="" name="Périmètre d'étude">
               <customproperties>
-                <Option type="Map">
-                  <Option type="QString" value="Périmètre d'étude" name="cached_name"/>
-                </Option>
+                <Option/>
               </customproperties>
             </layer-tree-layer>
           </layer-tree-group>
@@ -18336,7 +18332,6 @@ def my_form_open(dialog, layer, feature):
             <layer-tree-layer source="dbname='gnlpoaura' service='gnlpoaura' sslmode=require key='gid' estimatedmetadata=true srid=2154 type=MultiPolygon checkPrimaryKeyUnicity='1' table=&quot;(SELECT * FROM \&quot;ref_geo\&quot;.\&quot;mv_aura_departement\&quot;&#xd;&#xa;where \&quot;code_dept\&quot;  IN ('01','03','07','15','26','38','42','43','63','69','73','74')&#xa;)&quot; (geom)" legend_split_behavior="0" id="L13e9ca07bde14e16a55bc3b8154e7041" patch_size="-1,-1" providerKey="postgres" checked="Qt::Checked" expanded="1" legend_exp="" name="LEGENDE_Départements">
               <customproperties>
                 <Option type="Map">
-                  <Option type="QString" value="Départements" name="cached_name"/>
                   <Option type="QString" value="Départements" name="legend/title-label"/>
                 </Option>
               </customproperties>
@@ -18344,7 +18339,6 @@ def my_form_open(dialog, layer, feature):
             <layer-tree-layer source="service='gnlpoaura' sslmode=require key='id_area' estimatedmetadata=true srid=2154 type=MultiPolygon checkPrimaryKeyUnicity='1' table=&quot;ref_geo&quot;.&quot;mv_fr_region&quot; (geom) sql=&quot;area_name&quot; = 'AUVERGNE-RHONE-ALPES'" legend_split_behavior="0" id="Lcfe58d141fb14502bc9eaf6bc147d75f" patch_size="-1,-1" providerKey="postgres" checked="Qt::Checked" expanded="1" legend_exp="" name="LEGENDE_Région">
               <customproperties>
                 <Option type="Map">
-                  <Option type="QString" value="Région" name="cached_name"/>
                   <Option type="QString" value="Région" name="legend/title-label"/>
                 </Option>
               </customproperties>
@@ -18643,7 +18637,7 @@ def my_form_open(dialog, layer, feature):
           </dd_properties>
         </text-style>
       </LayoutItem>
-      <LayoutItem wrapChar="" itemRotation="0" positionOnPage="0.46294,242.896,mm" symbolHeight="3" boxSpace="2" positionLock="false" legendFilterByAtlas="0" map_uuid="{86f4377b-61ff-4ac3-8fa0-9d013402aeff}" blendMode="0" resizeToContents="1" legendFilterByMap="1" background="false" maxSymbolSize="0" referencePoint="0" wmsLegendHeight="26" titleAlignment="1" symbolAlignment="1" frameJoinStyle="miter" symbolWidth="6" rasterBorderWidth="0" templateUuid="{b5d931ac-60f5-47e2-b0a0-052e33228e2d}" outlineWidthM="0.3,mm" visibility="1" minSymbolSize="0" id="" opacity="1" equalColumnWidth="0" uuid="{b5d931ac-60f5-47e2-b0a0-052e33228e2d}" title="Légende" columnSpace="6" zValue="12" wmsLegendWidth="50" position="0.46294,242.896,mm" excludeFromExports="0" groupUuid="" size="61.7808,42.3675,mm" rasterBorder="1" columnCount="1" splitLayer="0" type="65642" frame="false" rasterBorderColor="0,0,0,255,rgb:0,0,0,1">
+      <LayoutItem wrapChar="" itemRotation="0" positionOnPage="0.46294,242.896,mm" symbolHeight="3" boxSpace="2" positionLock="false" legendFilterByAtlas="0" map_uuid="{86f4377b-61ff-4ac3-8fa0-9d013402aeff}" blendMode="0" resizeToContents="1" legendFilterByMap="1" background="false" maxSymbolSize="0" referencePoint="0" wmsLegendHeight="26" titleAlignment="1" symbolAlignment="1" frameJoinStyle="miter" symbolWidth="6" rasterBorderWidth="0" templateUuid="{b5d931ac-60f5-47e2-b0a0-052e33228e2d}" outlineWidthM="0.3,mm" visibility="1" minSymbolSize="0" id="" opacity="1" equalColumnWidth="0" uuid="{b5d931ac-60f5-47e2-b0a0-052e33228e2d}" title="Légende" columnSpace="6" zValue="12" wmsLegendWidth="50" position="0.46294,242.896,mm" excludeFromExports="0" groupUuid="" size="29.2061,12.2622,mm" rasterBorder="1" columnCount="1" splitLayer="0" type="65642" frame="false" rasterBorderColor="0,0,0,255,rgb:0,0,0,1">
         <FrameColor alpha="255" blue="0" red="0" green="0"/>
         <BackgroundColor alpha="255" blue="255" red="255" green="255"/>
         <LayoutObject>
@@ -18910,22 +18904,13 @@ def my_form_open(dialog, layer, feature):
           <layer-tree-layer source="./data/statut_connaissance.gpkg|layername=statut_connaissance" legend_split_behavior="0" id="statut_repro_06c1eb4c_4a8d_4a7c_8bd5_86bec4dc4b20" patch_size="-1,-1" providerKey="ogr" checked="Qt::Checked" expanded="1" legend_exp="" name="statut_protection">
             <customproperties>
               <Option type="Map">
+                <Option type="QString" value="Présence d'espèces avec statut" name="cached_name"/>
                 <Option type="QString" value="Espèces sans statut" name="legend/label-1"/>
                 <Option type="QString" value="Présence d'espèces avec statut" name="legend/title-label"/>
               </Option>
             </customproperties>
           </layer-tree-layer>
-          <layer-tree-layer source="./data/statut_connaissance.gpkg|layername=statut_connaissance|subset=&quot;nb_espece_lr_nicheuse&quot;>0" legend_split_behavior="0" id="statut_repro_copie_d3f0a9a3_b1ae_4473_9f0d_8516955b9f9e" patch_size="-1,-1" providerKey="ogr" checked="Qt::Checked" expanded="1" legend_exp="" name="statut_protection_rond">
-            <customproperties>
-              <Option type="Map">
-                <Option type="QString" value="" name="legend/title-label"/>
-              </Option>
-            </customproperties>
-          </layer-tree-layer>
-          <custom-order enabled="0">
-            <item>statut_repro_06c1eb4c_4a8d_4a7c_8bd5_86bec4dc4b20</item>
-            <item>statut_repro_copie_d3f0a9a3_b1ae_4473_9f0d_8516955b9f9e</item>
-          </custom-order>
+          <custom-order enabled="0"/>
         </layer-tree-group>
       </LayoutItem>
       <LayoutItem svgFillColor="26,26,26,255,rgb:0.10196078431372549,0.10196078431372549,0.10196078431372549,1" pictureWidth="31.9579" pictureHeight="29.6633" pictureRotation="0" itemRotation="0" visibility="1" mapUuid="{86f4377b-61ff-4ac3-8fa0-9d013402aeff}" position="179.623,214.233,mm" positionOnPage="179.623,214.233,mm" outlineWidthM="0.3,mm" size="34.663,29.6633,mm" resizeMode="0" svgBorderColor="26,26,26,255,rgb:0.10196078431372549,0.10196078431372549,0.10196078431372549,1" opacity="1" northOffset="0" frame="false" anchorPoint="0" zValue="9" svgBorderWidth="0.6" templateUuid="{933b35ad-52f6-4aad-a91f-5d4620025bc4}" northMode="0" type="65640" background="false" uuid="{933b35ad-52f6-4aad-a91f-5d4620025bc4}" excludeFromExports="0" file="https://raw.githubusercontent.com/lpoaura/lpo_qgis_profiles/main/profiles/naturaliste/composer_templates/deco/Fleche_N_noire.svg" frameJoinStyle="miter" mode="1" referencePoint="0" positionLock="false" groupUuid="" blendMode="0" id="Flèche du Nord">

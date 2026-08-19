@@ -2,8 +2,8 @@ from pathlib import Path
 
 from reportgenerator.analysis.atlas.qgis_launcher import \
     launch_qgis_atlas_render
-from reportgenerator.analysis.cartography.export import (copy_qgis_project,
-                                                         export_gpkg)
+from reportgenerator.analysis.atlas.export import export_atlas_gpkg
+from reportgenerator.analysis.cartography.export import copy_qgis_project
 
 
 def run_atlas(synthese_queries, output_dirs, area_name, run_render=True):
@@ -17,21 +17,21 @@ def run_atlas(synthese_queries, output_dirs, area_name, run_render=True):
     # 2. Export GPKG
     atlas_gpkg_path = output_dirs["data"] / "atlas.gpkg"
 
-    export_gpkg(
+    export_atlas_gpkg(
         data=grid_rows,
         gpkg_path=atlas_gpkg_path,
         layer_name="atlas_species_grid",
         geom_col="emprise_presence",
     )
 
-    export_gpkg(
+    export_atlas_gpkg(
         data=summary_rows,
         gpkg_path=atlas_gpkg_path,
         layer_name="atlas_species_summary",
         geom_col="geom_maille",
     )
 
-    export_gpkg(
+    export_atlas_gpkg(
         data=area_zone_rows,
         gpkg_path=atlas_gpkg_path,
         layer_name="atlas_area_zone",

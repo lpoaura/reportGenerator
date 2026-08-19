@@ -269,7 +269,8 @@ class SyntheseQueries:
                                         lr_ra,
                                         lr_aura,
                                         lr_france,
-                                        lr_fr_nich,
+                                        case when lr_fr_nich is null and lr_france is not null then lr_france else lr_fr_nich end as lr_fr_nich,
+                                        --lr_fr_nich,
                                         lr_fr_hiv,
                                         lr_fr_migr,
                                         lr_euro,
@@ -681,21 +682,39 @@ class SyntheseQueries:
     def get_number_esp_per_taxonomy(self):
          """Tableau du nombre d'espèces par groupe taxonomique, pour le graphique de l'état des connaissances"""
          with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("""  select distinct case when mccvt.groupe_taxo_fr is not null then mccvt.groupe_taxo_fr
-                                                when mccvt.groupe_taxo_fr is null and t.group3_inpn = 'Lépidoptères' and t.cd_ref in (1015437, 249667, 716457, 716458, 961903)  then 'Papillons de nuit'
-                                                when mccvt.groupe_taxo_fr is null and t.group3_inpn = 'Lépidoptères' and t.cd_ref in (716692)  then 'Papillons de jour'
-                                                when mccvt.groupe_taxo_fr is null and t.group2_inpn in ('Insectes','Arachnides') then t.group3_inpn
-                                                when mccvt.groupe_taxo_fr is null and t.group2_inpn in ('Oiseaux','Mammifères','Poissons', 'Amphibiens')  then t.group2_inpn
-                                                else t.group2_inpn end  as tx_group2_inpn_v2,
-                                    count( distinct t.cd_ref ) as nb_esp
-                            from gn_synthese.synthese s
-                            left join taxonomie.taxref t on s.cd_nom = t.cd_nom
-                            left join taxonomie.mv_c_cor_vn_taxref mccvt on s.cd_nom = mccvt.cd_nom
-                            where s.id_nomenclature_observation_status = 89
-                            and t.id_rang = 'ES'
-                            and s.id_nomenclature_valid_status = ANY (ARRAY[ref_nomenclatures.get_id_nomenclature('STATUT_VALID'::character varying, '2'::character varying), ref_nomenclatures.get_id_nomenclature('STATUT_VALID'::character varying, '1'::character varying)]) is true
-                            and s.date_max >= date (CONCAT(extract( year from date(now()) - interval '20 year'),'-01-01'))
-                            group by 1
-                            order by 2 desc;
+            cur.execute("""  select * from src_gestion.vm_reportgenerator_refere_taxo;
                                 """)
+            return cur.fetchall()
+
+    def get_species_disparition(self, seuil_disparition=10, seuil_regression=5):
+        """Espèces disparues ou en régression : première/dernière année d'observation"""
+        with self.conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(f"""
+                with prep as (
+                    select
+                        s.cd_ref,
+                        REPLACE(REPLACE(REPLACE(split_part(s.vn_nom_fr, ', ', 1),'(La)',''),'(Le)',''),'(L'')','') as nom_vern,
+                        s.vn_nom_sci as lb_nom,
+                        s.tx_group2_inpn_v2 as group_taxo,
+                        MIN(EXTRACT(YEAR FROM s.date_max)) as premiere_annee,
+                        MAX(EXTRACT(YEAR FROM s.date_max)) as derniere_annee,
+                        COUNT(DISTINCT EXTRACT(YEAR FROM s.date_max)) as nb_annees_observation,
+                        COUNT(DISTINCT s.id_synthese) as nb_observations,
+                        case when s.lr_aura is null then s.lr_france else s.lr_aura end as lr_qgis,
+                        bool_or(s.prot_nat is not null) as protegee
+                    from lpoaura_afo.vm_reportgenerator_data s
+                    group by s.cd_ref, s.vn_nom_fr, s.vn_nom_sci, s.tx_group2_inpn_v2, s.lr_aura, s.lr_france
+                )
+                select *,
+                    (extract(year from now()) - derniere_annee) as anciennete,
+                    case
+                        when (extract(year from now()) - derniere_annee) >= {seuil_disparition} then 'Disparue'
+                        when (extract(year from now()) - derniere_annee) >= {seuil_regression} then 'En régression'
+                        else 'Présente'
+                    end as statut_disparition
+                from prep
+                where nb_annees_observation >= 2
+                and (extract(year from now()) - derniere_annee) >= {seuil_regression}
+                order by derniere_annee asc, protegee desc
+            """)
             return cur.fetchall()

@@ -256,19 +256,16 @@ def generate_report(
         # ("Espèces en danger nicheuses", 'nb_espece_lr_nicheuse'),
     ]
 
-    STATUS_COLS = ["lr_auv", "lr_ra", "lr_aura", "lr_france"]
+    STATUS_COLS = ["lr_aura", "lr_fr_nich",  "lr_fr_hiv",  "lr_fr_migr"]
     STATUS_FILTER = ["CR", "EN", "VU", "NT"]
 
     
 
     tableau_species_lr = pd.DataFrame(tableau_species)
 
-    print(tableau_species_lr[STATUS_COLS].head(20))
-
     mask = tableau_species_lr[STATUS_COLS].isin(STATUS_FILTER).any(axis=1)
     tableau_species_lr = tableau_species_lr[mask]
     tableau_species_lr = tableau_species_lr.to_dict(orient="records")
-
 
     # insertion des tableaux dans le document
     insert_species_table(
