@@ -5,7 +5,7 @@ from pathlib import Path
 
 from qgis.core import (QgsApplication, QgsLayoutExporter, QgsLayoutItemMap,
                        QgsProject, QgsRectangle, QgsVectorLayer)
-from reportgenerator.analysis.qgis_runtime import resolve_qgis_prefix
+#from reportgenerator.analysis.qgis_runtime import resolve_qgis_prefix
 
 
 
@@ -120,8 +120,8 @@ def main():
     ### /!\ à décommenter si on veut utiliser le QGIS installé sur serveur. /!\
 
     
-    QgsApplication.setPrefixPath(str(resolve_qgis_prefix()), True)
-    #QgsApplication.setPrefixPath("C:/Program Files/QGIS/3_40", True )
+    #QgsApplication.setPrefixPath(str(resolve_qgis_prefix()), True)
+    QgsApplication.setPrefixPath("C:/Program Files/QGIS/3_40", True )
    
     qgs = QgsApplication([], False)
     qgs.initQgis()

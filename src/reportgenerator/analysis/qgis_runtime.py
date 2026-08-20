@@ -11,11 +11,11 @@ QGIS_PREFIX_ENV_VARS = (
 )
 
 WINDOWS_QGIS_DIRS = (
-    Path(r'"C:\Program Files\QGIS\3_40"'),
-    Path(r'"C:\Program Files\QGIS 3.40"'),
-    Path(r'"C:\Program Files\QGIS 3.40.0"'),
-    Path(r'"C:\OSGeo4W"'),
-    Path(r'"C:\OSGeo4W64"'),
+    Path(r"C:\Program Files\QGIS\3_40"),
+    Path(r"C:\Program Files\QGIS 3.40"),
+    Path(r"C:\Program Files\QGIS 3.40.0"),
+    Path(r"C:\OSGeo4W"),
+    Path(r"C:\OSGeo4W64"),
 )
 
 LINUX_QGIS_PREFIXES = (
