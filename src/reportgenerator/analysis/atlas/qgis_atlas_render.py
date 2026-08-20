@@ -105,8 +105,8 @@ def run_atlas(project_path: Path, output_path: Path, layout_name: str):
     ### /!\ à décommenter si on veut utiliser le QGIS installé sur serveur. /!\
 
     #from reportgenerator.analysis.qgis_runtime import resolve_qgis_prefix
-    #QgsApplication.setPrefixPath(str(resolve_qgis_prefix()), True)
-    QgsApplication.setPrefixPath("C:/Program Files/QGIS/3_40", True )
+    QgsApplication.setPrefixPath(str(resolve_qgis_prefix()), True)
+    #QgsApplication.setPrefixPath("C:/Program Files/QGIS/3_40", True )
     qgs = QgsApplication([], False)
     qgs.initQgis()
     gpkg_path = Path(project_path).parent / "data" / "atlas.gpkg"
