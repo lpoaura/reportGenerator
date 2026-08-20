@@ -7,7 +7,8 @@ Python script to generate Word reports from GeoNature LPO databases.
 ```bash
 poetry install
 
-poetry run reportgenerator --service <mon_service_pg> --output <mon_rapport.docx> --id_area <mon_rapport.docx> --referee <mon_rapport.docx> --list_analyse <mon_rapport.docx> --buffer <numero_buffer_en_km> --area_name <mon_nom_de_projet>
+poetry run python src/reportgenerator/cli.py generate --service gnlpoaura --limit 1000
+poetry run python src/reportgenerator/cli.py run --service "mon_service_pg" --output "mon_rapport.docx" --id_area 2336982 --referee "Personne référentes" --list_analyse "mes_analyses" --buffer numero_buffer_en_km --area_name "mon_nom_de_projet"
 
 ```
 
