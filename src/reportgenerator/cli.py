@@ -1,143 +1,55 @@
 #!/bin/python3
 
 import argparse
-import logging
-from datetime import datetime
 from pathlib import Path
 
-
-from reportgenerator.analysis.atlas.analysis import run_atlas
-from reportgenerator.analysis.cartography.analysis import run_cartography
-from reportgenerator.analysis.common.filesystem import create_analysis_dirs
-from reportgenerator.analysis.common.timing import RunTimer
-from reportgenerator.analysis.knowledge_status.analysis import \
-    run as run_knowledge_status
-from reportgenerator.db_auth import get_connection
-from reportgenerator.queries import SyntheseQueries
-from reportgenerator.report import generate_report
-
-
-logger = logging.getLogger(__name__)
+from reportgenerator.run_single import run_single_report
+from reportgenerator.run_queue import run_all_report
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Génération d'un rapport Word à partir de la base PostgreSQL"
     )
+    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    parser.add_argument(
-        "--service", required=True, help="Nom du service pg_service.conf"
-    )
+    # ---- mode unitaire : équivalent à l'usage actuel ----
+    run_parser = subparsers.add_parser("run", help="Génère un seul rapport")
+    run_parser.add_argument("--service", required=True)
+    run_parser.add_argument("--output", required=True)
+    run_parser.add_argument("--output_dir", type=Path, default=None)
+    run_parser.add_argument("--id_area", type=int, required=True)
+    run_parser.add_argument("--referee", required=True)
+    run_parser.add_argument("--list_analyse", required=True)
+    run_parser.add_argument("--buffer", type=int, required=True)
+    run_parser.add_argument("--area_name", required=True)
 
-    parser.add_argument("--output", required=True, help="Fichier Word de sortie")
-
-    parser.add_argument(
-        "--output_dir",
-        type=Path,
-        help=(
-            "Répertoire de sortie des analyses et du rapport "
-            "(par défaut : outputs/<area_name>)"
-        ),
-    )
-
-    parser.add_argument(
-        "--id_area",
-        type=int,
-        required=True,
-        help="id de la geometrie de la zone la zone d'étude pour le rapport",
-    )
-
-    parser.add_argument("--referee", type=str, required=True, help="Personne référente")
-
-    parser.add_argument(
-        "--list_analyse",
-        type=str,
-        required=True,
-        help="Listes des différentes analyses",
-    )
-
-    parser.add_argument(
-        "--buffer", type=int, required=True, help="Taille du buffer en kilomètres"
-    )
-
-    parser.add_argument(
-        "--area_name", type=str, required=True, help="Nom de la zone d'étude"
-    )
+    # ---- mode batch : tous les rapports en attente ----
+    gen_parser = subparsers.add_parser("generate", help="Génère les rapports en attente")
+    gen_parser.add_argument("--service", required=True)
+    gen_parser.add_argument("--limit", type=int, default=None)
+    gen_parser.add_argument("--dry-run", action="store_true")
 
     args = parser.parse_args()
 
-    
-    time_launch = datetime.now()
-    print(
-        f"Début de génération du rapport {args.area_name} - à {time_launch.strftime('%H:%M:%S')} :"
-    )
-    # logger.info(f"Début de génération du rapport {args.area_name} - à {time_launch} :")
-
-    # Créer les répertoires de sortie
-    output_dir = (
-        args.output_dir or (Path(__file__).resolve().parent / "outputs")
-    ) / args.area_name
-    output_dirs = create_analysis_dirs(output_dir)
-
-    timer = RunTimer()
-
-    with get_connection(args.service) as conn:
-
-        synthese_queries = SyntheseQueries(
-                conn=conn, id_area=args.id_area, buffer=args.buffer
-            )
-
-        with timer.step("Vue matérialisée + analyse état des connaissances"):
-            analysis_result = run_knowledge_status(
-                context=args, synthese_queries=synthese_queries, output_dirs=output_dirs
-            )
-
-        with timer.step("Cartographie QGIS"):
-            run_cartography(
-                synthese_queries=synthese_queries,
-                output_dirs=output_dirs,
-                area_name=args.area_name,
-            )
-
-        if "atlas_nicheur" in args.list_analyse:
-            with timer.step("Atlas QGIS"):
-                run_atlas(
-                    synthese_queries=synthese_queries,
-                    output_dirs=output_dirs,
-                    area_name=args.area_name,
-                    run_render=True,
-                )
-
-    # Générer le rapport Word
-    with timer.step("Génération du rapport Word"):
-        generate_report(
+    if args.command == "run":
+        run_single_report(
             service_name=args.service,
-            output_file=output_dir / args.output,
             id_area=args.id_area,
             referee=args.referee,
             list_analyse=args.list_analyse,
             buffer=args.buffer,
             area_name=args.area_name,
-            analysis_result=analysis_result,
-            output_dir=output_dir,
+            output=args.output,
+            output_dir_base=args.output_dir,
         )
 
-    time_end = datetime.now()
-    duration = time_end - time_launch
-
-    total = timer.summary()
-    #timer.save_json(output_dir / "timing.json", meta={"area_name": args.area_name, "id_area": args.id_area})
-
-    print(f"Fin de génération - à {time_end.strftime('%H:%M:%S')}")
-    print(f"Temps total d'exécution : {duration}")
-
-    # update uniquement si tout s'est bien passé
-    with get_connection(args.service) as conn:
-        synthese_queries = SyntheseQueries(
-            conn=conn, id_area=args.id_area, buffer=args.buffer
+    elif args.command == "generate":
+        run_all_report(
+            service_name=args.service,
+            limit=args.limit,
+            dry_run=args.dry_run,
         )
-        synthese_queries.update_date_reportgenerator()
-        synthese_queries.delete_reportgenerator_view()
 
 
 if __name__ == "__main__":
