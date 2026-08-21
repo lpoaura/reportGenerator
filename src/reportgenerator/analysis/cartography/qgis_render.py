@@ -1,8 +1,16 @@
 # qgis_render.py
 
-import argparse
+import os, sys
 from pathlib import Path
 
+# Ajout explicite de la racine du package, indépendamment de PYTHONPATH
+# (le .bat QGIS peut écraser les variables d'environnement héritées)
+package_root = Path(__file__).resolve().parents[3]  # .../src
+if str(package_root) not in sys.path:
+    sys.path.insert(0, str(package_root))
+    
+
+import argparse
 from qgis.core import (QgsApplication, QgsLayoutExporter, QgsLayoutItemMap,
                        QgsProject, QgsRectangle, QgsVectorLayer)
 from reportgenerator.analysis.qgis_runtime import resolve_qgis_prefix

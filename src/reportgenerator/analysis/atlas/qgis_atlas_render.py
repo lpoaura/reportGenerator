@@ -1,5 +1,13 @@
 import argparse
-import sys
+import os, sys
+from pathlib import Path
+
+# Ajout explicite de la racine du package, indépendamment de PYTHONPATH
+# (le .bat QGIS peut écraser les variables d'environnement héritées)
+package_root = Path(__file__).resolve().parents[3]  # .../src
+if str(package_root) not in sys.path:
+    sys.path.insert(0, str(package_root))
+    
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 from qgis.core import (QgsApplication, QgsFeatureRequest, QgsLayoutExporter,

@@ -113,6 +113,7 @@ class SyntheseQueries:
             CREATE INDEX idx_date_max ON lpoaura_afo.vm_reportgenerator_data (date_max);
             CREATE INDEX idx_the_geom_local ON lpoaura_afo.vm_reportgenerator_data USING GIST (the_geom_local);
             CREATE INDEX idx_geom_maille ON lpoaura_afo.vm_reportgenerator_data USING GIST (geom_maille);
+            ANALYZE lpoaura_afo.vm_reportgenerator_data;
         """
         with self.conn.cursor() as cur:
             cur.execute(sql)
@@ -146,69 +147,56 @@ class SyntheseQueries:
             return cur.fetchall()
 
     def get_resum_data(self):
-        """Tableau de synthèse global par zone étude et périmètre pour le rapport"""
-        buffer_km = int(self.buffer)
+        """Tableau de synthèse global par zone étude et périmètre pour le rapport.
+
+        Note : buffer_km n'est plus nécessaire ici. vm_reportgenerator_data
+        contient déjà uniquement les observations de la zone d'étude + buffer
+        (cf. set_global_data), donc "hors zone d'étude" = "dans le buffer",
+        sans avoir à reconstruire un donut coûteux.
+        """
         id_area = int(self.id_area)
-        sql = f"""   WITH study_area AS (
-                            SELECT geom
-                            FROM ref_geo.l_areas
-                            WHERE id_area = {id_area}
-                            AND id_type = ref_geo.get_id_area_type('LPO_REPORT_STUDY')
-                            ),
-                            buffer_area AS (
-                                SELECT ST_Buffer( geom,{buffer_km} * 1000 ) AS geom
-                                FROM study_area
-                            ),
-                            donut_area AS (
-                                SELECT ST_Difference(
-                                    b.geom,
-                                    s.geom
-                                ) AS geom
-                                FROM buffer_area b
-                                CROSS JOIN study_area s
-                            ),
-                            study_data AS (
-                                SELECT d.*
-                                FROM lpoaura_afo.vm_reportgenerator_data d
-                                CROSS JOIN study_area s
-                                WHERE ST_Intersects( d.the_geom_local,s.geom )
-                            ),
-                            donut_data AS (
-                                SELECT d.*
-                                FROM lpoaura_afo.vm_reportgenerator_data d
-                                CROSS JOIN donut_area a
-                                WHERE ST_Intersects(d.the_geom_local, a.geom )
-                            ),
-                            global_data AS (
-                                SELECT d.*
-                                FROM lpoaura_afo.vm_reportgenerator_data d    
-                            )
-                        SELECT
-                            'zone_etude' AS secteur,
-                            COUNT(DISTINCT id_synthese) AS nb_observations,
-                            COUNT(DISTINCT cd_ref) AS nb_especes,
-                            MAX(date_max) AS derniere_observation
-                        FROM study_data
-                        UNION ALL
-                        SELECT
-                            'buffer_seul' AS secteur,
-                            COUNT(DISTINCT id_synthese),
-                            COUNT(DISTINCT cd_ref),
-                            MAX(date_max)
-                        FROM donut_data
-                        UNION ALL
-                        SELECT
-                            'ensemble' AS secteur,
-                            COUNT(DISTINCT id_synthese),
-                            COUNT(DISTINCT cd_ref),
-                            MAX(date_max)
-                        FROM global_data
-                        ;
+        sql = f"""
+            WITH study_area AS (
+                SELECT geom
+                FROM ref_geo.l_areas
+                WHERE id_area = {id_area}
+                AND id_type = ref_geo.get_id_area_type('LPO_REPORT_STUDY')
+            ),
+            flagged AS (
+                SELECT
+                    d.id_synthese,
+                    d.cd_ref,
+                    d.date_max,
+                    ST_Intersects(d.the_geom_local, s.geom) AS in_zone
+                FROM lpoaura_afo.vm_reportgenerator_data d
+                CROSS JOIN study_area s
+            )
+            SELECT
+                'zone_etude' AS secteur,
+                COUNT(DISTINCT id_synthese) FILTER (WHERE in_zone) AS nb_observations,
+                COUNT(DISTINCT cd_ref) FILTER (WHERE in_zone) AS nb_especes,
+                MAX(date_max) FILTER (WHERE in_zone) AS derniere_observation
+            FROM flagged
+            UNION ALL
+            SELECT
+                'buffer_seul',
+                COUNT(DISTINCT id_synthese) FILTER (WHERE NOT in_zone),
+                COUNT(DISTINCT cd_ref) FILTER (WHERE NOT in_zone),
+                MAX(date_max) FILTER (WHERE NOT in_zone)
+            FROM flagged
+            UNION ALL
+            SELECT
+                'ensemble',
+                COUNT(DISTINCT id_synthese),
+                COUNT(DISTINCT cd_ref),
+                MAX(date_max)
+            FROM flagged
+            ;
         """
         with self.conn.cursor() as cur:
             cur.execute(sql)
             return cur.fetchall()
-
+        
     def get_resum_temporal_evolution(self):
         """Graphique des évolutions temporelles pour le rapport"""
         with self.conn.cursor(row_factory=dict_row) as cur:
