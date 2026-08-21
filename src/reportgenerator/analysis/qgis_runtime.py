@@ -11,11 +11,11 @@ QGIS_PREFIX_ENV_VARS = (
 )
 
 WINDOWS_QGIS_DIRS = (
-    Path(r'"C:\Program Files\QGIS\3_40"'),
-    Path(r'"C:\Program Files\QGIS 3.40"'),
-    Path(r'"C:\Program Files\QGIS 3.40.0"'),
-    Path(r'"C:\OSGeo4W"'),
-    Path(r'"C:\OSGeo4W64"'),
+    Path(r"C:\Program Files\QGIS\3_40"),
+    Path(r"C:\Program Files\QGIS 3.40"),
+    Path(r"C:\Program Files\QGIS 3.40.0"),
+    Path(r"C:\OSGeo4W"),
+    Path(r"C:\OSGeo4W64"),
 )
 
 LINUX_QGIS_PREFIXES = (
@@ -36,6 +36,7 @@ def _env_path(names):
     for name in names:
         value = os.getenv(name)
         if value:
+            value = value.strip().strip('"').strip("'")
             return Path(value)
     return None
 
@@ -64,11 +65,15 @@ def _windows_qgis_dirs():
 def resolve_qgis_python() -> Path:
     """Return the Python executable able to import QGIS bindings."""
     env_path = _env_path(QGIS_PYTHON_ENV_VARS)
+    print("DEBUG env REPORTGENERATOR_QGIS_PYTHON =", repr(os.getenv("REPORTGENERATOR_QGIS_PYTHON")))
+    print("DEBUG env QGIS_PYTHON =", repr(os.getenv("QGIS_PYTHON")))
     if env_path:
+        print(f"Using QGIS Python from environment variable: {env_path}")
         return env_path
 
     command = shutil.which("python-qgis-ltr") or shutil.which("python-qgis")
     if command:
+        print(f"Using QGIS Python from command: {command}")
         return Path(command)
 
     if sys.platform.startswith("win"):

@@ -13,16 +13,22 @@ def launch_qgis_render(project_path, output_dir):
 
     print("Lancement du rendu QGIS...")
 
-    subprocess.run(
+    result = subprocess.run(
         [
+            "cmd", "/c",
             str(qgis_python),
             str(script),
-            "--project",
-            str(project_path),
-            "--output",
-            str(output_dir),
+            "--project", str(project_path),
+            "--output", str(output_dir),
         ],
-        shell=True,
-        check=True,
         env=qgis_subprocess_env(),
+        capture_output=True,
+        text=True,
     )
+
+    print("--- STDOUT QGIS ---")
+    print(result.stdout)
+    print("--- STDERR QGIS ---")
+    print(result.stderr)
+
+    result.check_returncode()
