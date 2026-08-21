@@ -23,6 +23,7 @@ def launch_qgis_atlas_render(project_path, output_path, layout_name="atlas_speci
             "--layout",
             layout_name,
         ],
+        shell=True,
         check=True,
         env=qgis_subprocess_env(),
     )

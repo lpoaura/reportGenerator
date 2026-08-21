@@ -29,10 +29,10 @@ class SyntheseQueries:
                     SELECT
                         ST_Area(geom) / 1000000.0 as air_km2,
                         CASE
-                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 5 THEN 'M0.2'
-                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 25 THEN 'M0.5'
-                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 250 THEN 'M1'
-                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 2500 THEN 'M2'
+                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 25 THEN 'M0.2'
+                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 250 THEN 'M0.5'
+                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 750 THEN 'M1'
+                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 4000 THEN 'M2'
                             ELSE 'M5'
                         END AS grille_code
                     FROM zone_etude
@@ -108,6 +108,11 @@ class SyntheseQueries:
             and tx_group2_inpn_v2 in ('Amphibiens','Chauves-souris','Mammifères','Odonates','Oiseaux','Papillons de jour','Poissons','Reptiles')
             and (ST_GeometryType(s.the_geom_local) = 'ST_Point')
             ;
+            CREATE INDEX idx_id_synthese ON lpoaura_afo.vm_reportgenerator_data (id_synthese);
+            CREATE INDEX idx_cd_ref ON lpoaura_afo.vm_reportgenerator_data (cd_ref);
+            CREATE INDEX idx_date_max ON lpoaura_afo.vm_reportgenerator_data (date_max);
+            CREATE INDEX idx_the_geom_local ON lpoaura_afo.vm_reportgenerator_data USING GIST (the_geom_local);
+            CREATE INDEX idx_geom_maille ON lpoaura_afo.vm_reportgenerator_data USING GIST (geom_maille);
         """
         with self.conn.cursor() as cur:
             cur.execute(sql)
@@ -449,6 +454,7 @@ class SyntheseQueries:
                                     MAX(s.count_max) as nb_effectif_max,
                                     COUNT(distinct s.id_synthese) filter (where tn."hierarchy"::numeric >= 30) as nb_data_nidif,
                                     COUNT(distinct EXTRACT(year FROM s.date_max)) as nb_annee,
+                                    MAX(EXTRACT(year FROM s.date_max)) as last_annee,
                                     case when MAX(tn."hierarchy"::numeric) = 0 then 'Espèce absente'
                                         when MAX(tn."hierarchy"::numeric) < 30 then 'Absence de code'
                                         when MAX(tn."hierarchy"::numeric) < 40 then 'Possible'
@@ -501,7 +507,7 @@ class SyntheseQueries:
     def delete_reportgenerator_view(self):
         """Suppression de la vue matérialisée pour le rapport"""
         sql = f"""
-            drop materialized view if exists lpoaura_afo.vm_reportgenerator_data;
+            drop materialized view if exists lpoaura_afo.vm_reportgenerator_data CASCADE;
             ;
         """
         with self.conn.cursor() as cur:
@@ -616,7 +622,7 @@ class SyntheseQueries:
 
     def get_zonage_surfaces(self):
         """Surfaces (km²) par type de zonage environnemental, réparties par anneau
-        (zone d'étude / buffer / 10km), sans chevauchement."""
+        (zone d'étude / buffer / 10km fixes au-delà du buffer), sans chevauchement."""
         buffer_km = int(self.buffer)
         id_area = int(self.id_area)
         sql = f"""
@@ -625,6 +631,10 @@ class SyntheseQueries:
                 from ref_geo.l_areas l
                 where l.id_area = {id_area}
                 and l.id_type = ref_geo.get_id_area_type('LPO_REPORT_STUDY'::character varying)
+            ),
+            emprise_totale as (
+                select ST_Buffer(z.geom, ({buffer_km} * 1000) + 10000) as geom
+                from zone_etude z
             ),
             zone_buffer as (
                 select ST_Difference(
@@ -635,10 +645,11 @@ class SyntheseQueries:
             ),
             zone_10km as (
                 select ST_Difference(
-                    ST_Buffer(z.geom, {buffer_km} * 10000),
+                    e.geom,
                     ST_Buffer(z.geom, {buffer_km} * 1000)
                 ) as geom
                 from zone_etude z
+                cross join emprise_totale e
             ),
             zones as (
                 select 'zone_etude' as zone_name, 1 as zone_order, geom from zone_etude
@@ -647,22 +658,30 @@ class SyntheseQueries:
                 union all
                 select '10km', 3, geom from zone_10km
             ),
-            zonages as (
-                select bat.type_code, la2.geom as geom
+            zonages_clip as (
+                select
+                    bat.type_code,
+                    ST_Subdivide(ST_Intersection(la2.geom, e.geom), 128) as geom
                 from ref_geo.l_areas la2
                 inner join ref_geo.bib_areas_types bat on la2.id_type = bat.id_type
+                cross join emprise_totale e
                 where bat.type_code in ('PNR','APB','ZNIEFF1','ZNIEFF2','RNR','RNN')
-                and st_intersects(la2.geom, (select ST_Buffer(geom, {buffer_km} * 10000) from zone_etude))
+                and st_intersects(la2.geom, e.geom)
+
                 union all
-                select 'Natura 2000' as type_code, la2.geom as geom
+
+                select
+                    'Natura 2000' as type_code,
+                    ST_Subdivide(ST_Intersection(la2.geom, e.geom), 128) as geom
                 from ref_geo.l_areas la2
                 inner join ref_geo.bib_areas_types bat on la2.id_type = bat.id_type
+                cross join emprise_totale e
                 where bat.type_code in ('ZSC','ZPS','SIC')
-                and st_intersects(la2.geom, (select ST_Buffer(geom, {buffer_km} * 10000) from zone_etude))
+                and st_intersects(la2.geom, e.geom)
             ),
             zonages_union as (
                 select type_code, ST_Union(geom) as geom
-                from zonages
+                from zonages_clip
                 group by type_code
             )
             select

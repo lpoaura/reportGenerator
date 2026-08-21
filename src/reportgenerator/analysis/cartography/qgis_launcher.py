@@ -22,6 +22,7 @@ def launch_qgis_render(project_path, output_dir):
             "--output",
             str(output_dir),
         ],
+        shell=True,
         check=True,
         env=qgis_subprocess_env(),
     )
