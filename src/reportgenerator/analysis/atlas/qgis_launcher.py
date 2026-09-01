@@ -1,6 +1,5 @@
 import subprocess
 from pathlib import Path
-
 from reportgenerator.analysis.qgis_runtime import (qgis_subprocess_env,
                                                    resolve_qgis_python)
 

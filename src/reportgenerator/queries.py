@@ -13,13 +13,14 @@ class SyntheseQueries:
 
     def set_global_data(self):
         """Création de la vue matérialisée pour le rapport"""
+        print("Création de la vue matérialisée pour le rapport (lpoaura_afo.vm_reportgenerator_data)...")
         buffer_km = int(self.buffer)
         id_area = int(self.id_area)
 
         sql = f"""
             drop materialized view if exists lpoaura_afo.vm_reportgenerator_data;
             create materialized view lpoaura_afo.vm_reportgenerator_data as
-            with zone_etude as (
+                       with zone_etude as (
                 select ST_Buffer(l.geom, {buffer_km} * 1000) as geom
                 from ref_geo.l_areas l
                 where l.id_area = {id_area}
@@ -29,10 +30,10 @@ class SyntheseQueries:
                     SELECT
                         ST_Area(geom) / 1000000.0 as air_km2,
                         CASE
-                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 25 THEN 'M0.2'
-                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 250 THEN 'M0.5'
-                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 750 THEN 'M1'
-                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 4000 THEN 'M2'
+                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 5 THEN 'M0.2'
+                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 25 THEN 'M0.5'
+                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 250 THEN 'M1'
+                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 2500 THEN 'M2'
                             ELSE 'M5'
                         END AS grille_code
                     FROM zone_etude

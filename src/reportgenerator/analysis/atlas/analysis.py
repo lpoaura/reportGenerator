@@ -63,7 +63,7 @@ def run_atlas(synthese_queries, output_dirs, area_name, run_render=True):
         if run_render:
             launch_qgis_atlas_render(
                 project_path=project_path,
-                output_path=atlas_pdf_path,
+                output_dir=atlas_pdf_path,
                 layout_name="atlas_species",
             )
 

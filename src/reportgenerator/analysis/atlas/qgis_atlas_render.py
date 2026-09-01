@@ -107,7 +107,7 @@ def apply_extent_to_layout_maps(layout, extent):
     print(f"{map_count} cartes mises à jour")
 
 
-def run_atlas(project_path: Path, output_path: Path, layout_name: str):
+def run_atlas(project_path: Path, output_dir: Path, layout_name: str):
 
     # Init QGIS
     ### /!\ à décommenter si on veut utiliser le QGIS installé sur serveur. /!\
@@ -121,7 +121,7 @@ def run_atlas(project_path: Path, output_path: Path, layout_name: str):
 
     print("ATLAS render...")
     print(f"Project path: {project_path}")
-    print(f"Output path: {output_path}")
+    print(f"Output path: {output_dir}")
 
     try:
         # -----------------------------
@@ -184,7 +184,7 @@ def run_atlas(project_path: Path, output_path: Path, layout_name: str):
         # -----------------------------
         # Dossier export
         # -----------------------------
-        export_folder = output_path.parent
+        export_folder = output_dir.parent
         export_folder.mkdir(parents=True, exist_ok=True)
         # -----------------------------
         # Rendu atlas
@@ -241,7 +241,7 @@ def main():
 
     run_atlas(
         project_path=Path(args.project),
-        output_path=Path(args.output),
+        output_dir=Path(args.output),
         layout_name=args.layout,
     )
 
