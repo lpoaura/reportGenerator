@@ -7,6 +7,7 @@ Utilisé aussi bien par le mode "run" (unitaire) que par le mode "generate" (bat
 
 from pathlib import Path
 from datetime import datetime
+import os
 
 from reportgenerator.analysis.atlas.analysis import run_atlas
 from reportgenerator.analysis.cartography.analysis import run_cartography
@@ -38,8 +39,11 @@ def run_single_report(
     time_launch = datetime.now()
     print(f"Début de génération du rapport {area_name} - à {time_launch.strftime('%H:%M:%S')} :")
 
-    output_dir = (output_dir_base or (Path(__file__).resolve().parent / "outputs")) / area_name
+    #output_dir = (output_dir_base or (Path(__file__).resolve().parent / "outputs")) / area_name
+    output_dir_base = Path(os.getenv("OUTPUT_DIR", "/home/user/output"))
+    output_dir = output_dir_base / area_name
     output_dirs = create_analysis_dirs(output_dir)
+
 
     timer = RunTimer()
 

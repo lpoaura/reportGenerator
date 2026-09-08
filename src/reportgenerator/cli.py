@@ -1,8 +1,10 @@
 #!/bin/python3
 
 import argparse
+import logging
+import os
+from datetime import datetime
 from pathlib import Path
-
 from reportgenerator.run_single import run_single_report
 from reportgenerator.run_queue import run_all_report
 
@@ -17,7 +19,7 @@ def main():
     run_parser = subparsers.add_parser("run", help="Génère un seul rapport")
     run_parser.add_argument("--service", required=True)
     run_parser.add_argument("--output", required=True)
-    run_parser.add_argument("--output_dir", type=Path, default=None)
+    run_parser.add_argument("--output_dir", type=Path, default=os.getenv("REPORTGENERATOR_OUTPUT_DIR"))
     run_parser.add_argument("--id_area", type=int, required=True)
     run_parser.add_argument("--referee", required=True)
     run_parser.add_argument("--list_analyse", required=True)
@@ -26,7 +28,7 @@ def main():
 
     # ---- mode batch : tous les rapports en attente ----
     gen_parser = subparsers.add_parser("generate", help="Génère les rapports en attente")
-    gen_parser.add_argument("--service", required=True)
+    gen_parser.add_argument("--service", required=True, default=os.getenv("REPORTGENERATOR_SERVICE_NAME"))
     gen_parser.add_argument("--limit", type=int, default=None)
     gen_parser.add_argument("--dry-run", action="store_true")
 

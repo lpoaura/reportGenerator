@@ -1,0 +1,8 @@
+services:
+  reportgenerator:
+    build: .
+    image: lpoaura/reportgenerator:latest
+    env_file: .env
+    volumes:
+      - ${REPORTGENERATOR_OUTPUT_DIR:-./output}:/home/user/output
+      - ./config/pg_service.conf:/config/pg_service.conf

@@ -4,6 +4,7 @@ run_queue.py
 Récupère la liste des rapports en attente et orchestre leur génération en batch.
 """
 
+import os
 from psycopg.rows import dict_row
 
 from reportgenerator.db_auth import get_connection

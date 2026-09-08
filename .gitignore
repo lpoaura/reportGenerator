@@ -223,4 +223,9 @@ __marimo__/
 
 # Generated folder
 src/reportgenerator/outputs/
+output/
+
+# PostgreSQL service configuration file
+config/pg_service.conf
+
 
