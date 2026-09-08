@@ -1,8 +1,15 @@
 services:
   reportgenerator:
-    build: .
+    build: 
+      context: .
+      args:
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+        USERNAME: ${USERNAME:-app}
+        OUTPUT_DIR: ${OUTPUT_DIR:-/output}
+
     image: lpoaura/reportgenerator:latest
     env_file: .env
     volumes:
-      - ${REPORTGENERATOR_OUTPUT_DIR:-./output}:/home/user/output
+      - ${REPORTGENERATOR_OUTPUT_DIR:-./output}:/output
       - ./config/pg_service.conf:/config/pg_service.conf
