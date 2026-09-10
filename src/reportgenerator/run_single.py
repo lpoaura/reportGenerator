@@ -19,6 +19,7 @@ from reportgenerator.report import generate_report
 from reportgenerator.analysis.common.timing import RunTimer 
 
 
+
 def run_single_report(
     *,
     service_name: str,
@@ -46,30 +47,28 @@ def run_single_report(
 
 
     timer = RunTimer()
+    synthese_queries = SyntheseQueries(service_name=service_name, id_area=id_area, buffer=buffer)
 
-    with get_connection(service_name) as conn:
-        synthese_queries = SyntheseQueries(conn=conn, id_area=id_area, buffer=buffer)
+    with timer.step("Vue matérialisée + analyse état des connaissances"):
+        analysis_result = run_knowledge_status(
+            context=None, synthese_queries=synthese_queries, output_dirs=output_dirs
+        )
 
-        with timer.step("Vue matérialisée + analyse état des connaissances"):
-            analysis_result = run_knowledge_status(
-                context=None, synthese_queries=synthese_queries, output_dirs=output_dirs
-            )
+    with timer.step("Cartographie QGIS"):
+        run_cartography(
+            synthese_queries=synthese_queries,
+            output_dirs=output_dirs,
+            area_name=area_name,
+        )
 
-        with timer.step("Cartographie QGIS"):
-            run_cartography(
+    if "atlas_nicheur" in list_analyse:
+        with timer.step("Atlas QGIS"):
+            run_atlas(
                 synthese_queries=synthese_queries,
                 output_dirs=output_dirs,
                 area_name=area_name,
+                run_render=True,
             )
-
-        if "atlas_nicheur" in list_analyse:
-            with timer.step("Atlas QGIS"):
-                run_atlas(
-                    synthese_queries=synthese_queries,
-                    output_dirs=output_dirs,
-                    area_name=area_name,
-                    run_render=True,
-                )
 
     with timer.step("Génération du rapport Word"):
         generate_report(
@@ -90,9 +89,7 @@ def run_single_report(
     print(f"Temps total d'exécution : {time_end - time_launch}")
 
     # Update uniquement si tout s'est bien passé (on arrive ici sans exception)
-    with get_connection(service_name) as conn:
-        synthese_queries = SyntheseQueries(conn=conn, id_area=id_area, buffer=buffer)
-        synthese_queries.update_date_reportgenerator()
-        synthese_queries.delete_reportgenerator_view()
+    synthese_queries.update_date_reportgenerator()
+    synthese_queries.delete_reportgenerator_view()
 
     return output_dir / output

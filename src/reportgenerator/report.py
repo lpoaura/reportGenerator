@@ -177,17 +177,16 @@ def generate_report(
     TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
     timer = RunTimer()
 
-    
-    with get_connection(service_name) as conn:
-            synthese_queries = SyntheseQueries(conn=conn, id_area=id_area, buffer=buffer)
-            with timer.step("Récupération get_resum_taxo_group"):
-                tableau_data = synthese_queries.get_resum_taxo_group()
-            with timer.step("Récupération get_species_data"):
-                tableau_species = synthese_queries.get_species_data()
-            with timer.step("Récupération get_resum_data"):
-                tableau_resum = synthese_queries.get_resum_data()
-            with timer.step("Récupération get_zonage_surfaces"):
-                zonage_raw = synthese_queries.get_zonage_surfaces()
+
+    synthese_queries = SyntheseQueries(service_name=service_name, id_area=id_area, buffer=buffer)
+    with timer.step("Récupération get_resum_taxo_group"):
+        tableau_data = synthese_queries.get_resum_taxo_group()
+    with timer.step("Récupération get_species_data"):
+        tableau_species = synthese_queries.get_species_data()
+    with timer.step("Récupération get_resum_data"):
+        tableau_resum = synthese_queries.get_resum_data()
+    with timer.step("Récupération get_zonage_surfaces"):
+        zonage_raw = synthese_queries.get_zonage_surfaces()
 
     template_path = TEMPLATE_DIR / "Rapport_template.docx"
     dir_dataviz = output_dir / "dataviz"

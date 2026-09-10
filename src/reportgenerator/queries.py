@@ -2,12 +2,14 @@
 
 from psycopg.rows import dict_row
 
+from reportgenerator.db_auth import get_connection
+
 
 class SyntheseQueries:
     """Synthese queries"""
 
-    def __init__(self, conn, id_area, buffer):
-        self.conn = conn
+    def __init__(self, service_name, id_area, buffer):
+        self.service_name = service_name
         self.id_area = id_area
         self.buffer = buffer
 
@@ -16,7 +18,6 @@ class SyntheseQueries:
         print("Création de la vue matérialisée pour le rapport (lpoaura_afo.vm_reportgenerator_data)...")
         buffer_km = int(self.buffer)
         id_area = int(self.id_area)
-
         sql = f"""
             drop materialized view if exists lpoaura_afo.vm_reportgenerator_data;
             create materialized view lpoaura_afo.vm_reportgenerator_data as
@@ -116,14 +117,13 @@ class SyntheseQueries:
             CREATE INDEX idx_geom_maille ON lpoaura_afo.vm_reportgenerator_data USING GIST (geom_maille);
             ANALYZE lpoaura_afo.vm_reportgenerator_data;
         """
-        with self.conn.cursor() as cur:
-            cur.execute(sql)
-        self.conn.commit()
+        with get_connection(self.service_name) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
 
     def get_resum_taxo_group(self):
         """Tableau de synthèse par groupe taxonomique pour le rapport"""
-        with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(f"""
+        sql = f"""
                   with   list_esp_lr as (
                         select distinct s.id_synthese from lpoaura_afo.vm_reportgenerator_data s
                         where ( s.lr_aura in ('CR','EN','VU','NT') and s.tx_group2_inpn_v2 = 'Oiseaux' and oiso_status_nidif in ('Certain','Possible','Probable') )
@@ -144,8 +144,11 @@ class SyntheseQueries:
                             , count(distinct(s.cd_ref)) filter ( where mortality_cause in ('ROAD_VEHICLE','UNKNOWN_TRANSPORT','OTHER_TRANSPORT') )as nb_esp_mortalite
                     from lpoaura_afo.vm_reportgenerator_data s
                     group by s.tx_group2_inpn_v2
-            """)
-            return cur.fetchall()
+            """
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(sql)
+                return cur.fetchall()
 
     def get_resum_data(self):
         """Tableau de synthèse global par zone étude et périmètre pour le rapport.
@@ -194,14 +197,14 @@ class SyntheseQueries:
             FROM flagged
             ;
         """
-        with self.conn.cursor() as cur:
-            cur.execute(sql)
-            return cur.fetchall()
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(sql)
+                return cur.fetchall()
         
     def get_resum_temporal_evolution(self):
         """Graphique des évolutions temporelles pour le rapport"""
-        with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(f"""
+        sql = f"""
                   with   list_esp_lr as (
                         select distinct s.id_synthese from lpoaura_afo.vm_reportgenerator_data s
                         where ( s.lr_aura in ('CR','EN','VU','NT') and s.tx_group2_inpn_v2 = 'Oiseaux' and oiso_status_nidif in ('Certain','Possible','Probable') )
@@ -221,24 +224,29 @@ class SyntheseQueries:
                     from lpoaura_afo.vm_reportgenerator_data s
                     where extract(year from s.date_max) >= 2000
                     group by extract(year from s.date_max) ;
-            """)
-            return cur.fetchall()
+            """
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(sql)
+                return cur.fetchall()
 
     def get_raw_geodata(self):
         """Données brutes géographiques pour le volet cartographie du rapport + extraction données"""
-        with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("""
+        sql = f"""
                 SELECT id_synthese, date_max, cd_ref, count_max, oiso_code_nidif, oiso_status_nidif, ST_AsText(the_geom_local) as the_geom_local, comment_description, observers,behaviour,
                        mortality, mortality_cause, ordre, famille, vn_nom_fr, vn_nom_sci, tx_group2_inpn_v2
                 FROM lpoaura_afo.vm_reportgenerator_data
-                """)
-            return cur.fetchall()
-        print("Données géographiques brutes récupérées")
+                """
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(sql)
+                print("Données géographiques brutes récupérées")
+                return cur.fetchall()
+                
 
     def get_species_data(self):
         """Données par espèce pour le volet cartographie du rapport + extraction données"""
-        with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(f"""
+        sql = f"""
                   with prep as ( select row_number()over() as id,
                                         s.cd_ref,
                                         REPLACE(REPLACE(REPLACE(split_part(s.vn_nom_fr, ', ', 1),'(La)',''),'(Le)',''),'(L'')','') as nom_vern,
@@ -320,14 +328,15 @@ class SyntheseQueries:
                                     end as lr_qgis_color
                                 from prep
                                 order by nom_vern
-            """)
-            return cur.fetchall()
+            """
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(sql)
+                return cur.fetchall()
 
     def get_atlas_species_grid(self):
         """Tableau de synthèse par espèce, pour calcule des grilles de l'atlas, analyses de la phénologie, nidification, année d'observation"""
-        with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(
-                """ with prep as (select row_number() over ()                                                                            as id,
+        sql = f"""  with prep as (select row_number() over ()                                                                            as id,
                                         s.cd_ref,
                                         s.vn_nom_sci as lb_nom,
                                         s.tx_group2_inpn_v2 as group_taxo,
@@ -425,15 +434,16 @@ class SyntheseQueries:
                         case when _25>0 then '✔' else '-' end as _25,
                         case when _26>0 then '✔' else '-' end as _26
                         from prep
-                         WHERE ( code_repro_max in ( 'Possible', 'Probable', 'Certain') OR lr_qgis in ('CR','EN','VU','NT') ) ;
-                        """
-            )
-            return cur.fetchall()
+                         WHERE ( code_repro_max in ( 'Possible', 'Probable', 'Certain') OR lr_qgis in ('CR','EN','VU','NT') ) ; 
+                """
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(sql)
+                return cur.fetchall()
 
     def get_atlas_species_summary(self):
         """Synthèse des données espèces à la maille pour l'atlas"""
-        with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(""" select row_number() over () as id,
+        sql = f""" select row_number() over () as id,
                                     s.geom_maille,
                                     s.cd_ref,
                                     s.vn_nom_sci as lb_nom,
@@ -454,8 +464,11 @@ class SyntheseQueries:
                                 from lpoaura_afo.vm_reportgenerator_data s
                                 left join ref_nomenclatures.t_nomenclatures tn ON tn.cd_nomenclature = s.oiso_code_nidif::text AND tn.id_type = 118 -- a verif                            
                                 GROUP BY s.cd_ref,group_taxo,s.vn_nom_sci,s.geom_maille,REPLACE(REPLACE(REPLACE(split_part(s.vn_nom_fr, ', ', 1),'(La)',''),'(Le)',''),'(L'')','');
-                                """)
-            return cur.fetchall()
+                                """
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(sql)
+                return cur.fetchall()
 
     def get_area_zone(self):
         """Récupération de la zone d'étude et du buffer pour le rapport"""
@@ -477,36 +490,34 @@ class SyntheseQueries:
                 where l.id_area = {id_area}
                 and l.id_type = ref_geo.get_id_area_type('LPO_REPORT_STUDY'::character varying)  ;
         """
-        with self.conn.cursor() as cur:
-            cur.execute(sql)
-            return cur.fetchall()
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(sql)
+                return cur.fetchall()
 
     def update_date_reportgenerator(self):
         print(f"Update date_reportgenerator pour id_area={self.id_area}")
-        with self.conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT src_gestion.update_reportgenerator_date(%s)
-                """,
-                (self.id_area,),
-            )
-        self.conn.commit()
-        print("Update terminé")
+        id_area = int(self.id_area)
+        sql = f""" SELECT src_gestion.update_reportgenerator_date({id_area}) """
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(sql)
+                print("Update terminé")
+                return cur.fetchall()
+                      
 
     def delete_reportgenerator_view(self):
         """Suppression de la vue matérialisée pour le rapport"""
-        sql = f"""
-            drop materialized view if exists lpoaura_afo.vm_reportgenerator_data CASCADE;
-            ;
+        sql = """
+            DROP MATERIALIZED VIEW IF EXISTS lpoaura_afo.vm_reportgenerator_data CASCADE;
         """
-        with self.conn.cursor() as cur:
-            cur.execute(sql)
-        self.conn.commit()
+        with get_connection(self.service_name) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
 
     def get_knowledge_status_grid(self):
         """Tableau de synthèse par maille pour l'état des connaissances : nombre d'observations, nombre d'espèces, nombre d'espèces nicheuses, liste des espèces nicheuses, nombre d'années d'observation, nombre de jours d'observation, code de nidification max"""
-        with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("""   select row_number() over () as id,
+        sql = f""" select row_number() over () as id,
                                     s.geom_maille,
                                     COUNT(distinct s.id_synthese) as nb_observations,
                                     COUNT(distinct s.tx_group2_inpn_v2) as nb_group_taxo,
@@ -536,9 +547,11 @@ class SyntheseQueries:
                             left join ref_nomenclatures.t_nomenclatures tn ON tn.cd_nomenclature = s.oiso_code_nidif::text AND tn.id_type = 118 -- a verif
                             left join taxonomie.taxref t ON t.cd_ref = s.cd_ref
                             left join taxonomie.mv_c_statut mcs on mcs.cd_ref = t.cd_ref
-                            GROUP BY s.geom_maille;
-                                """)
-            return cur.fetchall()
+                            GROUP BY s.geom_maille; """
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(sql)
+                return cur.fetchall()
 
     def get_knowledge_protected_area(self):
         """Récupération des différents zonages de protections"""
@@ -605,9 +618,10 @@ class SyntheseQueries:
                                 select * from natura)
                 select ROW_NUMBER() OVER () as id, * from all_zone;
         """
-        with self.conn.cursor() as cur:
-            cur.execute(sql)
-            return cur.fetchall()
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(sql)
+                return cur.fetchall()
 
     def get_zonage_surfaces(self):
         """Surfaces (km²) par type de zonage environnemental, réparties par anneau
@@ -683,46 +697,48 @@ class SyntheseQueries:
             where ST_Intersects(zu.geom, z.geom)
             order by zu.type_code, z.zone_order;
         """
-        with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(sql)
-            return cur.fetchall()
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(sql)
+                return cur.fetchall()
 
     def get_number_esp_per_taxonomy(self):
-         """Tableau du nombre d'espèces par groupe taxonomique, pour le graphique de l'état des connaissances"""
-         with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute("""  select * from src_gestion.vm_reportgenerator_refere_taxo;
-                                """)
-            return cur.fetchall()
+        """Tableau du nombre d'espèces par groupe taxonomique, pour le graphique de l'état des connaissances"""
+        sql = f"""select * from src_gestion.vm_reportgenerator_refere_taxo; """
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(sql)
+                return cur.fetchall()
 
     def get_species_disparition(self, seuil_disparition=10, seuil_regression=5):
         """Espèces disparues ou en régression : première/dernière année d'observation"""
-        with self.conn.cursor(row_factory=dict_row) as cur:
-            cur.execute(f"""
-                with prep as (
-                    select
-                        s.cd_ref,
-                        REPLACE(REPLACE(REPLACE(split_part(s.vn_nom_fr, ', ', 1),'(La)',''),'(Le)',''),'(L'')','') as nom_vern,
-                        s.vn_nom_sci as lb_nom,
-                        s.tx_group2_inpn_v2 as group_taxo,
-                        MIN(EXTRACT(YEAR FROM s.date_max)) as premiere_annee,
-                        MAX(EXTRACT(YEAR FROM s.date_max)) as derniere_annee,
-                        COUNT(DISTINCT EXTRACT(YEAR FROM s.date_max)) as nb_annees_observation,
-                        COUNT(DISTINCT s.id_synthese) as nb_observations,
-                        case when s.lr_aura is null then s.lr_france else s.lr_aura end as lr_qgis,
-                        bool_or(s.prot_nat is not null) as protegee
-                    from lpoaura_afo.vm_reportgenerator_data s
-                    group by s.cd_ref, s.vn_nom_fr, s.vn_nom_sci, s.tx_group2_inpn_v2, s.lr_aura, s.lr_france
-                )
-                select *,
-                    (extract(year from now()) - derniere_annee) as anciennete,
-                    case
-                        when (extract(year from now()) - derniere_annee) >= {seuil_disparition} then 'Disparue'
-                        when (extract(year from now()) - derniere_annee) >= {seuil_regression} then 'En régression'
-                        else 'Présente'
-                    end as statut_disparition
-                from prep
-                where nb_annees_observation >= 2
-                and (extract(year from now()) - derniere_annee) >= {seuil_regression}
-                order by derniere_annee asc, protegee desc
-            """)
-            return cur.fetchall()
+        sql = f"""with prep as (
+                                select
+                                    s.cd_ref,
+                                    REPLACE(REPLACE(REPLACE(split_part(s.vn_nom_fr, ', ', 1),'(La)',''),'(Le)',''),'(L'')','') as nom_vern,
+                                    s.vn_nom_sci as lb_nom,
+                                    s.tx_group2_inpn_v2 as group_taxo,
+                                    MIN(EXTRACT(YEAR FROM s.date_max)) as premiere_annee,
+                                    MAX(EXTRACT(YEAR FROM s.date_max)) as derniere_annee,
+                                    COUNT(DISTINCT EXTRACT(YEAR FROM s.date_max)) as nb_annees_observation,
+                                    COUNT(DISTINCT s.id_synthese) as nb_observations,
+                                    case when s.lr_aura is null then s.lr_france else s.lr_aura end as lr_qgis,
+                                    bool_or(s.prot_nat is not null) as protegee
+                                from lpoaura_afo.vm_reportgenerator_data s
+                                group by s.cd_ref, s.vn_nom_fr, s.vn_nom_sci, s.tx_group2_inpn_v2, s.lr_aura, s.lr_france
+                            )
+                            select *,
+                                (extract(year from now()) - derniere_annee) as anciennete,
+                                case
+                                    when (extract(year from now()) - derniere_annee) >= {seuil_disparition} then 'Disparue'
+                                    when (extract(year from now()) - derniere_annee) >= {seuil_regression} then 'En régression'
+                                    else 'Présente'
+                                end as statut_disparition
+                            from prep
+                            where nb_annees_observation >= 2
+                            and (extract(year from now()) - derniere_annee) >= {seuil_regression}
+                            order by derniere_annee asc, protegee desc """
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(sql)
+                return cur.fetchall()
