@@ -1,3 +1,5 @@
+import shutil
+import tempfile
 from pathlib import Path
 
 from reportgenerator.analysis.common.timing import RunTimer
@@ -23,26 +25,18 @@ def run_atlas(synthese_queries, output_dirs, area_name, run_render=True):
     with timer.step("Export data GPKG Atlas"):
         atlas_gpkg_path = output_dirs["data"] / "atlas.gpkg"
 
-        export_atlas_gpkg(
-            data=grid_rows,
-            gpkg_path=atlas_gpkg_path,
-            layer_name="atlas_species_grid",
-            geom_col="emprise_presence",
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_gpkg = Path(tmp) / "atlas.gpkg"
 
-        export_atlas_gpkg(
-            data=summary_rows,
-            gpkg_path=atlas_gpkg_path,
-            layer_name="atlas_species_summary",
-            geom_col="geom_maille",
-        )
+            export_atlas_gpkg(data=grid_rows, gpkg_path=tmp_gpkg,
+                            layer_name="atlas_species_grid", geom_col="emprise_presence")
+            export_atlas_gpkg(data=summary_rows, gpkg_path=tmp_gpkg,
+                            layer_name="atlas_species_summary", geom_col="geom_maille")
+            export_atlas_gpkg(data=area_zone_rows, gpkg_path=tmp_gpkg,
+                            layer_name="atlas_area_zone", geom_col="geom")
 
-        export_atlas_gpkg(
-            data=area_zone_rows,
-            gpkg_path=atlas_gpkg_path,
-            layer_name="atlas_area_zone",
-            geom_col="geom",
-        )
+            atlas_gpkg_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(tmp_gpkg, atlas_gpkg_path)
 
     # 3. Copie du projet QGIS atlas
     with timer.step("Copie du projet QGIS Atlas"):
