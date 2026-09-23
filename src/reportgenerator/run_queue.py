@@ -11,7 +11,7 @@ from reportgenerator.db_auth import get_connection
 from reportgenerator.run_single import run_single_report
 
 
-def get_pending_areas(conn, max_area_km2: float = 1000):
+def get_pending_areas(conn, max_area_km2):
     """Retourne la liste des zones en attente de génération de rapport."""
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
@@ -35,12 +35,12 @@ def run_all_report(service_name: str, limit: int | None = None, dry_run: bool = 
     """
 
     with get_connection(service_name) as conn:
-        pending = get_pending_areas(conn)
+        if limit:
+            pending = get_pending_areas(conn, max_area_km2=limit)
+        else:
+            pending = get_pending_areas(conn)
 
-    if limit:
-        pending = pending[:limit]
-
-    print(f"{len(pending)} rapport(s) en attente.")
+        print(f"{len(pending)} rapport(s) en attente.")
 
     if dry_run:
         for area in pending:

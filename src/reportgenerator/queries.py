@@ -31,7 +31,7 @@ class SyntheseQueries:
                     SELECT
                         ST_Area(geom) / 1000000.0 as air_km2,
                         CASE
-                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 5 THEN 'M0.2'
+                            --WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 5 THEN 'M0.2'
                             WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 25 THEN 'M0.5'
                             WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 250 THEN 'M1'
                             WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 2500 THEN 'M2'
@@ -102,7 +102,8 @@ class SyntheseQueries:
                             from obs_info s
                             left join taxonomie.mv_c_statut mcs on s.cd_ref = mcs.cd_ref
                             )
-            select s.*, la.id_area, la.geom as geom_maille , gs.grille_code, gs.air_km2 from obs_final s
+            select s.*, la.id_area, la.geom as geom_maille , gs.grille_code, gs.air_km2 
+            from obs_final s
             left join gn_synthese.cor_area_synthese cas on s.id_synthese = cas.id_synthese
             left join ref_geo.l_areas la on cas.id_area = la.id_area
             cross join selection_grille gs
@@ -110,6 +111,10 @@ class SyntheseQueries:
             and tx_group2_inpn_v2 in ('Amphibiens','Chauves-souris','Mammifères','Odonates','Oiseaux','Papillons de jour','Poissons','Reptiles')
             and (ST_GeometryType(s.the_geom_local) = 'ST_Point')
             ;
+
+            -- ATTENTION : parmis les choix des grilles de mailles, celle-ci necessite d'avoir la colonne enable = true
+            -- Dans le cas inverse la jointures via cor_area_synthese ne fonctionnera pas et certaine analyses serons vides.
+
             CREATE INDEX idx_id_synthese ON lpoaura_afo.vm_reportgenerator_data (id_synthese);
             CREATE INDEX idx_cd_ref ON lpoaura_afo.vm_reportgenerator_data (cd_ref);
             CREATE INDEX idx_date_max ON lpoaura_afo.vm_reportgenerator_data (date_max);
