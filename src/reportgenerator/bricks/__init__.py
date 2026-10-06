@@ -9,4 +9,4 @@ Pour ajouter une brique : créer (ou compléter) un module ici, décorer la
 fonction avec @register_brick, et l'importer ci-dessous.
 """
 
-from reportgenerator.bricks import common, eolien, generique  # noqa: F401
+from reportgenerator.bricks import chiropteres, common, eolien, generique  # noqa: F401

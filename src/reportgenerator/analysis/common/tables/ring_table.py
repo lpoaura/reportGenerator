@@ -47,23 +47,37 @@ def _repeat_as_header(row):
     tr_pr.append(el)
 
 
-def _fit_page_width(table, n_cols):
-    """Largeur = 100 % de la page, colonnes ajustées au contenu.
+# ordre imposé par le schéma OOXML des enfants de w:tblPr (Word refuse un ordre différent)
+TBLPR_ORDER = ["tblStyle", "tblpPr", "tblOverlap", "bidiVisual", "tblStyleRowBandSize", "tblStyleColBandSize",
+               "tblW", "jc", "tblCellSpacing", "tblInd", "tblBorders", "shd", "tblLayout", "tblCellMar", "tblLook",
+               "tblCaption", "tblDescription"]
+
+
+def _set_tblpr_child(tbl_pr, name, **attrs):
+    """Remplace / insère w:<name> dans tblPr à la place prévue par le schéma."""
+    for el in tbl_pr.findall(qn(f"w:{name}")):
+        tbl_pr.remove(el)
+    el = OxmlElement(f"w:{name}")
+    for key, value in attrs.items():
+        el.set(qn(f"w:{key}"), value)
+    later = TBLPR_ORDER[TBLPR_ORDER.index(name) + 1:]
+    following = next((c for c in tbl_pr if c.tag.split("}")[1] in later), None)
+    if following is not None:
+        following.addprevious(el)
+    else:
+        tbl_pr.append(el)
+
+
+def _fit_page_width(table, n_cols, widths=None):
+    """Largeur = 100 % de la page, colonnes ajustées au contenu (proportions `widths` si fournies).
     (python-docx fixe sinon des colonnes à la largeur de la dernière section,
     ce qui peut déborder de la page.)"""
     tbl_pr = table._tbl.tblPr
-    for tag in ("w:tblW", "w:tblLayout"):
-        for el in tbl_pr.findall(qn(tag)):
-            tbl_pr.remove(el)
-    tbl_w = OxmlElement("w:tblW")
-    tbl_w.set(qn("w:w"), "5000")
-    tbl_w.set(qn("w:type"), "pct")
-    tbl_pr.append(tbl_w)
-    layout = OxmlElement("w:tblLayout")
-    layout.set(qn("w:type"), "autofit")
-    tbl_pr.append(layout)
-    for grid_col in table._tbl.tblGrid.findall(qn("w:gridCol")):
-        grid_col.set(qn("w:w"), str(9000 // n_cols))
+    _set_tblpr_child(tbl_pr, "tblW", w="5000", type="pct")
+    _set_tblpr_child(tbl_pr, "tblLayout", type="autofit")
+    weights = widths or [1] * n_cols
+    for grid_col, weight in zip(table._tbl.tblGrid.findall(qn("w:gridCol")), weights):
+        grid_col.set(qn("w:w"), str(int(9000 * weight / sum(weights))))
 
 
 def _style_header(table, n_rows, font_size):
@@ -112,13 +126,14 @@ def _place(paragraph, placeholder, table):
     paragraph._element.addnext(table._element)
 
 
-def insert_lpo_table(document, placeholder, data, columns, status_fields=(), italic_fields=(), font_size=9):
-    """Tableau simple : columns = [(clé, libellé), ...]."""
+def insert_lpo_table(document, placeholder, data, columns, status_fields=(), italic_fields=(), font_size=9,
+                     widths=None):
+    """Tableau simple : columns = [(clé, libellé), ...] ; widths = largeurs relatives des colonnes."""
     paragraph = _find_paragraph(document, placeholder)
     if paragraph is None:
         return
     table = document.add_table(rows=1, cols=len(columns))
-    _fit_page_width(table, len(columns))
+    _fit_page_width(table, len(columns), widths)
     for idx, (_, label) in enumerate(columns):
         table.cell(0, idx).text = label
     _style_header(table, 1, font_size)

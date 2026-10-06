@@ -1,6 +1,8 @@
 #!/bin/python3
 
 import re
+import uuid
+from datetime import datetime, timedelta
 
 from psycopg.rows import dict_row
 
@@ -20,6 +22,31 @@ GRILLE_AUTO_SQL = """CASE
                         END"""
 
 
+# Vue matérialisée de travail : un nom UNIQUE par génération. Avec un nom fixe, deux générations
+# simultanées (deux terminaux, ou une instance serveur et un test local) se supprimaient et se
+# recréaient la vue l'une l'autre : requêtes sur la mauvaise zone, ou colonnes manquantes.
+VM_SCHEMA = "lpoaura_afo"
+VM_PREFIX = "vm_reportgenerator_data"
+VM_RE = re.compile(rf"^{VM_PREFIX}_(\d{{8}}_\d{{6}})_[0-9a-f]{{6}}$")
+VM_MAX_AGE = timedelta(days=1)  # vues orphelines (processus tué) supprimées au-delà
+
+
+def vm_name(now=None) -> str:
+    """lpoaura_afo.vm_reportgenerator_data_<AAAAMMJJ_HHMMSS>_<6 hex>"""
+    return f"{VM_SCHEMA}.{VM_PREFIX}_{(now or datetime.now()):%Y%m%d_%H%M%S}_{uuid.uuid4().hex[:6]}"
+
+
+def vues_orphelines(noms, now=None) -> list[str]:
+    """Vues de travail plus vieilles que VM_MAX_AGE (le nom fixe de l'ancienne version n'est pas touché)."""
+    now = now or datetime.now()
+    out = []
+    for nom in noms:
+        m = VM_RE.match(nom)
+        if m and now - datetime.strptime(m.group(1), "%Y%m%d_%H%M%S") > VM_MAX_AGE:
+            out.append(f"{VM_SCHEMA}.{nom}")
+    return out
+
+
 def sql_literals(values) -> str:
     """Liste Python -> 'a', 'b' (valeurs échappées) pour un IN (...)."""
     return ", ".join("'" + str(v).replace("'", "''") + "'" for v in values)
@@ -32,6 +59,7 @@ class SyntheseQueries:
         self.service_name = service_name
         self.id_area = id_area
         self.buffer = buffer
+        self.vm = vm_name()
         # rayons (km) des anneaux, du plus petit au plus grand (cf. set_global_data)
         self.anneaux_km = [float(buffer)]
 
@@ -43,6 +71,8 @@ class SyntheseQueries:
         grille=None,
         statuts_validation=("0", "1", "2"),
         avec_sensibilite_eolien=False,
+        chiro_rangs_non_especes=(),
+        sources_prioritaires=None,
     ):
         """Création de la vue matérialisée pour le rapport.
 
@@ -53,8 +83,19 @@ class SyntheseQueries:
         - groupes : groupes taxonomiques (tx_group2_inpn_v2) conservés.
         - grille : code de grille forcé (ex. 'M1'), sinon choisie selon la surface.
         - avec_sensibilite_eolien : ajoute la note de partage.sensibilite_oiseaux.
+        - chiro_rangs_non_especes : rangs TAXREF gardés en plus de l'espèce pour les
+          chiroptères (ex. ("GN", "RES") : genres et complexes, fréquents pour les gîtes).
+          La colonne id_rang permet de ne compter que les espèces.
+        - sources_prioritaires : dédoublonnage entre sources. Pour un même taxon, un même jour et
+          une même cellule de 100 m, seules les données de la source la mieux classée sont gardées
+          (ordre de la liste, puis id_source). Ex. ["faune-france", "dbChiroGCRA"]. None = pas de
+          dédoublonnage. Les données d'une même source ne sont jamais fusionnées entre elles.
+
+        La maille (geom_maille) est calculée spatialement : le précalcul cor_area_synthese est
+        incomplet pour les données récentes. Une donnée hors grille reste dans la vue (maille nulle).
         """
-        print("Création de la vue matérialisée pour le rapport (lpoaura_afo.vm_reportgenerator_data)...")
+        print(f"Création de la vue matérialisée pour le rapport ({self.vm})...")
+        self._drop_vues_orphelines()
         id_area = int(self.id_area)
         self.anneaux_km = sorted(float(a) for a in (anneaux_km or [self.buffer]))
         rayon_m = max(self.anneaux_km) * 1000
@@ -80,14 +121,37 @@ class SyntheseQueries:
 
         if avec_sensibilite_eolien:
             sensi_col = ", so.sensibilite_eolien"
-            sensi_join = """left join (select so.cd_nom,
+            # la table est indexée par cd_nom (parfois un synonyme) : rattachement au cd_ref via TAXREF
+            sensi_join = """left join (select tso.cd_ref,
                                               max(nullif(regexp_replace(so.sensibilite::text, '[^0-9.]', '', 'g'), '')::numeric)
                                                   as sensibilite_eolien
                                        from partage.sensibilite_oiseaux so
-                                       group by so.cd_nom) so on so.cd_nom = s.cd_ref"""
+                                       join taxonomie.taxref tso on tso.cd_nom = so.cd_nom
+                                       group by tso.cd_ref) so on so.cd_ref = s.cd_ref"""
         else:
             sensi_col = ", null::numeric as sensibilite_eolien"
             sensi_join = ""
+
+        if not all(re.fullmatch(r"[A-Z]+", r) for r in chiro_rangs_non_especes):
+            raise ValueError(f"Rangs invalides : {chiro_rangs_non_especes!r}")
+        if chiro_rangs_non_especes:
+            rangs = sql_literals(chiro_rangs_non_especes)
+            chiro_cd_ref_sql = f"when t.ordre = 'Chiroptera' and t.id_rang in ({rangs}) then t.cd_ref"
+            # cd_nom négatifs = pseudo-taxons d'absence de DBchiro ("Aucune chauve-souris ou trace"...)
+            chiro_rang_sql = f"or (t.ordre = 'Chiroptera' and t.id_rang in ({rangs}) and t.cd_nom > 0)"
+        else:
+            chiro_cd_ref_sql = chiro_rang_sql = ""
+
+        if sources_prioritaires:
+            rangs_sources = " ".join(
+                f"when '{str(src).replace(chr(39), chr(39) * 2)}' then {i}"
+                for i, src in enumerate(sources_prioritaires, start=1)
+            )
+            source_rang_sql = f"case src.name_source {rangs_sources} else 1000 + s.id_source end"
+            dedup_sql = "where s.source_rang = s.source_rang_min"
+        else:
+            source_rang_sql = "0"
+            dedup_sql = ""
 
         anneau_cases = ["when ST_Intersects(s.the_geom_local, z.geom_zone) then 0"]
         for i, km in enumerate(self.anneaux_km[:-1], start=1):
@@ -95,8 +159,8 @@ class SyntheseQueries:
         anneau_sql = f"case {' '.join(anneau_cases)} else {len(self.anneaux_km)} end"
 
         sql = f"""
-            drop materialized view if exists lpoaura_afo.vm_reportgenerator_data;
-            create materialized view lpoaura_afo.vm_reportgenerator_data as
+            drop materialized view if exists {self.vm};
+            create materialized view {self.vm} as
                        with zone_etude as (
                 select ST_Buffer(l.geom, {rayon_m}) as geom, l.geom as geom_zone
                 from ref_geo.l_areas l
@@ -104,16 +168,25 @@ class SyntheseQueries:
                 and l.id_type = ref_geo.get_id_area_type('LPO_REPORT_STUDY'::character varying)
                                 ),
                 selection_grille AS (
-                    SELECT
-                        ST_Area(geom) / 1000000.0 as air_km2,
-                        {grille_sql} AS grille_code
-                    FROM zone_etude
+                    select g.*, ref_geo.get_id_area_type(g.grille_code::character varying) as id_type_grille
+                    from (
+                        SELECT
+                            ST_Area(geom) / 1000000.0 as air_km2,
+                            {grille_sql} AS grille_code
+                        FROM zone_etude
+                    ) g
                 ),
                 obs_info as (  select s.id_synthese
                                         , s.date_max::date as date_max
                                         , case when t.id_rang = 'ES' then t.cd_ref
-                                                when t.id_rang = 'SSES' then t.cd_sup
+                                                -- sous-espèce : cd_ref de l'espèce parente (cd_sup), ou son propre
+                                                -- cd_ref qui pointe déjà sur l'espèce quand cd_sup est vide
+                                                when t.id_rang = 'SSES' then coalesce(tsup.cd_ref, t.cd_ref)
+                                                {chiro_cd_ref_sql}
                                                 else 0 end as cd_ref
+                                        , t.id_rang
+                                        , t.lb_nom as taxref_lb_nom
+                                        , t.nom_vern as taxref_nom_vern
                                         , case when s.count_max = 0 or s.count_max is null then 1
                                                 else s.count_max end as count_max
                                         , tcse.bird_breed_code as oiso_code_nidif
@@ -121,7 +194,15 @@ class SyntheseQueries:
                                         , s.the_geom_local
                                         , s.comment_description
                                         , s.observers
+                                        , s.id_source
+                                        , src.name_source as source
+                                        , {source_rang_sql} as source_rang
                                         , tn.label_default as behaviour
+                                        -- comportement saisi dans VisioNature (Migration active, Dortoir / reposoir...)
+                                        , array_to_string(tcse.behaviour, ', ') as comportement
+                                        -- précision : precise, place (centroïde du lieu-dit), subplace, garden...
+                                        , tcse.geo_accuracy as precision_geo
+                                        , tcse.is_hidden as donnee_cachee
                                         , tcse.mortality
                                         , tcse.mortality_cause
                                         , tcse.bat_is_gite
@@ -134,10 +215,12 @@ class SyntheseQueries:
                                         , t.famille
                                     from gn_synthese.synthese s
                                     left join taxonomie.taxref t on s.cd_nom = t.cd_nom
+                                    left join taxonomie.taxref tsup on tsup.cd_nom = t.cd_sup
                                     left join src_lpodatas.t_c_synthese_extended tcse on tcse.id_synthese=s.id_synthese
+                                    left join gn_synthese.t_sources src on src.id_source = s.id_source
                                     left join ref_nomenclatures.t_nomenclatures tn on s.id_nomenclature_behaviour = tn.id_nomenclature
                                     where s.id_nomenclature_observation_status = 89
-                                    and (t.id_rang = 'ES' or t.id_rang = 'SSES')
+                                    and (t.id_rang = 'ES' or t.id_rang = 'SSES' {chiro_rang_sql})
                                     AND (s.id_nomenclature_valid_status = ANY(ARRAY [
                                 {validation_sql}
                                                                 ])) IS TRUE
@@ -145,9 +228,10 @@ class SyntheseQueries:
                                     and  ST_Within(s.the_geom_local, (select geom from zone_etude ))
                 ),
                 obs_final as ( select  s.*
-                                        , mcs.vn_nom_fr
-                                        , mcs.vn_nom_sci
-                                        , case when mcs.groupe_taxo_fr is not null then mcs.groupe_taxo_fr
+                                        , coalesce(mcs.vn_nom_fr, s.taxref_nom_vern, s.taxref_lb_nom) as vn_nom_fr
+                                        , coalesce(mcs.vn_nom_sci, s.taxref_lb_nom) as vn_nom_sci
+                                        , case when s.ordre = 'Chiroptera' then 'Chauves-souris'
+                                                    when mcs.groupe_taxo_fr is not null then mcs.groupe_taxo_fr
                                                     when mcs.groupe_taxo_fr is null and s.group3_inpn = 'Lépidoptères' and s.cd_ref in (1015437, 249667, 716457, 716458, 961903)  then 'Papillons de nuit'
                                                     when mcs.groupe_taxo_fr is null and s.group3_inpn = 'Lépidoptères' and s.cd_ref in (716692)  then 'Papillons de jour'
                                                     when mcs.groupe_taxo_fr is null and s.group2_inpn in ('Insectes','Arachnides') then s.group3_inpn
@@ -170,26 +254,42 @@ class SyntheseQueries:
                                         , pna_ex
                                         {sensi_col}
                             from obs_info s
-                            left join taxonomie.mv_c_statut mcs on s.cd_ref = mcs.cd_ref
+                            -- mv_c_statut a quelques cd_ref en double : une seule ligne par taxon
+                            left join (select distinct on (cd_ref) * from taxonomie.mv_c_statut order by cd_ref) mcs
+                                   on s.cd_ref = mcs.cd_ref
                             {sensi_join}
+                            ),
+                obs_rang as ( select o.*,
+                                     -- meilleure source présente pour ce taxon, ce jour, dans cette cellule de 100 m
+                                     min(o.source_rang) over (
+                                         partition by o.cd_ref, o.date_max,
+                                                      floor(ST_X(o.the_geom_local) / 100), floor(ST_Y(o.the_geom_local) / 100)
+                                     ) as source_rang_min
+                              from obs_final o
+                              where o.tx_group2_inpn_v2 in ({groupes_sql})
+                              and ST_GeometryType(o.the_geom_local) = 'ST_Point'
                             )
             select s.*, la.id_area, la.geom as geom_maille , gs.grille_code, gs.air_km2,
                    {anneau_sql} as anneau_ordre
-            from obs_final s
-            left join gn_synthese.cor_area_synthese cas on s.id_synthese = cas.id_synthese
-            left join ref_geo.l_areas la on cas.id_area = la.id_area
+            from obs_rang s
             cross join selection_grille gs
             cross join zone_etude z
-            where la.id_type = ref_geo.get_id_area_type((select grille_code from selection_grille)::character varying)
-            and tx_group2_inpn_v2 in ({groupes_sql})
-            and (ST_GeometryType(s.the_geom_local) = 'ST_Point')
+            -- maille calculée spatialement (cor_area_synthese est incomplet pour les données récentes),
+            -- une donnée sans maille est gardée (geom_maille nulle)
+            left join lateral (
+                select la.id_area, la.geom from ref_geo.l_areas la
+                where la.id_type = gs.id_type_grille and ST_Intersects(la.geom, s.the_geom_local)
+                order by la.id_area limit 1
+            ) la on true
+            {dedup_sql}
             ;
-            CREATE INDEX idx_id_synthese ON lpoaura_afo.vm_reportgenerator_data (id_synthese);
-            CREATE INDEX idx_cd_ref ON lpoaura_afo.vm_reportgenerator_data (cd_ref);
-            CREATE INDEX idx_date_max ON lpoaura_afo.vm_reportgenerator_data (date_max);
-            CREATE INDEX idx_the_geom_local ON lpoaura_afo.vm_reportgenerator_data USING GIST (the_geom_local);
-            CREATE INDEX idx_geom_maille ON lpoaura_afo.vm_reportgenerator_data USING GIST (geom_maille);
-            ANALYZE lpoaura_afo.vm_reportgenerator_data;
+            -- index sans nom explicite : PostgreSQL génère des noms uniques (plusieurs vues en parallèle)
+            CREATE INDEX ON {self.vm} (id_synthese);
+            CREATE INDEX ON {self.vm} (cd_ref);
+            CREATE INDEX ON {self.vm} (date_max);
+            CREATE INDEX ON {self.vm} USING GIST (the_geom_local);
+            CREATE INDEX ON {self.vm} USING GIST (geom_maille);
+            ANALYZE {self.vm};
         """
         with get_connection(self.service_name) as conn:
             with conn.cursor() as cur:
@@ -199,7 +299,7 @@ class SyntheseQueries:
         """Tableau de synthèse par groupe taxonomique pour le rapport"""
         sql = f"""
                   with   list_esp_lr as (
-                        select distinct s.id_synthese from lpoaura_afo.vm_reportgenerator_data s
+                        select distinct s.id_synthese from {self.vm} s
                         where ( s.lr_aura in ('CR','EN','VU','NT') and s.tx_group2_inpn_v2 = 'Oiseaux' and oiso_status_nidif in ('Certain','Possible','Probable') )
                         OR (( s.lr_aura in ('CR','EN','VU','NT') and s.tx_group2_inpn_v2 != 'Oiseaux')
                         OR ( s.lr_monde in ('CR','EN','VU','NT') and s.tx_group2_inpn_v2 = 'Oiseaux' and oiso_status_nidif in ('Certain','Possible','Probable') and s.lr_aura is null )
@@ -216,7 +316,7 @@ class SyntheseQueries:
                             , count(distinct(s.cd_ref)) filter ( where oiso_status_nidif in ('Certain','Possible','Probable') and s.ordre = 'Accipitriformes'  )as nb_espece_nicheuse_rapaces
                             , count(distinct(s.id_synthese)) filter ( where mortality_cause in ('ROAD_VEHICLE','UNKNOWN_TRANSPORT','OTHER_TRANSPORT') )as nb_data_mortalite
                             , count(distinct(s.cd_ref)) filter ( where mortality_cause in ('ROAD_VEHICLE','UNKNOWN_TRANSPORT','OTHER_TRANSPORT') )as nb_esp_mortalite
-                    from lpoaura_afo.vm_reportgenerator_data s
+                    from {self.vm} s
                     group by s.tx_group2_inpn_v2
             """
         with get_connection(self.service_name) as conn:
@@ -246,7 +346,7 @@ class SyntheseQueries:
                     d.cd_ref,
                     d.date_max,
                     ST_Intersects(d.the_geom_local, s.geom) AS in_zone
-                FROM lpoaura_afo.vm_reportgenerator_data d
+                FROM {self.vm} d
                 CROSS JOIN study_area s
             )
             SELECT
@@ -280,7 +380,7 @@ class SyntheseQueries:
         """Graphique des évolutions temporelles pour le rapport"""
         sql = f"""
                   with   list_esp_lr as (
-                        select distinct s.id_synthese from lpoaura_afo.vm_reportgenerator_data s
+                        select distinct s.id_synthese from {self.vm} s
                         where ( s.lr_aura in ('CR','EN','VU','NT') and s.tx_group2_inpn_v2 = 'Oiseaux' and oiso_status_nidif in ('Certain','Possible','Probable') )
                         OR (( s.lr_aura in ('CR','EN','VU','NT') and s.tx_group2_inpn_v2 != 'Oiseaux')
                         OR ( s.lr_monde in ('CR','EN','VU','NT') and s.tx_group2_inpn_v2 = 'Oiseaux' and oiso_status_nidif in ('Certain','Possible','Probable') and s.lr_aura is null )
@@ -295,7 +395,7 @@ class SyntheseQueries:
                             , count(distinct(s.cd_ref)) filter ( where s.id_synthese in (select id_synthese from list_esp_lr) and oiso_status_nidif in ('Certain','Possible','Probable')  )as nb_espece_lr_nicheuse
                             , count(distinct(s.id_synthese)) filter ( where mortality_cause in ('ROAD_VEHICLE','UNKNOWN_TRANSPORT','OTHER_TRANSPORT') )as nb_data_mortalite
                             , count(distinct(s.cd_ref)) filter ( where mortality_cause in ('ROAD_VEHICLE','UNKNOWN_TRANSPORT','OTHER_TRANSPORT') )as nb_esp_mortalite
-                    from lpoaura_afo.vm_reportgenerator_data s
+                    from {self.vm} s
                     where extract(year from s.date_max) >= 2000
                     group by extract(year from s.date_max) ;
             """
@@ -309,7 +409,7 @@ class SyntheseQueries:
         sql = f"""
                 SELECT id_synthese, date_max, cd_ref, count_max, oiso_code_nidif, oiso_status_nidif, ST_AsText(the_geom_local) as the_geom_local, comment_description, observers,behaviour,
                        mortality, mortality_cause, ordre, famille, vn_nom_fr, vn_nom_sci, tx_group2_inpn_v2
-                FROM lpoaura_afo.vm_reportgenerator_data
+                FROM {self.vm}
                 """
         with get_connection(self.service_name) as conn:
             with conn.cursor(row_factory=dict_row) as cur:
@@ -362,7 +462,7 @@ class SyntheseQueries:
                                             when lr_aura is null and lr_ra is null and lr_auv is null then lr_france
                                             else lr_aura
                                         end as lr_qgis
-                                from  lpoaura_afo.vm_reportgenerator_data s
+                                from  {self.vm} s
                                 GROUP BY  lr_auv,
                                         lr_ra,
                                         lr_aura,
@@ -461,7 +561,7 @@ class SyntheseQueries:
                                         COUNT(distinct s.id_synthese) filter (where EXTRACT(year FROM s.date_max) = 2024 ) AS _24,
                                         COUNT(distinct s.id_synthese) filter (where EXTRACT(year FROM s.date_max) = 2025 ) AS _25,
                                         COUNT(distinct s.id_synthese) filter (where EXTRACT(year FROM s.date_max) = 2026 ) AS _26
-                                from lpoaura_afo.vm_reportgenerator_data s
+                                from {self.vm} s
                                 left join ref_nomenclatures.t_nomenclatures tn ON tn.cd_nomenclature = s.oiso_code_nidif::text AND tn.id_type = 118 -- a verif
                                 -- On ne prend que les espèces avec des codes de nidification possibles, probables ou certains ou les espèces protégées pour la génération de l'atlas
                                 GROUP BY s.cd_ref, s.vn_nom_sci,lr_aura, lr_france, s.tx_group2_inpn_v2,REPLACE(REPLACE(REPLACE(split_part(s.vn_nom_fr, ', ', 1),'(La)',''),'(Le)',''),'(L'')','') )
@@ -535,8 +635,9 @@ class SyntheseQueries:
                                         when MAX(tn."hierarchy"::numeric) >= 50 then 'Certain'
                                         else 'Absence de code'
                                     end AS code_repro_max
-                                from lpoaura_afo.vm_reportgenerator_data s
+                                from {self.vm} s
                                 left join ref_nomenclatures.t_nomenclatures tn ON tn.cd_nomenclature = s.oiso_code_nidif::text AND tn.id_type = 118 -- a verif                            
+                                where s.geom_maille is not null
                                 GROUP BY s.cd_ref,group_taxo,s.vn_nom_sci,s.geom_maille,REPLACE(REPLACE(REPLACE(split_part(s.vn_nom_fr, ', ', 1),'(La)',''),'(Le)',''),'(L'')','');
                                 """
         with get_connection(self.service_name) as conn:
@@ -580,10 +681,23 @@ class SyntheseQueries:
                 return cur.fetchall()
                       
 
+    def _drop_vues_orphelines(self):
+        """Supprime les vues de travail de plus d'un jour (génération interrompue sans nettoyage)."""
+        with get_connection(self.service_name) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace "
+                    "where n.nspname = %s and c.relkind = 'm' and c.relname like %s",
+                    (VM_SCHEMA, VM_PREFIX + "\\_%"),
+                )
+                for nom in vues_orphelines([r[0] for r in cur.fetchall()]):
+                    print(f"Suppression d'une vue orpheline : {nom}")
+                    cur.execute(f"DROP MATERIALIZED VIEW IF EXISTS {nom} CASCADE")
+
     def delete_reportgenerator_view(self):
         """Suppression de la vue matérialisée pour le rapport"""
-        sql = """
-            DROP MATERIALIZED VIEW IF EXISTS lpoaura_afo.vm_reportgenerator_data CASCADE;
+        sql = f"""
+            DROP MATERIALIZED VIEW IF EXISTS {self.vm} CASCADE;
         """
         with get_connection(self.service_name) as conn:
             with conn.cursor() as cur:
@@ -617,10 +731,11 @@ class SyntheseQueries:
                                     when MAX(tn."hierarchy"::numeric) >= 50 then 'Certain'
                                     else 'Absence de code'
                                     end AS code_repro_max
-                            from lpoaura_afo.vm_reportgenerator_data s
+                            from {self.vm} s
                             left join ref_nomenclatures.t_nomenclatures tn ON tn.cd_nomenclature = s.oiso_code_nidif::text AND tn.id_type = 118 -- a verif
                             left join taxonomie.taxref t ON t.cd_ref = s.cd_ref
                             left join taxonomie.mv_c_statut mcs on mcs.cd_ref = t.cd_ref
+                            where s.geom_maille is not null
                             GROUP BY s.geom_maille; """
         with get_connection(self.service_name) as conn:
             with conn.cursor(row_factory=dict_row) as cur:
@@ -799,7 +914,7 @@ class SyntheseQueries:
                                     COUNT(DISTINCT s.id_synthese) as nb_observations,
                                     case when s.lr_aura is null then s.lr_france else s.lr_aura end as lr_qgis,
                                     bool_or(s.prot_nat is not null) as protegee
-                                from lpoaura_afo.vm_reportgenerator_data s
+                                from {self.vm} s
                                 group by s.cd_ref, s.vn_nom_fr, s.vn_nom_sci, s.tx_group2_inpn_v2, s.lr_aura, s.lr_france
                             )
                             select *,

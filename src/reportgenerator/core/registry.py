@@ -26,6 +26,8 @@ class Brick:
     requires: tuple[str, ...] = ()
     provides: tuple[str, ...] | Callable = ()
     label: str = ""
+    # exécutée après toutes les autres (ex. cartography : utilise les couches produites)
+    last: bool = False
 
     def provided_keys(self, dossier) -> set[str]:
         if callable(self.provides):
@@ -41,6 +43,7 @@ def register_brick(
     requires: Iterable[str] = (),
     provides: Iterable[str] | Callable = (),
     label: str = "",
+    last: bool = False,
 ):
     def decorator(func):
         if name in _REGISTRY:
@@ -51,6 +54,7 @@ def register_brick(
             requires=tuple(requires),
             provides=provides if callable(provides) else tuple(provides),
             label=label or (func.__doc__ or "").strip().split("\n")[0],
+            last=last,
         )
         return func
 

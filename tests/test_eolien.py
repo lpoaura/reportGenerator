@@ -5,7 +5,7 @@ from datetime import datetime
 from docx import Document
 
 from reportgenerator.analysis.cartography.qgis_sources import relink_gpkg_source
-from reportgenerator.analysis.eolien.tables import (anneaux_texte, est_enjeu, periode_etude,
+from reportgenerator.analysis.eolien.tables import (anneaux_texte, est_enjeu, periode_etude, phrase_precautions,
                                                     pivot_par_anneau, resume_par_anneau,
                                                     sensibilite_totale, texte_connaissance)
 from reportgenerator.bricks import eolien as bricks
@@ -69,6 +69,28 @@ def test_small_formatters():
     assert sensibilite_totale({"sensi_especes": 4, "bonus_nidif": 1, "bonus_dortoir": 0, "bonus_migration": 1}) == 6
 
 
+def test_phrases_anneaux_accords():
+    from reportgenerator.analysis.eolien.tables import phrases_anneaux
+
+    par_anneau = {3: {"nb_obs": 2, "nb_especes": 0}, 2: {"nb_obs": 1, "nb_especes": 1},
+                  1: {"nb_obs": 0, "nb_especes": 0}, 0: {"nb_obs": 3, "nb_especes": 1}}
+    phrases = phrases_anneaux(par_anneau, ANNEAUX, "contactées", "observations", unite_anneaux="observation")
+    assert phrases == [
+        "Entre 6 et 20 km autour du projet, on compte 2 observations, sans identification à l'espèce.",
+        "Entre 1 et 6 km autour du projet, on compte 1 observation concernant 1 espèce.",
+        "Entre 0 et 1 km autour du projet, aucune donnée n'est connue.",
+        "Dans la zone d'étude immédiate du projet, 1 espèce a été contactée pour 3 observations.",
+    ]
+
+
+def test_phrase_precautions():
+    texte = phrase_precautions(37.1, "Auvergne-Rhône-Alpes", 100, 22)
+    assert "37 % de l'aire d'étude se situe hors de la région Auvergne-Rhône-Alpes" in texte
+    assert "22 % des données sont localisées au lieu-dit" in texte
+    assert phrase_precautions(0.2, "AuRA", 100, 1) == ""
+    assert phrase_precautions(None, "AuRA", 0, 0) == ""
+
+
 def test_relink_keeps_subset():
     src = './data/donnees_brutes.gpkg|layername=donnees_brutes|subset="mortality" = \'True\''
     assert relink_gpkg_source(src, "/out/data") == (
@@ -123,6 +145,13 @@ class FakeEolienQueries:
     def fetch(self, sql):
         return [{"id": 1, "geom": "POINT(700000 6500000)"}]
 
+    def hors_region(self, region):
+        return {"pct_hors_region": 37.1, "geom": "POLYGON((0 0, 1 0, 1 1, 0 0))"}
+
+    def qualite_donnees(self):
+        return {"oiseaux": {"nb_donnees": 100, "nb_lieu_dit": 22, "nb_cachees": 16, "nb_observations": 90},
+                "chiro": {"nb_donnees": 500, "nb_lieu_dit": 0, "nb_cachees": 0, "nb_observations": 6}}
+
 
 class FakeSynthese:
     anneaux_km = ANNEAUX
@@ -171,8 +200,9 @@ def test_eolien_bricks_render(tmp_path, monkeypatch):
         "vm_eolienne_zone_etude", "vm_eolienne_limit", "vm_eolienne_zone_protection", "vm_eolienne",
         "vm_eolienne_etat_connaissance", "vm_eolienne_nidif", "vm_eolienne_nidif_cn",
         "vm_eolienne_nidif_tampon", "vm_eolienne_dortoirs", "vm_eolienne_migration_all",
-        "vm_eolienne_sensi_oiseau",
+        "vm_eolienne_sensi_oiseau", "vm_eolienne_hors_region",
     }
+    assert "Précautions de lecture" in ctx.results["perimetres_anneaux"].texts["CONNAISSANCE_OISEAUX"]
     sensi = ctx.results["couches_qgis_eolien"].data
     assert sensi["vm_eolienne_sensi_oiseau"] == 1
 

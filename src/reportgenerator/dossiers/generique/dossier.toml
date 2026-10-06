@@ -16,3 +16,6 @@ optional = ["atlas_nicheur"]
 
 [params]
 map_layout = "A4"
+# Dédoublonnage entre sources (même taxon, même jour, même cellule de 100 m) : la première source
+# présente de la liste est gardée (cf. METHODO.md).
+sources_prioritaires = ["faune-france", "dbChiroGCRA"]

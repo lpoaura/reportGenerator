@@ -5,15 +5,19 @@
 #   template.docx               modèle Word (placeholders {{...}})
 #   qgis/projet_eolien.qgs      projet QGIS modèle (+ projet_eolien_attachments.zip)
 
-label = "Projet éolien - synthèse avifaune"
-# valeur du champ list_analyse (formulaire QGIS) qui déclenche ce rapport ;
-# sans déclencheur reconnu, c'est le rapport générique qui est produit
-declencheurs = ["analyse_eolien"]
+label = "Projet éolien - synthèse oiseaux et chiroptères"
 template = "template.docx"
 qgis_project = "qgis/projet_eolien.qgs"
 
+# Valeurs du champ list_analyse (formulaire QGIS) qui déclenchent ce rapport, et les
+# analyses optionnelles que chacune active. Sans déclencheur reconnu : rapport générique.
+# Pour proposer plus tard un rapport sans chiroptères, ajouter par exemple :
+#   analyse_eolien_oiseaux = []
+[declencheurs]
+analyse_eolien = ["chiropteres"]
+
 [analyses]
-# ordre d'exécution : les couches GPKG doivent exister avant "cartography"
+# "cartography" s'exécute toujours en dernier (elle utilise les couches GPKG des autres briques)
 required = [
     "socle_data",
     "projet_info",
@@ -25,17 +29,25 @@ required = [
     "couches_qgis_eolien",   # couches vm_eolienne_* attendues par le projet QGIS modèle
     "cartography",
 ]
-optional = []
+# chiropteres : section {{#chiropteres}} ... {{/chiropteres}} du template
+optional = ["chiropteres"]
 
 [params]
 # --- socle de données (VM principale) ---
 # Le champ buffer du formulaire n'est pas utilisé : l'emprise est fixée par les anneaux.
 anneaux_km = [1, 6, 20]          # contours (donuts) : 0-1, 1-6, 6-20 km (validé)
 annees = 10                      # depuis le 1er janvier de (année - 10), comme 03_vm_data.sql
-groupes_taxo = ["Oiseaux"]
+groupes_taxo = ["Oiseaux", "Chauves-souris"]
+chiro_rangs_non_especes = ["GN", "RES"]  # chiroptères : genres et complexes gardés (gîtes souvent non spécifiques)
 grille = "M1"                    # mailles 1 km (état des connaissances, sensibilité)
 statuts_validation = ["0", "1", "2"]  # comme le générique (décision) ; le R ne gardait que 1-2
 sensibilite_eolien = true        # note 0-4 de partage.sensibilite_oiseaux
+# Dédoublonnage entre sources (même taxon, même jour, même cellule de 100 m) : la première source
+# présente de la liste est gardée. Ex. sur la zone de test : ~5 900 doublons faune-france / gn2pg_cen_auv.
+sources_prioritaires = ["faune-france", "dbChiroGCRA"]
+# Région couverte par la base : la part de l'aire d'étude hors région est signalée dans le texte
+region_donnees = "AUVERGNE-RHONE-ALPES"   # area_name dans ref_geo.mv_fr_region
+region_libelle = "Auvergne-Rhône-Alpes"
 
 # --- espèces à enjeux (§4) ---
 lr_regionale = "lr_aura"         # dernier script R ; "lr_auv" dans les versions précédentes
@@ -43,7 +55,18 @@ enjeux_lr_statuts = ["CR", "EN", "VU"]
 enjeux_sensibilite_min = 2       # sensibilité > 2
 nicheur_enjeux_lr_statuts = ["CR", "EN", "VU", "NT"]   # "enjeux forts" du §5.1
 
+# --- chiroptères ---
+chiro_referentiel = "ref_chiropteres.csv"   # NSE, NHab, rayon autour des gîtes, par espèce (cd_ref)
+# classes de vulnérabilité (note minimale -> libellé), reprises du document chiroptères
+chiro_seuils_ne = [[10, "Très forte"], [7, "Forte"], [5, "Moyenne"]]
+chiro_seuils_nh = [[8, "Forte"], [5, "Moyenne"]]
+# Période (transit…) non prise en compte pour l'instant (champ presque jamais renseigné).
+# Pour l'activer : chiro_transit_classe_min = "Forte"  (+1 à la maille si transit d'une espèce >= Forte)
+chiro_dist_gite_defaut_m = 1000           # rayon des tampons pour les taxons sans rayon (genres, complexes)
+chiro_floutage_m = 0                      # 0 = position précise ; ex. 1000 = centre de la maille de 1 km
+
 # --- cartes ---
+# (les sous-tables [params.xxx] doivent rester en fin de fichier : tout ce qui les suit leur appartient)
 map_layout = "page"             # carte dans le paragraphe du placeholder (1 page par carte dans le template)
 zonage_rayon_km = 30             # zonages affichés sur la carte de localisation
 tampons_statuts_nidif = ["Certain"]

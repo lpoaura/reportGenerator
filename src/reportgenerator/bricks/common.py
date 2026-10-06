@@ -26,6 +26,8 @@ def socle_data(ctx):
         grille=p.get("grille"),
         statuts_validation=tuple(p.get("statuts_validation", ("0", "1", "2"))),
         avec_sensibilite_eolien=p.get("sensibilite_eolien", False),
+        chiro_rangs_non_especes=tuple(p.get("chiro_rangs_non_especes", ())),
+        sources_prioritaires=p.get("sources_prioritaires"),
     )
     return AnalysisResult()
 
@@ -58,6 +60,7 @@ def qgis_layout_names(qgis_project: Path | None) -> list[str]:
     "cartography",
     requires=["socle_data"],
     provides=lambda dossier: qgis_layout_names(dossier.qgis_project),
+    last=True,
 )
 def cartography(ctx):
     """Cartes QGIS : une image par mise en page du projet QGIS du dossier."""

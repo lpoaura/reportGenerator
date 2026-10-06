@@ -11,7 +11,7 @@ Plusieurs **types de rapport** coexistent. Chacun a son modèle Word, son projet
 | Type | Déclenchement (`list_analyse`) | Description |
 |---|---|---|
 | `generique` | par défaut ; `atlas_nicheur` ajoute l'atlas | état des connaissances, tous taxons ([fiche](src/reportgenerator/dossiers/generique/METHODO.md)) |
-| `eolien` | `analyse_eolien` | synthèse avifaune pour un projet éolien ([fiche](src/reportgenerator/dossiers/eolien/METHODO.md)) |
+| `eolien` | `analyse_eolien` | synthèse oiseaux + chiroptères pour un projet éolien ([fiche](src/reportgenerator/dossiers/eolien/METHODO.md)) |
 
 ---
 
@@ -96,7 +96,7 @@ src/reportgenerator/
 
 ### La VM principale
 
-Toutes les analyses lisent une seule vue matérialisée, `lpoaura_afo.vm_reportgenerator_data`, créée par la brique `socle_data`. Ses paramètres viennent du `dossier.toml` :
+Toutes les analyses lisent une seule vue matérialisée, `lpoaura_afo.vm_reportgenerator_data_<date>_<code>`, créée par la brique `socle_data`. Son nom est **unique pour chaque génération** : plusieurs générations peuvent tourner en même temps (deux terminaux, le serveur et un test local) sans se gêner. Elle est supprimée à la fin ; une vue restée après un arrêt brutal est supprimée par une génération suivante au bout d'un jour. Ses paramètres viennent du `dossier.toml` :
 
 | Paramètre | Effet | Générique | Éolien |
 |---|---|---|---|
@@ -130,6 +130,11 @@ Les valeurs à insérer sont des **placeholders** : `{{NOM}}`.
   - `A4` / `A3` : pleine page, avec ajout d'un nouveau paragraphe et d'un saut de page.
   - `page` : dans le paragraphe du placeholder, réduite pour tenir sur la page. C'est le bon choix quand le template prévoit déjà une page par carte.
 - **Texte à compléter** : les parties que le générateur ne remplit pas (commanditaire, analyses) restent du texte normal, surligné en jaune.
+- **Sections conditionnelles** : `{{#nom}}` … `{{/nom}}`, chaque balise seule dans son paragraphe du corps du document. Si la brique `nom` a été exécutée, seules les balises sont retirées ; sinon, toute la section disparaît. Exemple : la partie chiroptères du rapport éolien.
+- **Ajouter une partie à un template** : le plus sûr est de copier des paragraphes existants (titres, corps, légendes, pages de carte) pour garder la mise en page. Deux pièges :
+  - un titre copié emporte son signet de sommaire : il faut retirer les signets en double, sinon Word signale un fichier endommagé ;
+  - dans le template éolien, la numérotation des sous-titres (x.1, x.2) est portée par des paragraphes de liste **cachés**, placés avant le premier sous-titre de chaque chapitre : il en faut un de plus par chapitre ajouté.
+- **Contrôle** : vérifier le rendu en ouvrant le rapport dans **Word**. LibreOffice est plus tolérant et peut afficher un fichier que Word refuse.
 - **Vérification** : `reportgenerator check --dossier <type>` liste les placeholders sans source, les sorties non utilisées, et signale un template sans aucun placeholder.
 
 ---
@@ -182,6 +187,8 @@ def dortoirs(ctx):
 
 - `texts` / `tables` / `images` : clé = nom du placeholder. Deux briques ne peuvent pas fournir la même clé.
 - `requires` : briques à exécuter avant, ajoutées automatiquement au plan.
+- `last=True` : brique exécutée après toutes les autres. C'est le cas de `cartography`, qui a besoin des couches produites par les autres briques.
+- **Regrouper une option** : une brique vide qui `requires` les briques d'une partie (ex. `chiropteres`) sert d'interrupteur. On la met dans `optional`, un déclencheur l'active (`[declencheurs] analyse_x = ["chiropteres"]`), et elle délimite la section `{{#chiropteres}}` du template.
 - `provides` : clés fournies, utilisées seulement par `check`. Pour `cartography`, elles sont lues dans le projet QGIS.
 - `ctx.params` : paramètres du `dossier.toml`. `ctx.cached(clé, fonction)` évite de relancer une même requête dans plusieurs briques.
 - Pour qu'elle soit chargée, une nouvelle brique doit être importée dans `bricks/__init__.py`.
@@ -201,6 +208,8 @@ def dortoirs(ctx):
 | `cannot dump lists of mixed types` | Une liste Python mêlant entiers et décimaux a été envoyée en paramètre SQL. Convertir les valeurs (ex. `float(x)`). |
 | Texte d'un placeholder en Consolas, sur fond gris | Mise en forme collée dans le template : retaper le placeholder (section 4). |
 | Une brique échoue | Le journal affiche « ✗ Brique … ÉCHEC ». La demande reste en attente, et la VM est supprimée. |
+| Word : « le fichier semble endommagé » | Identifiants en double dans le XML. Les dessins sont corrigés automatiquement au rendu (`dedupe_drawing_ids`). Pour un template, valider avec le script `validate.py` de la compétence docx : il signale notamment les signets en double. |
+| Un paramètre du `dossier.toml` est ignoré, ou lu comme une espèce | Il est placé **après** une sous-table `[params.xxx]` : en TOML, tout ce qui suit une sous-table lui appartient. Les sous-tables doivent rester en fin de fichier. |
 
 ---
 
@@ -213,11 +222,22 @@ def dortoirs(ctx):
 
 À traiter ensuite :
 - **CI** : le workflow ne tourne que sur `main` et n'installe pas le projet. Les tests `pytest` existent désormais : les activer.
-- **VM au nom unique** : pas de génération en parallèle.
 - **Rapport générique** : `{{DATE_REPORT}}` annonce 10 ans, alors que les données ne sont pas filtrées (voir sa fiche).
 - **Requêtes** : statut d'observation codé en dur (`id_nomenclature_observation_status = 89`) ; SQL construit par f-string (les valeurs sont converties, mais des requêtes paramétrées seraient plus sûres).
 - **Couleurs de liste rouge** : elles sont définies à plusieurs endroits, avec des valeurs différentes (`styles.py`, `utils.py`, `excel_export.py`, SQL).
 - **Tableaux** : les placeholders de tableaux ne sont cherchés que dans les paragraphes du corps du document.
+
+Corrigé lors de l'ajout des chiroptères :
+- sous-espèces dont le `cd_sup` est vide (leurs données tombaient sur un `cd_ref` nul) ;
+- identifiants de dessin en double avec le pied de page (Word refusait d'ouvrir le rapport) ;
+- `w:shd` sans attribut `w:val` dans les cellules colorées (non conforme au schéma).
+
+Corrigé après l'audit des données (VM commune à tous les dossiers, détails dans la fiche éolien, section 2) :
+- maille calculée spatialement : `cor_area_synthese` est incomplet pour les données récentes, qui étaient exclues ;
+- dédoublonnage entre sources (paramètre `sources_prioritaires`) ;
+- une seule ligne de statuts par taxon (`mv_c_statut` contient des doublons) ;
+- nouveaux champs de la VM : `source`, `comportement` (comportement VisioNature), `precision_geo` (point / lieu-dit), `donnee_cachee` ;
+- VM au nom unique par génération : avec le nom fixe, une génération lancée en parallèle supprimait et recréait la vue d'une autre (erreur « column s.donnee_cachee does not exist », ou pire, requêtes silencieuses sur la zone de l'autre génération).
 
 Déjà corrigé lors de la mise en place du multi-dossiers :
 - sous-espèces (`SESS` → `SSES`) ;

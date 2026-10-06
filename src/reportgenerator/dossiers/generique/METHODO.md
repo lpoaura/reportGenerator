@@ -14,7 +14,7 @@
 ## 1. Process de génération
 
 ```text
-socle_data          VM lpoaura_afo.vm_reportgenerator_data : zone d'étude + buffer du formulaire
+socle_data          VM lpoaura_afo.vm_reportgenerator_data_<date>_<code> (une par génération) : zone d'étude + buffer du formulaire
 knowledge_status    graphiques (évolution, groupes taxonomiques, taux de connaissance, disparitions)
 synthese_generale   chiffres clés, tableaux taxons / espèces, export Excel
 zonages             zonages environnementaux (textes + tableau des surfaces)
@@ -32,7 +32,14 @@ atlas_nicheur       (option) une planche PNG par espèce dans atlas/, non insér
 | Validation | statuts 0 (en attente), 1 et 2 |
 | Taxons | Amphibiens, Chauves-souris, Mammifères, Odonates, Oiseaux, Papillons de jour, Poissons, Reptiles |
 | Géométries | points uniquement |
-| Grille | choisie automatiquement selon la surface (de 200 m à 5 km) |
+| Grille | choisie automatiquement selon la surface (de 200 m à 5 km), maille **calculée spatialement** |
+| Doublons entre sources | même taxon, même jour, même cellule de 100 m : seule la source la mieux classée de `sources_prioritaires` est gardée |
+
+Ces deux derniers points corrigent des défauts relevés par l'audit du dossier éolien (détails dans `dossiers/eolien/METHODO.md`, section 2) :
+- `cor_area_synthese` ne relie pas les données récentes à leur maille : elles étaient **exclues de la VM** (7 % des données d'oiseaux sur la zone de test) ;
+- des données faune-france sont aussi importées par un partenaire (gn2pg_cen_auv) et étaient comptées deux fois.
+
+Les chiffres d'un rapport générique produit après cette correction peuvent donc différer de ceux d'un rapport plus ancien sur la même zone.
 
 ## 3. Contenu du rapport
 

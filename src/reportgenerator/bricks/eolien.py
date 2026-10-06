@@ -14,7 +14,7 @@ from reportgenerator.analysis.eolien import couches_qgis
 from reportgenerator.analysis.eolien import selections as sel
 from reportgenerator.analysis.eolien.queries import EolienQueries
 from reportgenerator.analysis.eolien.tables import (ALL, anneaux_texte, est_enjeu, lr_codes,
-                                                    periode_etude, pivot_par_anneau,
+                                                    periode_etude, phrase_precautions, pivot_par_anneau,
                                                     resume_par_anneau, ring_labels,
                                                     sensibilite_totale, texte_connaissance)
 from reportgenerator.core.registry import register_brick
@@ -42,6 +42,27 @@ def _species(ctx, key, where):
 
 def _anneaux(ctx):
     return ctx.queries.anneaux_km
+
+
+def _hors_region(ctx):
+    """Part et géométrie de l'aire d'étude hors de la région couverte par la base (requête faite une fois)."""
+    region = ctx.params.get("region_donnees", "AUVERGNE-RHONE-ALPES")
+    return ctx.cached("hors_region", lambda: _queries(ctx).hors_region(region))
+
+
+def _qualite(ctx):
+    return ctx.cached("qualite_donnees", lambda: _queries(ctx).qualite_donnees())
+
+
+def precautions(ctx, groupe: str) -> str:
+    """Phrase « Précautions de lecture » pour un groupe ('oiseaux' ou 'chiro')."""
+    q = _qualite(ctx).get(groupe, {})
+    return phrase_precautions(
+        _hors_region(ctx).get("pct_hors_region"),
+        ctx.params.get("region_libelle", "Auvergne-Rhône-Alpes"),
+        q.get("nb_donnees", 0),
+        q.get("nb_lieu_dit", 0),
+    )
 
 
 def _lr_regionale(ctx):
@@ -93,13 +114,19 @@ def _export_layer(ctx, rows, layer_name, geom_col="geom"):
 
 @register_brick(
     "projet_info",
-    provides=["LOCALISATION", "PERIODE_ETUDE", "RAYON_MAX_KM", "ANNEAUX_KM"],
+    provides=["LOCALISATION", "PERIODE_ETUDE", "RAYON_MAX_KM", "ANNEAUX_KM", "TITRE_RAPPORT", "ENJEUX_ETUDIES"],
 )
 def projet_info(ctx):
-    """Localisation (nom de la zone), période d'étude et rayons des anneaux.
+    """Titre, localisation (nom de la zone), période d'étude et rayons des anneaux.
     Le commanditaire (entreprise, adresse) reste à compléter à la main dans le Word."""
     anneaux = ctx.params.get("anneaux_km") or [ctx.buffer]
+    chiro = ctx.is_enabled("chiropteres")
     return AnalysisResult(texts={
+        # titre (page de garde, pieds de page) et objet de l'étude selon les analyses demandées
+        "TITRE_RAPPORT": "Synthèse des données d’oiseaux "
+                         + ("et de chiroptères " if chiro else "")
+                         + "dans le cadre d’un projet éolien",
+        "ENJEUX_ETUDIES": "avifaunistiques et chiroptérologiques" if chiro else "avifaunistiques",
         "LOCALISATION": ctx.area_name,
         "PERIODE_ETUDE": periode_etude(int(ctx.params.get("annees", 10))),
         "RAYON_MAX_KM": f"{max(anneaux):g}",
@@ -125,7 +152,8 @@ def perimetres_anneaux(ctx):
     ]
     return AnalysisResult(
         data={"resume": resume},
-        texts={"CONNAISSANCE_OISEAUX": texte_connaissance(resume, _anneaux(ctx))},
+        texts={"CONNAISSANCE_OISEAUX": " ".join(
+            filter(None, [texte_connaissance(resume, _anneaux(ctx)), precautions(ctx, "oiseaux")]))},
         tables={"TABLE_PERIMETRES": TableBlock(resume, insert_lpo_table, {"columns": columns})},
     )
 
@@ -265,6 +293,8 @@ def couches_qgis_eolien(ctx):
         "vm_eolienne_dortoirs": q.fetch(couches_qgis.DORTOIRS_SQL),
         "vm_eolienne_migration_all": q.fetch(couches_qgis.MIGRATION_SQL),
         "vm_eolienne_sensi_oiseau": mailles,
+        # partie de l'aire d'étude hors région (pas de données) : à hachurer sur les cartes
+        "vm_eolienne_hors_region": [r for r in [_hors_region(ctx)] if r.get("geom")],
     }
     for name, rows in couches.items():
         _export_layer(ctx, rows, name)

@@ -33,7 +33,8 @@ def build_plan(brick_names: list[str]) -> list[str]:
 
     for name in brick_names:
         visit(name, [])
-    return ordered
+    # les briques "last" (cartography) passent après celles qui produisent leurs couches
+    return [n for n in ordered if not get_brick(n).last] + [n for n in ordered if get_brick(n).last]
 
 
 def run_pipeline(ctx, output_file: Path) -> set[str]:
@@ -47,7 +48,8 @@ def run_pipeline(ctx, output_file: Path) -> set[str]:
             ctx.results[name] = get_brick(name).run(ctx)
 
     with timer.step("Génération du rapport Word"):
-        unresolved = render_report(ctx.dossier.template, ctx.results, output_file)
+        # sections {{#brique}} ... {{/brique}} : gardées si la brique a été exécutée
+        unresolved = render_report(ctx.dossier.template, ctx.results, output_file, sections=set(plan))
 
     timer.summary()
     return unresolved

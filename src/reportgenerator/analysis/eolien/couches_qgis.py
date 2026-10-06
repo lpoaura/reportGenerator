@@ -33,10 +33,15 @@ NIDIF_SQL = f"""
                max(extract(year from s.date_max))::int as derniere_obs,
                count(distinct extract(year from s.date_max))::int as nb_annee,
                {STATUT_NIDIF_R} as oiso_status_nidif,
+               bool_or(coalesce(s.donnee_cachee, false)) as donnee_cachee,
+               max(s.precision_geo) as precision_geo,
                ST_AsText(s.the_geom_local) as geom
         from {VM} s
         where {sel.both(sel.OISEAUX, sel.NICHEUR_PROBABLE_CERTAIN)}
         and ({sel.GROUPES_ENJEUX} or {LR_MENACEE})
+        -- Cigogne noire : uniquement floutée à 5 km (vm_eolienne_nidif_cn), sinon visible au point
+        -- précis via le filtre "famille in (..., 'Ciconiidae', ...)" du projet QGIS
+        and s.vn_nom_sci is distinct from 'Ciconia nigra'
         group by s.vn_nom_fr, s.cd_ref, s.famille, s.ordre, s.the_geom_local
     ) t
 """
@@ -63,6 +68,8 @@ DORTOIRS_SQL = f"""
         select s.vn_nom_fr as nom_vern, s.cd_ref as cd_nom, s.famille, s.ordre,
                max(extract(year from s.date_max))::int as derniere_obs,
                count(distinct s.id_synthese) as nb_data,
+               bool_or(coalesce(s.donnee_cachee, false)) as donnee_cachee,
+               max(s.precision_geo) as precision_geo,
                ST_AsText(s.the_geom_local) as geom
         from {VM} s
         where {sel.both(sel.OISEAUX, sel.DORTOIR, sel.GROUPES_ENJEUX)}
@@ -78,6 +85,8 @@ MIGRATION_SQL = f"""
                max(s.count_max) as nb_ind_max,
                max(extract(year from s.date_max))::int as derniere_obs,
                case when {sel.GROUPES_ENJEUX} then 'enjeux' else 'autres' end as esp_enjeux,
+               bool_or(coalesce(s.donnee_cachee, false)) as donnee_cachee,
+               max(s.precision_geo) as precision_geo,
                ST_AsText(s.the_geom_local) as geom
         from {VM} s
         where {sel.both(sel.OISEAUX, sel.MIGRATION)}
@@ -91,6 +100,7 @@ DONNEES_SQL = f"""
     select s.id_synthese as id, s.date_max as datetime, s.cd_ref as cd_nom, s.count_max,
            s.oiso_code_nidif, s.oiso_status_nidif, s.behaviour, s.comment_description,
            s.vn_nom_fr as nom_vern, s.classe, s.ordre, s.famille,
+           s.comportement, s.source, s.precision_geo, coalesce(s.donnee_cachee, false) as donnee_cachee,
            ST_AsText(s.the_geom_local) as geom
     from {VM} s
     where {sel.OISEAUX}
@@ -103,7 +113,7 @@ CONNAISSANCE_SQL = f"""
            count(distinct s.cd_ref) as sum_nb_esp,
            s.geom_maille as geom
     from {VM} s
-    where {sel.OISEAUX}
+    where {sel.OISEAUX} and s.geom_maille is not null
     group by s.id_area, s.geom_maille
 """
 

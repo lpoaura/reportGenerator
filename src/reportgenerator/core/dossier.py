@@ -26,13 +26,21 @@ class Dossier:
     required: tuple[str, ...]
     optional: tuple[str, ...]
     params: dict = field(default_factory=dict)
-    # valeurs de list_analyse (formulaire QGIS) qui déclenchent ce dossier
-    triggers: tuple[str, ...] = ()
+    # valeurs de list_analyse (formulaire QGIS) qui déclenchent ce dossier,
+    # avec les analyses optionnelles que chacune active
+    trigger_analyses: dict = field(default_factory=dict)
+
+    @property
+    def triggers(self) -> tuple[str, ...]:
+        return tuple(self.trigger_analyses)
 
     def select_analyses(self, list_analyse: str | None) -> tuple[list[str], list[str]]:
         """Retourne (briques à lancer, analyses demandées mais inconnues du dossier)."""
-        requested = [a for a in parse_list_analyse(list_analyse) if a not in self.triggers]
-        enabled = [a for a in requested if a in self.optional]
+        values = parse_list_analyse(list_analyse)
+        requested = [a for a in values if a not in self.trigger_analyses]
+        for trigger in values:
+            requested += self.trigger_analyses.get(trigger, [])
+        enabled = list(dict.fromkeys(a for a in requested if a in self.optional))
         ignored = [a for a in requested if a not in self.optional]
         return list(self.required) + enabled, ignored
 
@@ -79,6 +87,10 @@ def load_dossier(name: str | None) -> Dossier:
 
     analyses = config.get("analyses", {})
     qgis_project = config.get("qgis_project")
+    # declencheurs = ["analyse_x"]  ou  [declencheurs] analyse_x = ["option_1", ...]
+    declencheurs = config.get("declencheurs", [])
+    if not isinstance(declencheurs, dict):
+        declencheurs = {t: [] for t in declencheurs}
 
     return Dossier(
         name=name,
@@ -89,5 +101,5 @@ def load_dossier(name: str | None) -> Dossier:
         required=tuple(analyses.get("required", [])),
         optional=tuple(analyses.get("optional", [])),
         params=config.get("params", {}),
-        triggers=tuple(t.lower() for t in config.get("declencheurs", [])),
+        trigger_analyses={t.lower(): list(opts) for t, opts in declencheurs.items()},
     )
