@@ -1,0 +1,18 @@
+# Rapport générique : état des connaissances naturalistes d'une zone d'étude.
+
+label = "Rapport générique - état des connaissances"
+template = "template.docx"
+
+# Projet QGIS : une carte exportée par mise en page (nom de la mise en page
+# = nom du groupe de couches = placeholder {{nom}} dans le Word).
+# Encore partagé dans templates/ car il pointe vers templates/data/.
+qgis_project = "../../templates/projet_modele.qgs"
+
+[analyses]
+# lancées pour chaque rapport de ce type (dans cet ordre, dépendances en plus)
+required = ["socle_data", "knowledge_status", "synthese_generale", "zonages", "cartography"]
+# activées par le champ list_analyse du formulaire QGIS
+optional = ["atlas_nicheur"]
+
+[params]
+map_layout = "A4"

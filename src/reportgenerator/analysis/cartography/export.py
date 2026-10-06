@@ -37,20 +37,20 @@ def copy_qgis_project(template_path: Path, output_path: Path):
 
     shutil.copy(template_path, output_path)
 
-    # attachments
-    template_path = Path(template_path)
+    # pièces jointes du projet (.qgs) : QGIS les range dans <nom>_attachments.zip
+    attachments_zip = template_path.parent / f"{template_path.stem}_attachments.zip"
+    attachments_dir = template_path.parent / f"{template_path.stem}_attachments"
 
-    attachments = template_path.with_suffix("")  # enlève .qgs
-    attachments = attachments.parent / f"{template_path.stem}_attachments"
-
-    print("Attachments source:", attachments)
-
-    if attachments.is_dir():
+    if attachments_zip.is_file():
+        dest = output_path.parent / f"{output_path.stem}_attachments.zip"
+        print("Copy attachments ->", dest)
+        shutil.copy(attachments_zip, dest)
+    elif attachments_dir.is_dir():
         dest = output_path.parent / f"{output_path.stem}_attachments"
         print("Copy attachments ->", dest)
-        shutil.copytree(attachments, dest, dirs_exist_ok=True)
+        shutil.copytree(attachments_dir, dest, dirs_exist_ok=True)
     else:
-        print("No attachments folder found (ignored)")
+        print("No attachments found (ignored)")
 
     return output_path
 
@@ -86,7 +86,10 @@ def export_gpkg(data, gpkg_path, layer_name, geom_col="geometry", crs="EPSG:2154
     print(f"\n--- Export GPKG : {layer_name} ---")
 
     if not data:
-        raise ValueError(f"Aucune donnée fournie pour : {layer_name}")
+        # ex. aucun zonage ou aucun dortoir : la couche est simplement absente
+        # de la carte, le rapport ne doit pas échouer pour autant
+        print(f"[AVERTISSEMENT] Aucune donnée pour la couche {layer_name} : export ignoré")
+        return None
 
     # dataframe
     df = pd.DataFrame.from_records(data)

@@ -1,6 +1,6 @@
 # qgis_render.py
 
-import os, sys
+import sys
 from pathlib import Path
 
 # Ajout explicite de la racine du package, indépendamment de PYTHONPATH
@@ -8,13 +8,16 @@ from pathlib import Path
 package_root = Path(__file__).resolve().parents[3]  # .../src
 if str(package_root) not in sys.path:
     sys.path.insert(0, str(package_root))
-    
 
-import argparse
-from qgis.core import (QgsApplication, QgsLayoutExporter, QgsLayoutItemMap,
+
+import argparse  # noqa: E402
+
+from qgis.core import (QgsApplication, QgsLayoutExporter, QgsLayoutItemMap,  # noqa: E402
                        QgsProject, QgsRectangle, QgsVectorLayer)
-from reportgenerator.analysis.qgis_runtime import resolve_qgis_prefix
 
+from reportgenerator.analysis.cartography.qgis_sources import (  # noqa: E402
+    load_render_config, relink_gpkg_source)
+from reportgenerator.analysis.qgis_runtime import resolve_qgis_prefix  # noqa: E402
 
 
 def reload_project(project, project_path):
@@ -32,77 +35,64 @@ def reload_project(project, project_path):
     return project
 
 
-def zoom_layout_maps_to_layer(project, layout, layer_name, margin_ratio=0.1):
-    print(f"Recalcul emprise layout : {layout.name()}")
+def layer_extent(project, layer_name):
     layers = project.mapLayersByName(layer_name)
-
     if not layers:
-        print(f"Couche introuvable : {layer_name}")
-        return
+        print(f"Couche introuvable pour l'emprise : {layer_name}")
+        return None
     layer = layers[0]
     if not layer.isValid():
-        print(f"Couche invalide : {layer_name}")
-        return
-
-    # important
+        print(f"Couche invalide pour l'emprise : {layer_name}")
+        return None
     layer.updateExtents()
     extent = QgsRectangle(layer.extent())
-
     if extent.isEmpty():
-        print(f"Extent vide : {layer_name}")
-        return
-    # marge
-    width_margin = extent.width() * margin_ratio
-    height_margin = extent.height() * margin_ratio
+        print(f"Emprise vide : {layer_name}")
+        return None
+    return extent
 
-    extent.setXMinimum(extent.xMinimum() - width_margin)
-    extent.setXMaximum(extent.xMaximum() + width_margin)
-    extent.setYMinimum(extent.yMinimum() - height_margin)
-    extent.setYMaximum(extent.yMaximum() + height_margin)
+
+def zoom_layout_maps(layout, base_extent, config):
+    """Cadre les cartes de la mise en page sur l'emprise de référence
+    (+ marge, + tampon propre à la mise en page, + décalage vertical)."""
+    extent = QgsRectangle(base_extent)
+    buffer_m = config["layout_buffers_m"].get(layout.name(), 0)
+    if buffer_m:
+        extent = extent.buffered(buffer_m)
+
+    dx = extent.width() * config["extent_margin_ratio"]
+    dy = extent.height() * config["extent_margin_ratio"]
+    offset = (extent.height() + 2 * dy) * config["extent_offset_y_ratio"]
+    extent = QgsRectangle(extent.xMinimum() - dx, extent.yMinimum() - dy + offset,
+                          extent.xMaximum() + dx, extent.yMaximum() + dy + offset)
+
     for item in layout.items():
-
         if isinstance(item, QgsLayoutItemMap):
             print(f"Zoom carte : {item.displayName()}")
             item.zoomToExtent(extent)
             item.refresh()
 
 
-def relink_gpkg_layers(project, gpkg_path):
-
-    print("Relink des couches GPKG...")
-
-    print(gpkg_path)
+def relink_gpkg_layers(project, data_dir):
+    print(f"Relink des couches GPKG vers {data_dir}...")
     for layer in project.mapLayers().values():
         if not isinstance(layer, QgsVectorLayer):
             continue
-
-        source = layer.source()
-
-        if "|layername=" not in source:
+        new_source = relink_gpkg_source(layer.source(), data_dir)
+        if new_source is None:
             continue
-
-        layer_name = source.split("|layername=")[1]
-        new_source = f"{gpkg_path}/{layer_name}.gpkg|layername={layer_name}"
-
-        print(f"Relink : {layer.name()}")
-        print(f"  -> {new_source}")
-
+        print(f"Relink : {layer.name()} -> {new_source}")
         layer.setDataSource(new_source, layer.name(), "ogr")
-
         layer.reload()
 
 
 def set_group_visibility(project, group_name, visibility):
-
-    root = project.layerTreeRoot()
-    group = root.findGroup(group_name)
-
-    if group:
-        group.setItemVisibilityChecked(visibility)
-        print(f"Groupe {group.name()} -> {visibility}")
+    group = project.layerTreeRoot().findGroup(group_name)
     if group is None:
         print(f"Groupe introuvable : {group_name}")
         return
+    group.setItemVisibilityChecked(visibility)
+    print(f"Groupe {group.name()} -> {visibility}")
 
 
 def main():
@@ -110,83 +100,71 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--project")
     parser.add_argument("--output")
+    parser.add_argument("--config", default=None, help="JSON de configuration du rendu")
 
     args = parser.parse_args()
 
     project_path = Path(args.project)
     output_path = Path(args.output)
+    config = load_render_config(args.config)
 
-    data_path = project_path.parent / "data" 
+    data_path = project_path.parent / "data"
 
     print("Lancement du rendu QGIS...")
     print(f"Project path: {project_path}")
     print(f"Output path: {output_path}")
+    print(f"Config: {config}")
 
     output_path.mkdir(parents=True, exist_ok=True)
 
-    # Init QGIS
-    ### /!\ à décommenter si on veut utiliser le QGIS installé sur serveur. /!\
-
-    
     QgsApplication.setPrefixPath(str(resolve_qgis_prefix()), True)
-    #QgsApplication.setPrefixPath("C:/Program Files/QGIS/3_40", True )
-   
     qgs = QgsApplication([], False)
     qgs.initQgis()
 
-    # Chargement projet
-    print("Chargement du projet...")
-    project = QgsProject.instance()
-    loaded = project.read(str(project_path))
-    print("Projet chargé :", loaded)
-    if not loaded:
-        raise Exception(f"Impossible de charger le projet : {project_path}")
+    try:
+        print("Chargement du projet...")
+        project = QgsProject.instance()
+        if not project.read(str(project_path)):
+            raise Exception(f"Impossible de charger le projet : {project_path}")
 
-    manager = project.layoutManager()
-    root = project.layerTreeRoot()
-    model = project.mapThemeCollection()
+        relink_gpkg_layers(project, data_path)
+        reload_project(project, project_path)
 
-    relink_gpkg_layers(project, data_path)
-    reload_project(project, project_path)
+        manager = project.layoutManager()
+        layouts_to_export = [layout.name() for layout in manager.layouts()]
+        print("Layouts disponibles :", ", ".join(layouts_to_export))
 
-    print("Layouts disponibles :")
-    layouts_to_export = []
-    for layout in manager.layouts():
-        print("-", layout.name())
-        layouts_to_export.append(layout.name())
+        base_extent = layer_extent(project, config["extent_layer"])
 
-    # EXPORT
-    for layout_name in layouts_to_export:
-        print(f"Export du layout : {layout_name}")
+        for layout_name in layouts_to_export:
+            print(f"Export du layout : {layout_name}")
+            layout = manager.layoutByName(layout_name)
+            if layout is None:
+                print(f"Layout introuvable : {layout_name}")
+                continue
 
-        # gestion des groupes à afficher
-        for g in layouts_to_export:
-            set_group_visibility(project, g, False)
+            # un seul groupe thématique visible : celui qui porte le nom de la mise en page
+            for g in layouts_to_export:
+                set_group_visibility(project, g, False)
+            for g in config["visible_groups"]:
+                set_group_visibility(project, g, True)
+            set_group_visibility(project, layout_name, True)
 
-        set_group_visibility(project, "FDC", True)
-        set_group_visibility(project, layout_name, True)
+            if base_extent is not None:
+                zoom_layout_maps(layout, base_extent, config)
 
-        layout = manager.layoutByName(layout_name)
+            output_file = output_path / f"{layout_name}.png"
+            if output_file.exists():
+                output_file.unlink()
 
-        zoom_layout_maps_to_layer(project, layout, "observations_brutes")
-
-        ### si est introuvable, on affiche un message d'erreur et on continue
-        if layout is None:
-            print(f"Layout introuvable : {layout_name}")
-            continue
-
-        exporter = QgsLayoutExporter(layout)
-        output_file = output_path / f"{layout_name}.png"
-
-        # suppression si existe
-        if output_file.exists():
-            output_file.unlink()
-
-        settings = QgsLayoutExporter.ImageExportSettings()
-        export_result = exporter.exportToImage(str(output_file), settings)
-        print("Résultat export :", export_result)
-
-    qgs.exitQgis()
+            settings = QgsLayoutExporter.ImageExportSettings()
+            if config["dpi"]:
+                settings.dpi = config["dpi"]
+            result = QgsLayoutExporter(layout).exportToImage(str(output_file), settings)
+            if result != QgsLayoutExporter.Success:
+                print(f"[ERREUR] Export de la carte {layout_name} : code {result}")
+    finally:
+        qgs.exitQgis()
     print("Rendu QGIS terminé")
 
 

@@ -1,8 +1,28 @@
 #!/bin/python3
 
+import re
+
 from psycopg.rows import dict_row
 
 from reportgenerator.db_auth import get_connection
+
+DEFAULT_GROUPES = [
+    "Amphibiens", "Chauves-souris", "Mammifères", "Odonates",
+    "Oiseaux", "Papillons de jour", "Poissons", "Reptiles",
+]
+
+GRILLE_AUTO_SQL = """CASE
+                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 5 THEN 'M0.2'
+                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 25 THEN 'M0.5'
+                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 250 THEN 'M1'
+                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 2500 THEN 'M2'
+                            ELSE 'M5'
+                        END"""
+
+
+def sql_literals(values) -> str:
+    """Liste Python -> 'a', 'b' (valeurs échappées) pour un IN (...)."""
+    return ", ".join("'" + str(v).replace("'", "''") + "'" for v in values)
 
 
 class SyntheseQueries:
@@ -12,17 +32,73 @@ class SyntheseQueries:
         self.service_name = service_name
         self.id_area = id_area
         self.buffer = buffer
+        # rayons (km) des anneaux, du plus petit au plus grand (cf. set_global_data)
+        self.anneaux_km = [float(buffer)]
 
-    def set_global_data(self):
-        """Création de la vue matérialisée pour le rapport"""
+    def set_global_data(
+        self,
+        anneaux_km=None,
+        annees=None,
+        groupes=None,
+        grille=None,
+        statuts_validation=("0", "1", "2"),
+        avec_sensibilite_eolien=False,
+    ):
+        """Création de la vue matérialisée pour le rapport.
+
+        - anneaux_km : rayons des anneaux (donuts) autour de la zone d'étude ;
+          le plus grand fixe l'emprise de la vue. Défaut : [buffer].
+          Colonne anneau_ordre : 0 = zone d'étude, i = entre anneau i-1 et i.
+        - annees : ne garder que les N dernières années (depuis le 1er janvier).
+        - groupes : groupes taxonomiques (tx_group2_inpn_v2) conservés.
+        - grille : code de grille forcé (ex. 'M1'), sinon choisie selon la surface.
+        - avec_sensibilite_eolien : ajoute la note de partage.sensibilite_oiseaux.
+        """
         print("Création de la vue matérialisée pour le rapport (lpoaura_afo.vm_reportgenerator_data)...")
-        buffer_km = int(self.buffer)
         id_area = int(self.id_area)
+        self.anneaux_km = sorted(float(a) for a in (anneaux_km or [self.buffer]))
+        rayon_m = max(self.anneaux_km) * 1000
+
+        if grille:
+            if not re.fullmatch(r"M[0-9.]+", grille):
+                raise ValueError(f"Code de grille invalide : {grille!r}")
+            grille_sql = f"'{grille}'"
+        else:
+            grille_sql = GRILLE_AUTO_SQL
+
+        if not all(str(c).isdigit() for c in statuts_validation):
+            raise ValueError(f"Statuts de validation invalides : {statuts_validation!r}")
+        validation_sql = ",\n".join(
+            f"ref_nomenclatures.get_id_nomenclature('STATUT_VALID'::character varying, '{c}'::character varying)"
+            for c in statuts_validation
+        )
+        date_sql = (
+            f"and s.date_max >= make_date(extract(year from now())::int - {int(annees)}, 1, 1)"
+            if annees else ""
+        )
+        groupes_sql = sql_literals(groupes or DEFAULT_GROUPES)
+
+        if avec_sensibilite_eolien:
+            sensi_col = ", so.sensibilite_eolien"
+            sensi_join = """left join (select so.cd_nom,
+                                              max(nullif(regexp_replace(so.sensibilite::text, '[^0-9.]', '', 'g'), '')::numeric)
+                                                  as sensibilite_eolien
+                                       from partage.sensibilite_oiseaux so
+                                       group by so.cd_nom) so on so.cd_nom = s.cd_ref"""
+        else:
+            sensi_col = ", null::numeric as sensibilite_eolien"
+            sensi_join = ""
+
+        anneau_cases = ["when ST_Intersects(s.the_geom_local, z.geom_zone) then 0"]
+        for i, km in enumerate(self.anneaux_km[:-1], start=1):
+            anneau_cases.append(f"when ST_DWithin(s.the_geom_local, z.geom_zone, {km * 1000}) then {i}")
+        anneau_sql = f"case {' '.join(anneau_cases)} else {len(self.anneaux_km)} end"
+
         sql = f"""
             drop materialized view if exists lpoaura_afo.vm_reportgenerator_data;
             create materialized view lpoaura_afo.vm_reportgenerator_data as
                        with zone_etude as (
-                select ST_Buffer(l.geom, {buffer_km} * 1000) as geom
+                select ST_Buffer(l.geom, {rayon_m}) as geom, l.geom as geom_zone
                 from ref_geo.l_areas l
                 where l.id_area = {id_area}
                 and l.id_type = ref_geo.get_id_area_type('LPO_REPORT_STUDY'::character varying)
@@ -30,19 +106,13 @@ class SyntheseQueries:
                 selection_grille AS (
                     SELECT
                         ST_Area(geom) / 1000000.0 as air_km2,
-                        CASE
-                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 5 THEN 'M0.2'
-                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 25 THEN 'M0.5'
-                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 250 THEN 'M1'
-                            WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 2500 THEN 'M2'
-                            ELSE 'M5'
-                        END AS grille_code
+                        {grille_sql} AS grille_code
                     FROM zone_etude
                 ),
                 obs_info as (  select s.id_synthese
                                         , s.date_max::date as date_max
                                         , case when t.id_rang = 'ES' then t.cd_ref
-                                                when t.id_rang = 'SESS' then t.cd_sup
+                                                when t.id_rang = 'SSES' then t.cd_sup
                                                 else 0 end as cd_ref
                                         , case when s.count_max = 0 or s.count_max is null then 1
                                                 else s.count_max end as count_max
@@ -69,10 +139,9 @@ class SyntheseQueries:
                                     where s.id_nomenclature_observation_status = 89
                                     and (t.id_rang = 'ES' or t.id_rang = 'SSES')
                                     AND (s.id_nomenclature_valid_status = ANY(ARRAY [
-                                ref_nomenclatures.get_id_nomenclature('STATUT_VALID'::character varying,'2'::character varying),
-                                ref_nomenclatures.get_id_nomenclature('STATUT_VALID'::character varying, '1'::character varying), 
-                                ref_nomenclatures.get_id_nomenclature('STATUT_VALID'::character varying, '0'::character varying)
+                                {validation_sql}
                                                                 ])) IS TRUE
+                                    {date_sql}
                                     and  ST_Within(s.the_geom_local, (select geom from zone_etude ))
                 ),
                 obs_final as ( select  s.*
@@ -99,15 +168,20 @@ class SyntheseQueries:
                                         , conv_bonn
                                         , pna_en_cours
                                         , pna_ex
+                                        {sensi_col}
                             from obs_info s
                             left join taxonomie.mv_c_statut mcs on s.cd_ref = mcs.cd_ref
+                            {sensi_join}
                             )
-            select s.*, la.id_area, la.geom as geom_maille , gs.grille_code, gs.air_km2 from obs_final s
+            select s.*, la.id_area, la.geom as geom_maille , gs.grille_code, gs.air_km2,
+                   {anneau_sql} as anneau_ordre
+            from obs_final s
             left join gn_synthese.cor_area_synthese cas on s.id_synthese = cas.id_synthese
             left join ref_geo.l_areas la on cas.id_area = la.id_area
             cross join selection_grille gs
+            cross join zone_etude z
             where la.id_type = ref_geo.get_id_area_type((select grille_code from selection_grille)::character varying)
-            and tx_group2_inpn_v2 in ('Amphibiens','Chauves-souris','Mammifères','Odonates','Oiseaux','Papillons de jour','Poissons','Reptiles')
+            and tx_group2_inpn_v2 in ({groupes_sql})
             and (ST_GeometryType(s.the_geom_local) = 'ST_Point')
             ;
             CREATE INDEX idx_id_synthese ON lpoaura_afo.vm_reportgenerator_data (id_synthese);
@@ -553,11 +627,12 @@ class SyntheseQueries:
                 cur.execute(sql)
                 return cur.fetchall()
 
-    def get_knowledge_protected_area(self):
-        """Récupération des différents zonages de protections"""
-        buffer_km = int(self.buffer)
+    def get_knowledge_protected_area(self, rayon_km=None):
+        """Zonages de protection intersectant la zone d'étude + rayon_km
+        (défaut : plus grand anneau + 10 km)."""
+        rayon_m = float(rayon_km if rayon_km is not None else max(self.anneaux_km) + 10) * 1000
         id_area = int(self.id_area)
-        sql = f"""with geom_fusion as ( select ST_Buffer(l.geom, {buffer_km} * 10000) as geom_10km -- 10 km pour une emprise plus large des zones de protection
+        sql = f"""with geom_fusion as ( select ST_Buffer(l.geom, {rayon_m}) as geom_10km
                                         from ref_geo.l_areas l
                                         where l.id_area = {id_area}
                                         and l.id_type = ref_geo.get_id_area_type('LPO_REPORT_STUDY'::character varying) ),

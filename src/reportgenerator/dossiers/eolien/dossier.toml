@@ -1,0 +1,73 @@
+# Synthèse des données d'oiseaux dans le cadre d'un projet éolien.
+# Process, contenu du rapport et règles : METHODO.md (à mettre à jour si une règle change).
+#
+# Fichiers du dossier :
+#   template.docx               modèle Word (placeholders {{...}})
+#   qgis/projet_eolien.qgs      projet QGIS modèle (+ projet_eolien_attachments.zip)
+
+label = "Projet éolien - synthèse avifaune"
+# valeur du champ list_analyse (formulaire QGIS) qui déclenche ce rapport ;
+# sans déclencheur reconnu, c'est le rapport générique qui est produit
+declencheurs = ["analyse_eolien"]
+template = "template.docx"
+qgis_project = "qgis/projet_eolien.qgs"
+
+[analyses]
+# ordre d'exécution : les couches GPKG doivent exister avant "cartography"
+required = [
+    "socle_data",
+    "projet_info",
+    "perimetres_anneaux",
+    "especes_enjeux_eolien",
+    "nidification",
+    "dortoirs",
+    "migration",
+    "couches_qgis_eolien",   # couches vm_eolienne_* attendues par le projet QGIS modèle
+    "cartography",
+]
+optional = []
+
+[params]
+# --- socle de données (VM principale) ---
+# Le champ buffer du formulaire n'est pas utilisé : l'emprise est fixée par les anneaux.
+anneaux_km = [1, 6, 20]          # contours (donuts) : 0-1, 1-6, 6-20 km (validé)
+annees = 10                      # depuis le 1er janvier de (année - 10), comme 03_vm_data.sql
+groupes_taxo = ["Oiseaux"]
+grille = "M1"                    # mailles 1 km (état des connaissances, sensibilité)
+statuts_validation = ["0", "1", "2"]  # comme le générique (décision) ; le R ne gardait que 1-2
+sensibilite_eolien = true        # note 0-4 de partage.sensibilite_oiseaux
+
+# --- espèces à enjeux (§4) ---
+lr_regionale = "lr_aura"         # dernier script R ; "lr_auv" dans les versions précédentes
+enjeux_lr_statuts = ["CR", "EN", "VU"]
+enjeux_sensibilite_min = 2       # sensibilité > 2
+nicheur_enjeux_lr_statuts = ["CR", "EN", "VU", "NT"]   # "enjeux forts" du §5.1
+
+# --- cartes ---
+map_layout = "page"             # carte dans le paragraphe du placeholder (1 page par carte dans le template)
+zonage_rayon_km = 30             # zonages affichés sur la carte de localisation
+tampons_statuts_nidif = ["Certain"]
+
+# Tampons autour des sites de nidification (km), par nom scientifique.
+# Liste du template (§8.2). Le SQL R contenait en plus : Aquila chrysaetos,
+# Gyps fulvus, Aegypius monachus, Neophron percnopterus (5 km), Circus pygargus (2,5 km)
+# -> à ajouter ici si retenus, en mettant à jour le texte du §8.2.
+[params.tampons_nidification_km]
+"Milvus milvus" = 5
+"Ciconia nigra" = 5
+"Milvus migrans" = 2.5
+"Circaetus gallicus" = 2.5
+"Falco peregrinus" = 2.5
+"Bubo bubo" = 2.5
+"Circus cyaneus" = 2.5
+
+# Rendu QGIS (repris de lancement_carte_qgis.py)
+[params.qgis_render]
+visible_groups = ["Zone_etude", "FDC"]
+extent_layer = "LEGENDE_LIMITE"
+extent_margin_ratio = 0.0
+extent_offset_y_ratio = 0.05
+dpi = 150
+
+[params.qgis_render.layout_buffers_m]
+Carte1_zone_localisation = 30000

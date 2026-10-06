@@ -1,230 +1,247 @@
 # Documentation du générateur de rapports
 
-## 1. Objectif du projet
+## 1. Objectif
 
-Ce projet automatise la production de rapports à partir de données PostgreSQL/PostGIS.
-Il n'est pas là pour remplacer l'expertise métier, mais simplement facilité la préparation de documents pour permettre de donner un avis plus facilement aux experts locals.
+Le projet produit automatiquement des rapports Word à partir des données naturalistes de la base GeoNature LPO (PostgreSQL/PostGIS) : textes chiffrés, tableaux, graphiques et cartes QGIS.
 
-Il permet de :
+Le rapport généré est **une base de travail**. Il ne remplace pas l'expertise : les collègues y ajoutent leur avis, le contexte local et les points de vigilance, dans les blocs prévus à cet effet (surlignés en jaune dans les templates).
 
-* récupérer des données via SQL,
-* produire des analyses métier,
-* générer des tableaux Excel,
-* générer des dataviz,
-* exporter des données spatiales en GeoPackage,
-* produire des cartes via QGIS,
-* assembler le tout dans un rapport Word à partir d’un modèle.
+Plusieurs **types de rapport** coexistent. Chacun a son modèle Word, son projet QGIS et ses analyses.
 
-L’objectif principal est de garder une architecture modulaire pour pouvoir ajouter de nouvelles analyses progressivement, sans refactor global.
+| Type | Déclenchement (`list_analyse`) | Description |
+|---|---|---|
+| `generique` | par défaut ; `atlas_nicheur` ajoute l'atlas | état des connaissances, tous taxons ([fiche](src/reportgenerator/dossiers/generique/METHODO.md)) |
+| `eolien` | `analyse_eolien` | synthèse avifaune pour un projet éolien ([fiche](src/reportgenerator/dossiers/eolien/METHODO.md)) |
 
 ---
 
-## 2. Architecture générale
+## 2. Installation et utilisation
 
-L’architecture suit une séparation stricte des responsabilités :
+```bash
+poetry install
 
-* **`queries`** : accès aux données SQL
-* **`analysis`** : logique métier et orchestration d’un module d’analyse
-* **`report`** : assemblage final du document Word
-* **`templates`** : modèles Word et QGIS
+# tous les rapports en attente (lecture de src_gestion.v_reportgenerator_areas_lpo)
+poetry run reportgenerator generate --service gnlpoaura --limit 100
+poetry run reportgenerator generate --service gnlpoaura --dry-run      # liste sans générer
 
-### Chaîne de traitement
+# un rapport précis
+poetry run reportgenerator run --service gnlpoaura --id_area 2337034 --area_name "TEST EOLIEN" \
+    --referee "Nom" --buffer 5 --list_analyse "analyse_eolien" --output "TEST EOLIEN.docx"
 
-```text
-CLI
-  ↓
-Queries SQL
-  ↓
-Analyse métier
-  ↓
-Exports (tables, images, gpkg)
-  ↓
-Cartographie QGIS
-  ↓
-Rapport Word
+# outils (sans base ni QGIS)
+poetry run reportgenerator dossiers                    # types de rapport et leurs analyses
+poetry run reportgenerator check --dossier eolien      # vérifie le template Word et les briques
+poetry run pytest                                      # tests
 ```
 
----
+⚠️ `run` et `generate` **marquent la demande comme traitée** (`date_reportgenerate`) dès qu'un rapport est produit sans erreur. Pour tester sans clôturer de vraies demandes, utiliser une zone de test dédiée.
 
-## 3. Rôle des fichiers principaux
+### Dossier de sortie
 
-### `cli.py`
+Les rapports sont écrits dans `<sortie>/<nom de la zone>/`. Le dossier de sortie est choisi dans cet ordre :
+1. l'option `--output_dir` ;
+2. la variable d'environnement `OUTPUT_DIR` (utilisée par Docker) ;
+3. `src/reportgenerator/outputs/`, ignoré par git.
 
-Point d’entrée du projet.
+**Le dossier de la zone est vidé à chaque génération.**
 
-* lit les arguments de ligne de commande,
-* crée les dossiers de sortie,
-* ouvre la connexion à la base,
-* lance les analyses,
-* lance la cartographie,
-* appelle la génération du rapport final.
+### QGIS
 
-### `db_auth.py`
-
-Contient la connexion à la base PostgreSQL/PostGIS.
-
-### `queries.py`
-
-Contient les requêtes SQL et les classes d’accès aux données.
-
-### `analysis/<module>/analysis.py`
-
-Orchestre une analyse spécifique.
-
-Exemples :
-
-* `knowledge_status/analysis.py`
-* `cartography/analysis.py`
-
-Ce fichier appelle les requêtes, les exports et prépare les éléments à insérer dans le rapport.
-
-### `analysis/cartography/qgis_launcher.py`
-
-Lance un script QGIS dans un environnement séparé.
-
-### `analysis/cartography/qgis_render.py`
-
-Script exécuté avec l’environnement QGIS. Il charge le projet QGIS et exporte les cartes.
-
-### `report.py`
-
-Charge le modèle Word, remplace les variables, insère les tableaux et images, puis enregistre le document final.
+Les cartes sont produites par l'interpréteur Python de QGIS 3.40, dans un processus séparé. Il est détecté automatiquement ; sinon, définir `REPORTGENERATOR_QGIS_PYTHON` et `REPORTGENERATOR_QGIS_PREFIX` (voir le README).
 
 ---
 
-## 4. Organisation des sorties
-
-Chaque exécution crée un dossier dédié à la zone étudiée.
-
-Exemple :
+## 3. Fonctionnement
 
 ```text
-outputs/
-└── MONPROJETTEST/
-    ├── report.docx
-    ├── projet.qgs
-    ├── data/
-    ├── dataviz/
-    │   ├── chart_evolution.png
-    │   └── ...
-    └── maps/
-        ├── carte_observations.png
-        └── carte_mortalite.png
+Formulaire QGIS ──► src_gestion.v_reportgenerator_areas_lpo (id_area, list_analyse, buffer…)
+                          │
+                          ▼
+   type de rapport = dossier dont un "declencheur" figure dans list_analyse, sinon generique
+                          │
+                          ▼
+   dossier.toml : briques obligatoires + optionnelles demandées, paramètres
+                          │
+                          ▼
+   pipeline : briques exécutées dans l'ordre (dépendances "requires" ajoutées automatiquement)
+     socle_data (VM) → analyses (textes, tableaux, graphiques) → couches GPKG → cartes QGIS
+                          │
+                          ▼
+   renderer : template.docx rempli → <zone>.docx ; VM supprimée ; date mise à jour si succès
 ```
 
-### Convention de nommage
-
-* `data/` : géopackages et données intermédiaires
-* `dataviz/` : graphiques et figures
-* `maps/` : cartes exportées par QGIS
-* `report.docx` : rapport final
-* `projet.qgs` : copie du projet QGIS modèle
-
----
-
-
-## 5. Principe de fonctionnement des templates Word
-
-Le modèle Word contient des placeholders, par exemple :
+### Organisation du code
 
 ```text
-{{AREA_NAME}}
-{{REFEREE}}
-{{NB_DATA}}
-{{chart_evolution.png}}
-{{carte_observations.png}}
+src/reportgenerator/
+├── cli.py                 commandes run / generate / dossiers / check
+├── run_single.py          génération d'un rapport
+├── run_queue.py           demandes en attente (batch)
+├── queries.py             VM principale (paramétrable) et requêtes communes
+├── core/
+│   ├── dossier.py         lecture des dossier.toml, choix du type de rapport
+│   ├── registry.py        déclaration des briques (@register_brick)
+│   ├── context.py         ReportContext transmis aux briques
+│   ├── pipeline.py        ordre d'exécution, commande check
+│   └── renderer.py        remplissage du Word
+├── bricks/                lien entre le métier et les placeholders (common, generique, eolien)
+├── analysis/              code métier : requêtes, calculs, graphiques, tableaux, cartographie
+│   ├── eolien/            sélections, requêtes, couches QGIS, mises en forme du rapport éolien
+│   ├── cartography/       export GPKG, lancement et script de rendu QGIS
+│   └── common/tables/     insertion des tableaux Word (espèces, zonages, tableaux par anneau)
+├── dossiers/<type>/       dossier.toml, template.docx, METHODO.md, (qgis/)
+├── templates/             projet QGIS du rapport générique, atlas, polices
+└── outputs/               rapports générés (non versionné)
 ```
 
-Le script de génération remplace les variables textuelles puis insère les images à partir des noms de fichiers ou des placeholders définis.
+### La VM principale
 
-### Règle importante
+Toutes les analyses lisent une seule vue matérialisée, `lpoaura_afo.vm_reportgenerator_data`, créée par la brique `socle_data`. Ses paramètres viennent du `dossier.toml` :
 
-Pour les placeholders :
+| Paramètre | Effet | Générique | Éolien |
+|---|---|---|---|
+| `anneaux_km` | rayons des anneaux ; le plus grand fixe l'emprise ; colonne `anneau_ordre` | `[buffer]` | `[1, 6, 20]` |
+| `annees` | ne garde que les N dernières années | toutes | 10 |
+| `groupes_taxo` | groupes taxonomiques conservés | 8 groupes | Oiseaux |
+| `grille` | grille des mailles (`geom_maille`) | automatique | M1 |
+| `statuts_validation` | statuts de validation conservés | 0, 1, 2 | 0, 1, 2 |
+| `sensibilite_eolien` | ajoute `sensibilite_eolien` (`partage.sensibilite_oiseaux`) | non | oui |
 
-* écrire le texte en un seul bloc dans Word,
-* éviter de changer la mise en forme au milieu du placeholder.
-
----
-
-## 6. Principe de fonctionnement du template QGIS
-
-Le projet QGIS modèle sert de base à la cartographie.
-
-Il contient :
-
-* les couches,
-* les styles,
-* les groupes de couches,
-* les mises en page,
-* les exports cartographiques.
-
-Le projet est copié dans le dossier de sortie avant exécution.
-le script qgis_render.py, permet de lancer la génération de cartographie pour toutes les groupes de couches présents. 
-Il coche un groupe de couche et décoche les autres et lance la mise en page de carte qui porte le même nom que la couche pour permettre la génération de la carte avec les bonne données.
+La VM porte un **nom unique** : deux rapports ne peuvent pas être générés en même temps. Elle est supprimée en fin de génération, même en cas d'échec.
 
 ---
 
-## 7. Exemple de module d’analyse : `knowledge_status`
+## 4. Templates Word
 
-Cette analyse produit par exemple :
+Les valeurs à insérer sont des **placeholders** : `{{NOM}}`.
 
-* un texte explicatif générique, (à venir)
-* un texte basé sur les données, (à venir)
-* un tableau des chiffres clés, 
-* une figure temporelle,
-* éventuellement d’autres exports. 
+| Type | Exemple | Règles |
+|---|---|---|
+| Texte | `Parmi les {{NB_ESPECE_TOTAL}} espèces…` | peut se trouver au milieu d'une phrase, dans un tableau, une zone de texte (page de garde), un en-tête ou un pied de page |
+| Tableau | `{{TABLE_DORTOIRS}}` | **seul dans son paragraphe**, dans le corps du document (pas dans une cellule ni une zone de texte) ; le tableau est inséré juste après |
+| Image (graphique, carte) | `{{Carte1_zone_localisation}}` ou `{{chart_evolution.png}}` | **seul dans son paragraphe** ; le nom est celui du fichier PNG, sans extension, ou de la mise en page QGIS |
 
-### Fichiers typiques
+### Règles pour les modèles
 
-* `analysis.py` : orchestration du module
-* `dataviz.py` : création des graphiques
-* `export.py` : exports éventuels
-* `report_context.py` : préparation des variables à injecter dans le rapport
-
-
-
-## 8. Ajouter une nouvelle analyse : méthode recommandée (à faire)
-
-
-
-## 9. Bonnes pratiques à respecter
-
-### À faire
-
-* garder chaque fichier simple,
-* garder un nommage en anglais
-* séparer SQL / analyse / export / rapport,
-* utiliser des chemins basés sur `Path(__file__)`,
-* retourner des objets ou dictionnaires clairs,
-* tester chaque étape indépendamment.
-
-### À éviter
-
-* mélanger QGIS dans le code Poetry,
-* mettre trop de logique dans `cli.py`,
-* faire des fonctions avec trop d’arguments,
-* utiliser des chemins relatifs fragiles,
-* écrire des modules trop génériques trop tôt.
+- **Mise en forme** : la valeur reprend la mise en forme du **premier caractère** du placeholder (police, couleur, gras). Taper le placeholder dans le Word, dans le style du texte voulu.
+- **Copier-coller** : ne jamais coller un placeholder depuis un chat ou un navigateur, car la mise en forme collée (Consolas, fond gris) se retrouve dans le rapport. Utiliser « Coller en texte seul ».
+- **Images** : leur taille dépend du réglage `map_layout` du dossier.
+  - `normal` : largeur de 6 pouces dans le paragraphe.
+  - `A4` / `A3` : pleine page, avec ajout d'un nouveau paragraphe et d'un saut de page.
+  - `page` : dans le paragraphe du placeholder, réduite pour tenir sur la page. C'est le bon choix quand le template prévoit déjà une page par carte.
+- **Texte à compléter** : les parties que le générateur ne remplit pas (commanditaire, analyses) restent du texte normal, surligné en jaune.
+- **Vérification** : `reportgenerator check --dossier <type>` liste les placeholders sans source, les sorties non utilisées, et signale un template sans aucun placeholder.
 
 ---
 
-## 10. Prochaine évolution possible
+## 5. Projets QGIS
 
-Les prochaines évolution de code possibles sont :
-
-* génération d'un atlas à partir du QGIS
-* ajout d’un système de logs plus détaillé,
-* analyses des temps de calcules des étapes/analyses
-
-Les prochaines évolution d'analyses possibles sont :
-
-* Analyses des nicheurs 
-* Analyses des migrations
-* Analyses de la mortalité
-* 
+- **Une carte = une mise en page.** Pour chaque mise en page, le rendu n'affiche que le groupe de couches **du même nom**, plus les groupes indiqués dans `visible_groups`. L'image est enregistrée sous `maps/<mise en page>.png` et remplace le placeholder `{{<mise en page>}}`.
+- **Toutes les mises en page sont exportées** : il n'y a pas de liste à maintenir.
+- **Couches** : leurs sources doivent être des GeoPackage nommés `<couche>.gpkg|layername=<couche>`. Au rendu, elles sont redirigées vers `outputs/<zone>/data/<couche>.gpkg`, en conservant les filtres (`subset`). Une couche absente de `data/` devient invalide, et sa carte sort vide.
+- **Réglages du rendu**, dans le bloc `[params.qgis_render]` du `dossier.toml` :
+  - `visible_groups` : groupes toujours affichés ;
+  - `extent_layer` : couche qui fixe l'emprise ;
+  - `extent_margin_ratio` : marge autour de l'emprise ;
+  - `extent_offset_y_ratio` : décalage vertical ;
+  - `layout_buffers_m` : élargissement de l'emprise par mise en page ;
+  - `dpi`.
+- **Pièces jointes** : le fichier `<projet>_attachments.zip`, placé à côté du `.qgs`, est copié avec lui.
+- **Projet de la zone** : le projet est copié dans le dossier de sortie, sous le nom `projet_<zone>.qgs`. Il peut ensuite être ouvert pour retoucher une carte à la main.
 
 ---
 
-## 11. Note de travail
+## 6. Ajouter un type de rapport ou une analyse
 
-Cette documentation est pensée pour servir de base évolutive. Elle peut être enrichie au fur et à mesure des nouvelles analyses et des nouveaux exports ajoutés au projet.
+### Process avec les collègues
+
+1. **Le besoin** : le collègue transmet, via le formulaire de besoin :
+   - un rapport type (Word) ;
+   - la méthode de chaque élément : données, filtres, calculs, rendu attendu.
+2. **La fiche** : décrire chaque élément du rapport dans `dossiers/<type>/METHODO.md` (process, contenu, règles), en s'inspirant de la fiche éolien. Lister les questions ouvertes et les trancher avec le collègue **avant** de coder.
+3. **Le dossier** : créer `dossiers/<type>/dossier.toml` avec un déclencheur, `declencheurs = ["analyse_xxx"]`, et ajouter `analyse_xxx` à la liste du formulaire QGIS.
+4. **Les briques** : réutiliser les briques existantes (`socle_data`, `cartography`, `zonages`…), et écrire les nouvelles (section suivante).
+5. **Le template** : déposer le Word en `template.docx` et y placer les placeholders (section 4).
+6. **Les cartes** : déposer le projet QGIS dans `dossiers/<type>/qgis/` (section 5).
+7. **Les vérifications** :
+   - `check --dossier <type>` jusqu'à obtenir « Dossier prêt » ;
+   - `pytest` ;
+   - un rendu avec de fausses données (voir `tests/test_eolien.py`) ;
+   - une génération réelle sur une zone de test, à comparer avec un rapport fait à la main.
+
+### Écrire une brique
+
+```python
+# bricks/<fichier>.py
+@register_brick("dortoirs", requires=["socle_data"], provides=["TABLE_DORTOIRS"])
+def dortoirs(ctx):
+    """Dortoirs des rapaces et grands voiliers."""
+    rows = ...  # requête sur la VM (ctx.queries / analysis/<module>/queries.py)
+    return AnalysisResult(tables={"TABLE_DORTOIRS": TableBlock(rows, insert_ring_table, {...})})
+```
+
+- `texts` / `tables` / `images` : clé = nom du placeholder. Deux briques ne peuvent pas fournir la même clé.
+- `requires` : briques à exécuter avant, ajoutées automatiquement au plan.
+- `provides` : clés fournies, utilisées seulement par `check`. Pour `cartography`, elles sont lues dans le projet QGIS.
+- `ctx.params` : paramètres du `dossier.toml`. `ctx.cached(clé, fonction)` évite de relancer une même requête dans plusieurs briques.
+- Pour qu'elle soit chargée, une nouvelle brique doit être importée dans `bricks/__init__.py`.
+- Garder le SQL dans `analysis/<module>/` et la mise en forme pure (calculs, textes) dans des fonctions testables sans base.
+
+---
+
+## 7. Dépannage
+
+| Symptôme | Cause et solution |
+|---|---|
+| `Command '['C:\\Program Files (x86)\\wapt\\python.EXE', '-Ic', …]' returned non-zero exit status 2` | Poetry trouve le Python de wapt dans le `PATH`. Lancer `poetry config virtualenvs.use-poetry-python true`. |
+| `check` : « Aucun placeholder {{...}} dans le template » | Le Word contient encore les anciennes variables : les convertir en `{{NOM}}`. |
+| `[AVERTISSEMENT] Placeholder sans valeur : {{X}}` | Aucune brique ne fournit X, ou une image n'a pas été produite. Le placeholder reste visible dans le Word. |
+| Cartes vides (fond de carte seul), `Couche invalide pour l'emprise` | Les couches du projet QGIS ne correspondent à aucun `data/<couche>.gpkg`. Vérifier les noms `layername`. |
+| QGIS s'arrête avec le code `3221226505` (0xC0000409) | Plantage de QGIS lui-même. Relancer le rendu seul pour lire sa sortie (commande affichée dans l'erreur) ; vérifier d'abord la validité des couches. |
+| `cannot dump lists of mixed types` | Une liste Python mêlant entiers et décimaux a été envoyée en paramètre SQL. Convertir les valeurs (ex. `float(x)`). |
+| Texte d'un placeholder en Consolas, sur fond gris | Mise en forme collée dans le template : retaper le placeholder (section 4). |
+| Une brique échoue | Le journal affiche « ✗ Brique … ÉCHEC ». La demande reste en attente, et la VM est supprimée. |
+
+---
+
+## 8. Points de vigilance et dette technique
+
+À traiter en priorité :
+- **Atlas** : les années de 2009 à 2026 sont codées en dur dans `get_atlas_species_grid`. Les données de 2027 seront ignorées.
+- **Docker** : `Dockerfile` définit `OUTPUT_DIR=/app/output`, mais `compose.yml` monte le volume sur `/output`. Les rapports risquent de ne pas être conservés hors du conteneur.
+- **Données sensibles dans git** : `templates/data/*.gpkg` (dont `donnees_brutes.gpkg`) et `symbology-style.db` sont versionnés. Vérifier qu'ils ne contiennent pas de vraies données.
+
+À traiter ensuite :
+- **CI** : le workflow ne tourne que sur `main` et n'installe pas le projet. Les tests `pytest` existent désormais : les activer.
+- **VM au nom unique** : pas de génération en parallèle.
+- **Rapport générique** : `{{DATE_REPORT}}` annonce 10 ans, alors que les données ne sont pas filtrées (voir sa fiche).
+- **Requêtes** : statut d'observation codé en dur (`id_nomenclature_observation_status = 89`) ; SQL construit par f-string (les valeurs sont converties, mais des requêtes paramétrées seraient plus sûres).
+- **Couleurs de liste rouge** : elles sont définies à plusieurs endroits, avec des valeurs différentes (`styles.py`, `utils.py`, `excel_export.py`, SQL).
+- **Tableaux** : les placeholders de tableaux ne sont cherchés que dans les paragraphes du corps du document.
+
+Déjà corrigé lors de la mise en place du multi-dossiers :
+- sous-espèces (`SESS` → `SSES`) ;
+- rayon des zonages (`× 10 km`) ;
+- couche vide qui faisait échouer le rapport ;
+- `--output_dir` ignoré ;
+- nom de zone non contrôlé avant de vider le dossier ;
+- filtres QGIS perdus au re-lien ;
+- pièces jointes QGIS non copiées ;
+- VM non supprimée en cas d'échec.
+
+---
+
+## 9. Bonnes pratiques
+
+À faire :
+- garder chaque fichier simple, et séparer SQL, calculs, mise en forme et rapport ;
+- écrire une règle métier **une seule fois** (sélections, `dossier.toml`) et la documenter dans la fiche du dossier ;
+- utiliser des chemins basés sur `Path(__file__)` ;
+- couvrir chaque calcul par un test sans base ;
+- après toute modification d'un template, lancer `check`.
+
+À éviter :
+- coder une liste de cartes ou de colonnes en dur, alors qu'elle peut se déduire du projet QGIS ou du template ;
+- ajouter des colonnes à la vue des demandes : passer par `list_analyse` et le `dossier.toml` ;
+- mélanger le code QGIS (interpréteur QGIS) et le code Poetry ;
+- générer un rapport de test sur une vraie demande (elle serait clôturée).

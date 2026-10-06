@@ -4,7 +4,6 @@ run_queue.py
 Récupère la liste des rapports en attente et orchestre leur génération en batch.
 """
 
-import os
 from psycopg.rows import dict_row
 
 from reportgenerator.db_auth import get_connection
@@ -44,7 +43,10 @@ def run_all_report(service_name: str, limit: int | None = None, dry_run: bool = 
 
     if dry_run:
         for area in pending:
-            print(f"  [DRY-RUN] {area['area_name']} (id_area={area['id_area']}, {area['area_km2']} km²)")
+            print(
+                f"  [DRY-RUN] {area['area_name']} (id_area={area['id_area']}, "
+                f"{area['area_km2']} km², list_analyse={area['list_analyse']!r})"
+            )
         return
 
     successes, failures = [], []

@@ -5,19 +5,17 @@ Contient la logique de génération d'UN rapport.
 Utilisé aussi bien par le mode "run" (unitaire) que par le mode "generate" (batch).
 """
 
-from pathlib import Path
-from datetime import datetime
 import os
+from datetime import datetime
+from pathlib import Path
 
-from reportgenerator.analysis.atlas.analysis import run_atlas
-from reportgenerator.analysis.cartography.analysis import run_cartography
 from reportgenerator.analysis.common.filesystem import create_analysis_dirs
-from reportgenerator.analysis.knowledge_status.analysis import run as run_knowledge_status
-from reportgenerator.db_auth import get_connection
+from reportgenerator.core.context import ReportContext
+from reportgenerator.core.dossier import resolve_dossier
+from reportgenerator.core.pipeline import run_pipeline
 from reportgenerator.queries import SyntheseQueries
-from reportgenerator.report import generate_report
-from reportgenerator.analysis.common.timing import RunTimer 
 
+DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parent / "outputs"
 
 
 def run_single_report(
@@ -33,6 +31,8 @@ def run_single_report(
 ):
     """
     Génère un rapport complet pour une zone donnée.
+    Le type de rapport est déduit de list_analyse (ex. "analyse_eolien"),
+    sinon c'est le rapport générique.
     Lève une exception en cas d'échec (à charge de l'appelant de gérer / logguer).
     Ne met à jour la base (date_reportgenerate) QUE si tout s'est bien passé.
     """
@@ -40,56 +40,44 @@ def run_single_report(
     time_launch = datetime.now()
     print(f"Début de génération du rapport {area_name} - à {time_launch.strftime('%H:%M:%S')} :")
 
-    #output_dir = (output_dir_base or (Path(__file__).resolve().parent / "outputs")) / area_name
-    output_dir_base = Path(os.getenv("OUTPUT_DIR", "/home/user/output"))
+    if not area_name or Path(area_name).name != area_name or area_name in (".", ".."):
+        raise ValueError(f"Nom de zone invalide pour un dossier de sortie : {area_name!r}")
+
+    dossier = resolve_dossier(list_analyse)
+    print(f"Type de rapport : {dossier.name} ({dossier.label})")
+    enabled, ignored = dossier.select_analyses(list_analyse)
+    if ignored:
+        print(f"[AVERTISSEMENT] Analyses ignorées (inconnues du dossier '{dossier.name}') : {', '.join(ignored)}")
+
+    # --output_dir, sinon OUTPUT_DIR (Docker), sinon src/reportgenerator/outputs/ (à côté de templates/)
+    output_dir_base = Path(output_dir_base or os.getenv("OUTPUT_DIR") or DEFAULT_OUTPUT_DIR)
     output_dir = output_dir_base / area_name
     output_dirs = create_analysis_dirs(output_dir)
 
-
-    timer = RunTimer()
     synthese_queries = SyntheseQueries(service_name=service_name, id_area=id_area, buffer=buffer)
+    ctx = ReportContext(
+        service_name=service_name,
+        id_area=id_area,
+        area_name=area_name,
+        referee=referee,
+        buffer=buffer,
+        dossier=dossier,
+        enabled=enabled,
+        output_dirs=output_dirs,
+        queries=synthese_queries,
+        params=dict(dossier.params),
+    )
 
-    with timer.step("Vue matérialisée + analyse état des connaissances"):
-        analysis_result = run_knowledge_status(
-            context=None, synthese_queries=synthese_queries, output_dirs=output_dirs
-        )
-
-    with timer.step("Cartographie QGIS"):
-        run_cartography(
-            synthese_queries=synthese_queries,
-            output_dirs=output_dirs,
-            area_name=area_name,
-        )
-
-    if "atlas_nicheur" in list_analyse:
-        with timer.step("Atlas QGIS"):
-            run_atlas(
-                synthese_queries=synthese_queries,
-                output_dirs=output_dirs,
-                area_name=area_name,
-                run_render=True,
-            )
-
-    with timer.step("Génération du rapport Word"):
-        generate_report(
-            service_name=service_name,
-            output_file=output_dir / output,
-            id_area=id_area,
-            referee=referee,
-            list_analyse=list_analyse,
-            buffer=buffer,
-            area_name=area_name,
-            analysis_result=analysis_result,
-            output_dir=output_dir,
-        )
+    try:
+        run_pipeline(ctx, output_file=output_dir / output)
+        # Update uniquement si tout s'est bien passé (on arrive ici sans exception)
+        synthese_queries.update_date_reportgenerator()
+    finally:
+        # la vue est supprimée même en cas d'échec
+        synthese_queries.delete_reportgenerator_view()
 
     time_end = datetime.now()
-    timer.summary()
     print(f"Fin de génération - à {time_end.strftime('%H:%M:%S')}")
     print(f"Temps total d'exécution : {time_end - time_launch}")
-
-    # Update uniquement si tout s'est bien passé (on arrive ici sans exception)
-    synthese_queries.update_date_reportgenerator()
-    synthese_queries.delete_reportgenerator_view()
 
     return output_dir / output
