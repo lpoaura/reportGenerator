@@ -25,6 +25,7 @@ GENRES_GROUPES = {
     "Pipistrellus": "pipistrelles",
     "Nyctalus": "noctules",
     "Eptesicus": "serotines_vespere",
+    "Cnephaeus": "serotines_vespere",  # nouveau genre des sérotines commune et de Nilsson (TAXREF récent)
     "Vespertilio": "serotines_vespere",
     "Hypsugo": "serotines_vespere",
     "Myotis": "murins",

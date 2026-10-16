@@ -160,6 +160,8 @@ Les valeurs à insérer sont des **placeholders** : `{{NOM}}`.
 
 ### Process avec les collègues
 
+Modèles à remplir : [nouveau type de rapport](docs/modeles/nouveau_dossier.md), [modification d'un dossier existant](docs/modeles/demande_modification.md).
+
 1. **Le besoin** : le collègue transmet, via le formulaire de besoin :
    - un rapport type (Word) ;
    - la méthode de chaque élément : données, filtres, calculs, rendu attendu.

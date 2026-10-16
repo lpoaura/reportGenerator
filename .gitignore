@@ -228,4 +228,5 @@ output/
 # PostgreSQL service configuration file
 config/pg_service.conf
 
-
+# Claude AI
+ClAUDE.md 

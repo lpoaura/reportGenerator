@@ -430,27 +430,27 @@ Pour chaque maille de 1 km :
 
 ### 10.5 Couches QGIS et cartes à créer
 
-Couches exportées dans `data/`. Les cartes **19 à 27 restent à créer** dans `qgis/projet_eolien.qgs` : un groupe de couches et une mise en page portant **le même nom** que le placeholder. Tant qu'elles n'existent pas, `check` les signale et leurs placeholders restent visibles dans le Word.
+Couches exportées dans `data/`. Les cartes **19 à 27** sont dans `qgis/projet_eolien.qgs` : pour chacune, un groupe de couches et une mise en page portant **le même nom** que le placeholder, clonée d'une carte oiseaux (bandeau, légendes, sources, logo). Les classes des symbologies sont **fixes** (elles ne dépendent pas de la zone) et les légendes n'affichent que les catégories présentes sur la carte. Première version générée par script : la mise en forme fine reste à reprendre dans QGIS.
 
 | Couche | Géométrie | Champs |
 |---|---|---|
 | vm_eolienne_chiro_data | point | id, cd_nom, nom_vern, lb_nom, id_rang, **groupe** (pipistrelles, noctules, serotines_vespere, murins, rhinolophes, oreillards, autres), periode, gite, colonie, count_max, datetime, annee, anneau_ordre, lr_aura, n2k, source, precision_geo, donnee_cachee, ne, ne_classe, nh, nh_classe |
-| vm_eolienne_etat_connaissance_chiro | maille 1 km | id, id_area, sum_nb_data (donnÃ©es brutes), sum_nb_obs (observations), sum_nb_esp |
+| vm_eolienne_etat_connaissance_chiro | maille 1 km | id, id_area, sum_nb_data (données brutes), sum_nb_obs (observations), sum_nb_esp |
 | vm_eolienne_chiro_gites | point (un par site, taxon et type) | id, cd_nom, nom_vern, lb_nom, **type_gite**, nb_data, effectif_max, premiere_obs, derniere_obs, periodes, donnee_cachee, precision_geo, groupe, ne, ne_classe |
 | vm_eolienne_chiro_gite_tampon | polygone | cd_nom, nom_vern, lb_nom, distance_m, rayon_par_defaut, nb_sites |
 | vm_eolienne_sensi_chiro | maille 1 km | id, id_area, sensi_especes, bonus_colonie, bonus_gite, bonus_transit, **sensibilite**, nb_data |
 
-| Mise en page à créer | Couche et filtre suggéré |
+| Mise en page | Couche, filtre et symbologie |
 |---|---|
-| Carte19_chiro_nb_especes | `vm_eolienne_etat_connaissance_chiro`, symbologie sur `sum_nb_esp` |
-| Carte20_chiro_nb_donnees | idem, sur `sum_nb_obs` (observations, comme le texte ; `sum_nb_data` est gonflÃ© par les rÃ©pÃ©titions acoustiques) |
-| Carte21_chiro_pipistrelles | `vm_eolienne_chiro_data`, `"groupe" = 'pipistrelles'`, catégories sur `nom_vern` |
+| Carte19_chiro_nb_especes | `vm_eolienne_etat_connaissance_chiro`, classes sur `sum_nb_esp` : 0 (genres seuls), 1-2, 3-5, 6-10, 11-15, 16 et + |
+| Carte20_chiro_nb_donnees | idem, classes sur `sum_nb_obs` (observations, comme le texte ; `sum_nb_data` est gonflé par les répétitions acoustiques) : 1, 2-5, 6-10, 11-25, 26-50, 51 et + |
+| Carte21_chiro_pipistrelles | `vm_eolienne_chiro_data`, `"groupe" = 'pipistrelles'`, une couleur par espèce (`nom_vern`), gris pour les taxons non identifiés à l'espèce |
 | Carte22_chiro_noctules | idem, `"groupe" = 'noctules'` |
 | Carte23_chiro_serotines_vespere | idem, `"groupe" = 'serotines_vespere'` |
-| Carte24_chiro_colonies | `vm_eolienne_chiro_gites`, `"type_gite" = 'Colonie de reproduction'` |
+| Carte24_chiro_colonies | `vm_eolienne_chiro_gites`, `"type_gite" = 'Colonie de reproduction'`, une couleur par groupe d'espèces (`groupe`), identique sur la carte 25 |
 | Carte25_chiro_gites | idem, `"type_gite" = 'Gîte'` (une seule carte, plutôt que deux pour cause de légende trop longue comme dans le document) |
-| Carte26_chiro_sensibilite | `vm_eolienne_sensi_chiro`, sur `sensibilite` |
-| Carte27_chiro_tampons_gites | `vm_eolienne_chiro_gite_tampon` + `vm_eolienne_chiro_gites` |
+| Carte26_chiro_sensibilite | `vm_eolienne_sensi_chiro`, catégories 0 à 6 et + sur `sensibilite` |
+| Carte27_chiro_tampons_gites | `vm_eolienne_chiro_gite_tampon` (contours seuls, couleur selon `distance_m` : 1, 5, 10, 20 km) + `vm_eolienne_chiro_gites` (étoile = colonie) |
 
 ### 10.6 Paramètres (`dossier.toml`)
 

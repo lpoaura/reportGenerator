@@ -210,3 +210,12 @@ def test_chiro_bricks_render(tmp_path, monkeypatch):
     render_report(template, {}, tmp_path / "sans.docx", sections=set())
     assert Document(tmp_path / "sans.docx").paragraphs == [] or \
         all(not p.text for p in Document(tmp_path / "sans.docx").paragraphs)
+
+
+def test_groupe_suit_les_genres_taxref():
+    from reportgenerator.analysis.eolien.chiropteres import groupe
+
+    # TAXREF récent : Eptesicus -> Cnephaeus (sinon les sérotines tombaient dans « autres »)
+    assert groupe("Cnephaeus serotinus") == groupe("Eptesicus serotinus") == "serotines_vespere"
+    assert groupe("Cnephaeus serotinus / nilssonii") == "serotines_vespere"
+    assert groupe("Tadarida teniotis") == "autres"
