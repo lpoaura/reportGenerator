@@ -9,11 +9,13 @@ en-tête fusionné, couleurs liste rouge, noms scientifiques en italique),
 directement dans le Word au lieu d'un Excel à recopier.
 """
 
+import copy
 from decimal import Decimal
 
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from docx.text.paragraph import Paragraph
 
 from reportgenerator.analysis.common.tables.utils import (
     apply_status_style_species, italicize_cell_species, set_cell_background,
@@ -113,8 +115,8 @@ def _fill_rows(table, data, keys, status_fields, italic_fields, font_size):
             value = _fmt_value(item.get(key))
             cell.text = value
             set_cell_font(cell, size=font_size, font_name=FONT)
-            if idx >= 2:
-                cell.paragraphs[0].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+            # noms à gauche (le style Normal des templates est souvent justifié), valeurs centrées
+            cell.paragraphs[0].alignment = WD_PARAGRAPH_ALIGNMENT.CENTER if idx >= 2 else WD_PARAGRAPH_ALIGNMENT.LEFT
             if key in italic_fields:
                 italicize_cell_species(cell)
             if key in status_fields:
@@ -139,6 +141,34 @@ def insert_lpo_table(document, placeholder, data, columns, status_fields=(), ita
     _style_header(table, 1, font_size)
     _fill_rows(table, data, [k for k, _ in columns], status_fields, italic_fields, font_size)
     _place(paragraph, placeholder, table)
+
+
+def insert_grouped_tables(document, placeholder, data, status_fields=(), italic_fields=(), font_size=9):
+    """Suite de tableaux précédés d'un titre (ex. une annexe par groupe), à la place du placeholder.
+    data = [{"titre": ..., "rows": [...], "columns": [(clé, libellé), ...]}, ...]."""
+    paragraph = _find_paragraph(document, placeholder)
+    if paragraph is None:
+        return
+    anchor = paragraph._element
+    for bloc in data:
+        title = copy.deepcopy(paragraph._element)
+        for child in list(title):
+            if child.tag != qn("w:pPr"):
+                title.remove(child)
+        anchor.addnext(title)
+        title_p = Paragraph(title, paragraph._parent)
+        title_p.add_run(bloc["titre"]).bold = True
+        title_p.paragraph_format.keep_with_next = True   # le titre ne reste pas seul en bas de page
+        columns = bloc["columns"]
+        table = document.add_table(rows=1, cols=len(columns))
+        _fit_page_width(table, len(columns))
+        for idx, (_, label) in enumerate(columns):
+            table.cell(0, idx).text = label
+        _style_header(table, 1, font_size)
+        _fill_rows(table, bloc["rows"], [k for k, _ in columns], status_fields, italic_fields, font_size)
+        title.addnext(table._element)
+        anchor = table._element
+    paragraph.text = paragraph.text.replace(placeholder, "")
 
 
 def insert_ring_table(

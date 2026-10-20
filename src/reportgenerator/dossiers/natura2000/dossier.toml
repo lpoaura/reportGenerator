@@ -1,0 +1,96 @@
+# Synthèse de données faune sur un site Natura 2000.
+# Process, contenu du rapport et règles : METHODO.md (à mettre à jour si une règle change).
+
+label = "Natura 2000 - synthèse faune d'un site"
+template = "template.docx"
+qgis_project = "qgis/projet_n2000.qgs"
+
+# Valeur du champ list_analyse (formulaire QGIS) qui déclenche ce rapport
+[declencheurs]
+n2000 = []
+
+[analyses]
+required = [
+    "socle_data",
+    "n2000_info",
+    "n2000_synthese",
+    "n2000_chiropteres",
+    "n2000_annexes",
+    "n2000_connaissance",    # état des connaissances : effort, richesse / pool local, enjeux
+    "zonages",
+    "couches_qgis_n2000",    # couches GPKG + couvertures des atlas
+    "cartography",           # cartes et atlas (toujours en fin de chaîne)
+    "n2000_atlas",           # cartes des atlas insérées dans le Word
+]
+optional = []
+
+[params]
+# --- socle de données (VM principale) ---
+# Anneaux disjoints : 0 = site, puis 0-1 km, 1-10 km, 10-20 km. Le plus grand fixe l'emprise.
+# Chaque rayon de [params.rayons_km] doit être l'un de ces anneaux.
+anneaux_km = [1, 10, 20]
+annees = 10                          # depuis le 1er janvier de (année - 10)
+groupes_taxo = "faune"               # toute la faune (règne Animalia)
+rangs_non_especes = ["GN", "RES"]    # genres et complexes gardés : seuls ceux « Natura 2000 » sont analysés
+statuts_validation = ["0", "1", "2"]
+grille = "M1"
+sources_prioritaires = ["faune-france", "dbChiroGCRA"]
+lr_regionale = "lr_aura"
+
+# --- rayon de prise en compte ---
+rayon_defaut_km = 1                  # toutes les espèces, sauf celles de [params.rayons_km]
+
+# --- espèces Natura 2000 ---
+# Genres et complexes comptés comme Natura 2000 en plus de la détection automatique (genres dont toutes
+# les espèces sont aux annexes). Nom scientifique TAXREF (lb_nom), tel qu'affiché dans la base.
+n2000_taxons_complexes = ["Myotis myotis / M. blythii"]
+# Taxons écartés de la liste Natura 2000 (nom scientifique, sous-espèces comprises), par ex. :
+#  - statut erroné dans taxonomie.mv_c_statut : « Salmo trutta » (truite commune) y est en annexe II ;
+#  - observation d'un animal échappé (tortues) : à décider au cas par cas.
+n2000_taxons_exclus = ["Salmo trutta"]
+
+# --- cartes ---
+atlas_oiseaux_non_nicheurs = false   # atlas : oiseaux N2000 nicheurs seulement (les autres sont dans le tableau)
+zonage_rayon_km = 50                 # zonages de la carte de localisation
+map_layout = "page_legende"          # une carte par page dans le Word, avec sa légende
+# Emprises (cf. METHODO § 5) : cartes d'espèces = contour du rayon du taxon + marge (même cadrage pour toutes les
+# espèces d'un même rayon) ; cartes par maille et pression d'observation = contour 1 km + une maille.
+emprise_marge_ratio = 0.1            # marge autour du contour : 10 % du rayon...
+emprise_marge_min_km = 0.5           # ... et au moins 500 m
+emprise_marge_mailles_km = 1         # cartes par maille : une maille de marge (mailles entières)
+# --- état des connaissances (cartes par maille de 1 km, site + 1 km) ---
+pool_local_km = 10                   # référence : espèces du groupe connues dans ce rayon autour du site
+connaissance_seuil_donnees = 2       # maille « connaissance insuffisante » sous ce nombre de données
+connaissance_min_especes_site = 4    # groupe cartographié : au moins 4 espèces dans le site (sinon atlas + tableau)
+connaissance_alerte_jours_median = 2 # avertissement si la médiane des jours d'observation par maille est inférieure
+enjeux_oiseaux_nicheurs_seulement = true   # espèces à enjeux : oiseaux avec un statut de nicheur seulement
+
+# (les sous-tables [params.xxx] doivent rester en fin de fichier : tout ce qui les suit leur appartient)
+
+# Rayons élargis (km). Ajouter une espèce = une ligne « "Nom scientifique" = km ».
+[params.rayons_km.ordres]
+Accipitriformes = 10
+Falconiformes = 10
+Strigiformes = 10
+Chiroptera = 10
+
+[params.rayons_km.especes]
+"Canis lupus" = 20                   # Loup gris
+"Lynx lynx" = 20                     # Lynx boréal
+
+# Libellés des sources (texte « Sources » des cartes), en plus de ceux du code ; nom_source = libellé
+[params.sources_libelles]
+Import = "Partenaires (imports)"
+
+# Rendu QGIS : mêmes réglages que l'éolien. Les emprises sont calculées par la brique couches_qgis_n2000 :
+# extent_bbox = rectangle du site (extent_layer ne sert que s'il manque), layout_extents = cartes cadrées
+# sur un contour (02, 03a, 03b : 1 km ; 04 à 07 : rayon des chiroptères).
+[params.qgis_render]
+visible_groups = ["Zone_etude", "FDC"]
+extent_layer = "LEGENDE_ZONE_ETUDE"
+extent_margin_ratio = 0.05
+extent_offset_y_ratio = 0.05
+dpi = 150
+
+[params.qgis_render.layout_buffers_m]
+Carte01_localisation = 30000          # site + 30 km

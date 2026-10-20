@@ -47,6 +47,13 @@ def vues_orphelines(noms, now=None) -> list[str]:
     return out
 
 
+# Pseudo-taxons d'absence : « Aucune chauve-souris ou trace », « Aucun contact acoustique », « No aves »...
+# (ils ont des cd_nom négatifs, comme de vrais complexes d'espèces tels que « Myotis myotis / M. blythii »)
+ABSENCE_RE = "^(aucun|no )"
+# Effectif saisi « 9999 » = valeur conventionnelle (inconnu / très nombreux) : exclue des maximums
+EFFECTIF_INCONNU = 9999
+
+
 def sql_literals(values) -> str:
     """Liste Python -> 'a', 'b' (valeurs échappées) pour un IN (...)."""
     return ", ".join("'" + str(v).replace("'", "''") + "'" for v in values)
@@ -73,6 +80,8 @@ class SyntheseQueries:
         avec_sensibilite_eolien=False,
         chiro_rangs_non_especes=(),
         sources_prioritaires=None,
+        rangs_non_especes=(),
+        rayons_km=None,
     ):
         """Création de la vue matérialisée pour le rapport.
 
@@ -80,16 +89,23 @@ class SyntheseQueries:
           le plus grand fixe l'emprise de la vue. Défaut : [buffer].
           Colonne anneau_ordre : 0 = zone d'étude, i = entre anneau i-1 et i.
         - annees : ne garder que les N dernières années (depuis le 1er janvier).
-        - groupes : groupes taxonomiques (tx_group2_inpn_v2) conservés.
+        - groupes : groupes taxonomiques (tx_group2_inpn_v2) conservés, ou "faune" pour toute la
+          faune (règne Animalia).
         - grille : code de grille forcé (ex. 'M1'), sinon choisie selon la surface.
         - avec_sensibilite_eolien : ajoute la note de partage.sensibilite_oiseaux.
         - chiro_rangs_non_especes : rangs TAXREF gardés en plus de l'espèce pour les
           chiroptères (ex. ("GN", "RES") : genres et complexes, fréquents pour les gîtes).
           La colonne id_rang permet de ne compter que les espèces.
+        - rangs_non_especes : idem pour tous les groupes (ex. ("GN", "RES") pour le dossier Natura 2000).
+          Les pseudo-taxons d'absence (« Aucune chauve-souris ou trace », « No aves »...) sont exclus.
         - sources_prioritaires : dédoublonnage entre sources. Pour un même taxon, un même jour et
           une même cellule de 100 m, seules les données de la source la mieux classée sont gardées
           (ordre de la liste, puis id_source). Ex. ["faune-france", "dbChiroGCRA"]. None = pas de
           dédoublonnage. Les données d'une même source ne sont jamais fusionnées entre elles.
+
+        - rayons_km : rayon de prise en compte selon le taxon, ex. {"defaut": 1, "ordres": {"Chiroptera": 10},
+          "especes": {"Canis lupus": 20}} (nom scientifique de l'espèce, sous-espèces comprises). Une donnée
+          plus loin que le rayon de son taxon n'entre pas dans la vue. None = toute l'emprise.
 
         La maille (geom_maille) est calculée spatialement : le précalcul cor_area_synthese est
         incomplet pour les données récentes. Une donnée hors grille reste dans la vue (maille nulle).
@@ -117,7 +133,10 @@ class SyntheseQueries:
             f"and s.date_max >= make_date(extract(year from now())::int - {int(annees)}, 1, 1)"
             if annees else ""
         )
-        groupes_sql = sql_literals(groupes or DEFAULT_GROUPES)
+        if groupes == "faune":
+            groupes_filtre_sql = "o.regne = 'Animalia'"
+        else:
+            groupes_filtre_sql = f"o.tx_group2_inpn_v2 in ({sql_literals(groupes or DEFAULT_GROUPES)})"
 
         if avec_sensibilite_eolien:
             sensi_col = ", so.sensibilite_eolien"
@@ -132,13 +151,19 @@ class SyntheseQueries:
             sensi_col = ", null::numeric as sensibilite_eolien"
             sensi_join = ""
 
-        if not all(re.fullmatch(r"[A-Z]+", r) for r in chiro_rangs_non_especes):
-            raise ValueError(f"Rangs invalides : {chiro_rangs_non_especes!r}")
+        if not all(re.fullmatch(r"[A-Z]+", r) for r in (*chiro_rangs_non_especes, *rangs_non_especes)):
+            raise ValueError(f"Rangs invalides : {chiro_rangs_non_especes!r} {rangs_non_especes!r}")
+        # genres et complexes gardés en plus des espèces : pour les chiroptères seuls, ou pour tous les groupes
+        non_especes = []
         if chiro_rangs_non_especes:
-            rangs = sql_literals(chiro_rangs_non_especes)
-            chiro_cd_ref_sql = f"when t.ordre = 'Chiroptera' and t.id_rang in ({rangs}) then t.cd_ref"
-            # cd_nom négatifs = pseudo-taxons d'absence de DBchiro ("Aucune chauve-souris ou trace"...)
-            chiro_rang_sql = f"or (t.ordre = 'Chiroptera' and t.id_rang in ({rangs}) and t.cd_nom > 0)"
+            non_especes.append(f"(t.ordre = 'Chiroptera' and t.id_rang in ({sql_literals(chiro_rangs_non_especes)}))")
+        if rangs_non_especes:
+            non_especes.append(f"t.id_rang in ({sql_literals(rangs_non_especes)})")
+        if non_especes:
+            cond = " or ".join(non_especes)
+            chiro_cd_ref_sql = f"when {cond} then t.cd_ref"
+            # pseudo-taxons d'absence (cd_nom négatifs comme beaucoup de complexes, d'où un filtre sur le nom)
+            chiro_rang_sql = f"or (({cond}) and t.lb_nom !~* '{ABSENCE_RE}')"
         else:
             chiro_cd_ref_sql = chiro_rang_sql = ""
 
@@ -152,6 +177,8 @@ class SyntheseQueries:
         else:
             source_rang_sql = "0"
             dedup_sql = ""
+
+        rayon_sql = self._rayon_par_taxon_sql(rayons_km, rayon_m)
 
         anneau_cases = ["when ST_Intersects(s.the_geom_local, z.geom_zone) then 0"]
         for i, km in enumerate(self.anneaux_km[:-1], start=1):
@@ -187,7 +214,8 @@ class SyntheseQueries:
                                         , t.id_rang
                                         , t.lb_nom as taxref_lb_nom
                                         , t.nom_vern as taxref_nom_vern
-                                        , case when s.count_max = 0 or s.count_max is null then 1
+                                        , case when s.count_max >= {EFFECTIF_INCONNU} then null
+                                                when s.count_max = 0 or s.count_max is null then 1
                                                 else s.count_max end as count_max
                                         , tcse.bird_breed_code as oiso_code_nidif
                                         , tcse.breed_status as oiso_status_nidif
@@ -210,6 +238,7 @@ class SyntheseQueries:
                                         , tcse.bat_period
                                         , t.group2_inpn
                                         , t.group3_inpn
+                                        , t.regne
                                         , t.ordre
                                         , t.classe
                                         , t.famille
@@ -226,6 +255,7 @@ class SyntheseQueries:
                                                                 ])) IS TRUE
                                     {date_sql}
                                     and  ST_Within(s.the_geom_local, (select geom from zone_etude ))
+                                    {rayon_sql}
                 ),
                 obs_final as ( select  s.*
                                         , coalesce(mcs.vn_nom_fr, s.taxref_nom_vern, s.taxref_lb_nom) as vn_nom_fr
@@ -266,7 +296,7 @@ class SyntheseQueries:
                                                       floor(ST_X(o.the_geom_local) / 100), floor(ST_Y(o.the_geom_local) / 100)
                                      ) as source_rang_min
                               from obs_final o
-                              where o.tx_group2_inpn_v2 in ({groupes_sql})
+                              where {groupes_filtre_sql}
                               and ST_GeometryType(o.the_geom_local) = 'ST_Point'
                             )
             select s.*, la.id_area, la.geom as geom_maille , gs.grille_code, gs.air_km2,
@@ -294,6 +324,25 @@ class SyntheseQueries:
         with get_connection(self.service_name) as conn:
             with conn.cursor() as cur:
                 cur.execute(sql)
+
+    @staticmethod
+    def _rayon_par_taxon_sql(rayons_km, rayon_max_m) -> str:
+        """Filtre « à moins du rayon de son taxon » (espèce, sinon ordre, sinon défaut), en mètres."""
+        if not rayons_km:
+            return ""
+        cases = []
+        for nom, km in (rayons_km.get("especes") or {}).items():
+            # binôme : l'espèce et ses sous-espèces (« Canis lupus italicus »)
+            cases.append(f"when split_part(t.lb_nom, ' ', 1) || ' ' || split_part(t.lb_nom, ' ', 2) = "
+                         f"{sql_literals([nom])} then {float(km) * 1000}")
+        for ordre, km in (rayons_km.get("ordres") or {}).items():
+            cases.append(f"when t.ordre = {sql_literals([ordre])} then {float(km) * 1000}")
+        defaut_m = float(rayons_km.get("defaut", rayon_max_m / 1000)) * 1000
+        rayons = [defaut_m, *(float(k) * 1000 for d in ("especes", "ordres") for k in (rayons_km.get(d) or {}).values())]
+        if max(rayons) > rayon_max_m:
+            raise ValueError(f"Un rayon ({max(rayons) / 1000:g} km) dépasse l'emprise de la vue ({rayon_max_m / 1000:g} km)")
+        return (f"and ST_DWithin(s.the_geom_local, (select geom_zone from zone_etude), "
+                f"case {' '.join(cases)} else {defaut_m} end)")
 
     def get_resum_taxo_group(self):
         """Tableau de synthèse par groupe taxonomique pour le rapport"""

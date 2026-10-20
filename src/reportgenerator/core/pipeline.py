@@ -40,6 +40,12 @@ def build_plan(brick_names: list[str]) -> list[str]:
 def run_pipeline(ctx, output_file: Path) -> set[str]:
     """Exécute les briques puis génère le rapport. Retourne les placeholders non remplis."""
     timer = RunTimer()
+    # vérifié avant les briques : sinon l'erreur n'apparaît qu'après la VM, les tableaux et les cartes
+    if not Path(ctx.dossier.template).exists():
+        raise FileNotFoundError(
+            f"Template Word absent pour le dossier '{ctx.dossier.name}' : {ctx.dossier.template} "
+            f"(vérifier avec : cli.py check --dossier {ctx.dossier.name})"
+        )
     plan = build_plan(ctx.enabled)
     print(f"Dossier '{ctx.dossier.name}' - briques : {', '.join(plan)}")
 

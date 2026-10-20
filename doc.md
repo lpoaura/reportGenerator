@@ -12,6 +12,7 @@ Plusieurs **types de rapport** coexistent. Chacun a son modèle Word, son projet
 |---|---|---|
 | `generique` | par défaut ; `atlas_nicheur` ajoute l'atlas | état des connaissances, tous taxons ([fiche](src/reportgenerator/dossiers/generique/METHODO.md)) |
 | `eolien` | `analyse_eolien` | synthèse oiseaux + chiroptères pour un projet éolien ([fiche](src/reportgenerator/dossiers/eolien/METHODO.md)) |
+| `natura2000` | `n2000` | synthèse faune d'un site Natura 2000 : espèces N2000, chiroptères, atlas par espèce ([fiche](src/reportgenerator/dossiers/natura2000/METHODO.md)) |
 
 ---
 
@@ -98,14 +99,19 @@ src/reportgenerator/
 
 Toutes les analyses lisent une seule vue matérialisée, `lpoaura_afo.vm_reportgenerator_data_<date>_<code>`, créée par la brique `socle_data`. Son nom est **unique pour chaque génération** : plusieurs générations peuvent tourner en même temps (deux terminaux, le serveur et un test local) sans se gêner. Elle est supprimée à la fin ; une vue restée après un arrêt brutal est supprimée par une génération suivante au bout d'un jour. Ses paramètres viennent du `dossier.toml` :
 
-| Paramètre | Effet | Générique | Éolien |
-|---|---|---|---|
-| `anneaux_km` | rayons des anneaux ; le plus grand fixe l'emprise ; colonne `anneau_ordre` | `[buffer]` | `[1, 6, 20]` |
-| `annees` | ne garde que les N dernières années | toutes | 10 |
-| `groupes_taxo` | groupes taxonomiques conservés | 8 groupes | Oiseaux |
-| `grille` | grille des mailles (`geom_maille`) | automatique | M1 |
-| `statuts_validation` | statuts de validation conservés | 0, 1, 2 | 0, 1, 2 |
-| `sensibilite_eolien` | ajoute `sensibilite_eolien` (`partage.sensibilite_oiseaux`) | non | oui |
+| Paramètre | Effet | Générique | Éolien | Natura 2000 |
+|---|---|---|---|---|
+| `anneaux_km` | rayons des anneaux ; le plus grand fixe l'emprise ; colonne `anneau_ordre` | `[buffer]` | `[1, 6, 20]` | `[1, 10, 20]` |
+| `annees` | ne garde que les N dernières années | toutes | 10 | 10 |
+| `groupes_taxo` | groupes taxonomiques conservés, ou `"faune"` (règne Animalia) | 8 groupes | Oiseaux, Chauves-souris | faune |
+| `grille` | grille des mailles (`geom_maille`) | automatique | M1 | M1 |
+| `statuts_validation` | statuts de validation conservés | 0, 1, 2 | 0, 1, 2 | 0, 1, 2 |
+| `sensibilite_eolien` | ajoute `sensibilite_eolien` (`partage.sensibilite_oiseaux`) | non | oui | non |
+| `chiro_rangs_non_especes` / `rangs_non_especes` | genres et complexes gardés (chiroptères / tous groupes) ; pseudo-taxons d'absence exclus | — | GN, RES (chiro) | GN, RES |
+| `sources_prioritaires` | dédoublonnage entre sources | oui | oui | oui |
+| `rayon_defaut_km` + `[params.rayons_km]` | rayon de prise en compte selon le taxon (ordre, espèce) : les données plus lointaines n'entrent pas dans la VM | — | — | 1 km ; 10 km rapaces et chiroptères ; 20 km loup, lynx |
+
+Effectifs : vide ou 0 → 1 ; 9999 (valeur de saisie « inconnu ») → non renseigné, exclu des maximums.
 
 La VM porte un **nom unique** : deux rapports ne peuvent pas être générés en même temps. Elle est supprimée en fin de génération, même en cas d'échec.
 
@@ -151,6 +157,13 @@ Les valeurs à insérer sont des **placeholders** : `{{NOM}}`.
   - `extent_offset_y_ratio` : décalage vertical ;
   - `layout_buffers_m` : élargissement de l'emprise par mise en page ;
   - `dpi`.
+  - `layout_extent_layers` : emprise propre à une mise en page (nom d'une couche du projet) ;
+  - `extent_bbox` / `layout_extents` : emprise commune / par mise en page donnée directement en rectangle
+    `[xmin, ymin, xmax, ymax]` (Lambert 93), calculée par une brique (prioritaire sur les couches ; ex. Natura 2000 :
+    contours 1 / 10 / 20 km) ;
+  - `project_variables` : variables de projet (ex. `@sources`, ajoutée par une brique).
+- **Atlas** : une mise en page avec un atlas et une couche de couverture est exportée page par page (`maps/<mise en page>__<cle>.png`, champ `cle` de la couverture). Dans le Word, la fonction `insert_figure_list` (`analysis/common/figures.py`) insère toutes les pages d'un atlas à la place d'un placeholder, avec titre de groupe, légende numérotée et paragraphe à rédiger (cf. dossier Natura 2000).
+- **Poids du Word** : les cartes sont insérées en JPEG (copie dans `maps/_word/`), les PNG restent dans `maps/`.
 - **Pièces jointes** : le fichier `<projet>_attachments.zip`, placé à côté du `.qgs`, est copié avec lui.
 - **Projet de la zone** : le projet est copié dans le dossier de sortie, sous le nom `projet_<zone>.qgs`. Il peut ensuite être ouvert pour retoucher une carte à la main.
 

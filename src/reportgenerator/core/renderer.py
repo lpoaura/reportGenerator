@@ -30,6 +30,8 @@ LAYOUTS = {
     # image placée dans le paragraphe du placeholder, réduite pour tenir dans la page
     # (proportions conservées) ; le template gère lui-même les sauts de page
     "page": {"width": Mm(170), "height": Mm(225), "full_page": False, "fit": True},
+    # idem, un peu plus petite : la légende (« Figure n : … ») tient sur la même page que la carte
+    "page_legende": {"width": Mm(170), "height": Mm(195), "full_page": False, "fit": True},
 }
 
 PLACEHOLDER_RE = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
@@ -167,18 +169,38 @@ def insert_paragraph_after(paragraph):
     return Paragraph(new_p, paragraph._parent)
 
 
+def compact_image(image_path, quality=85) -> Path:
+    """Copie JPEG d'une carte PNG pour le Word (5 à 10 fois plus légère ; le PNG reste dans maps/).
+    Sans elle, un rapport à 60 cartes dépasse 150 Mo. Les images non PNG sont gardées telles quelles."""
+    from PIL import Image
+
+    path = Path(image_path)
+    if path.suffix.lower() != ".png":
+        return path
+    out = path.parent / "_word" / f"{path.stem}.jpg"
+    if not out.exists() or out.stat().st_mtime < path.stat().st_mtime:
+        out.parent.mkdir(exist_ok=True)
+        with Image.open(path) as img:
+            fond = Image.new("RGB", img.size, "white")
+            fond.paste(img, mask=img.convert("RGBA").split()[-1])
+            fond.save(out, "JPEG", quality=quality, optimize=True)
+    return out
+
+
 def _insert_image(paragraph, placeholder, image_path, layout):
     config = LAYOUTS.get(layout)
     if not config:
         raise ValueError(f"Layout inconnu : {layout}")
 
     replace_in_paragraph(paragraph, placeholder, "")
+    image_path = compact_image(image_path)
 
     if config.get("fit"):
         image = DocxImage.from_file(str(image_path))
         ratio = image.px_height / image.px_width
         width = min(config["width"], int(config["height"] / ratio))
         paragraph.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        paragraph.paragraph_format.keep_with_next = True   # la carte reste avec sa légende
         paragraph.add_run().add_picture(str(image_path), width=width)
         return
 

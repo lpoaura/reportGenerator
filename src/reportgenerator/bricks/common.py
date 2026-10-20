@@ -15,6 +15,14 @@ from reportgenerator.core.registry import register_brick
 QGIS_LAYOUT_RE = re.compile(r'<Layout\b[^>]*\bname="([^"]+)"')
 
 
+def _rayons_km(p):
+    """Rayon de prise en compte par taxon (dossier.toml : rayon_defaut_km + [params.rayons_km]), sinon None."""
+    if "rayon_defaut_km" not in p:
+        return None
+    r = p.get("rayons_km", {})
+    return {"defaut": p["rayon_defaut_km"], "ordres": r.get("ordres", {}), "especes": r.get("especes", {})}
+
+
 @register_brick("socle_data")
 def socle_data(ctx):
     """Vue matérialisée des observations de la zone d'étude + anneaux (paramètres du dossier)."""
@@ -28,6 +36,8 @@ def socle_data(ctx):
         avec_sensibilite_eolien=p.get("sensibilite_eolien", False),
         chiro_rangs_non_especes=tuple(p.get("chiro_rangs_non_especes", ())),
         sources_prioritaires=p.get("sources_prioritaires"),
+        rangs_non_especes=tuple(p.get("rangs_non_especes", ())),
+        rayons_km=_rayons_km(p),
     )
     return AnalysisResult()
 

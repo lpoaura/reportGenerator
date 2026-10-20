@@ -4,15 +4,12 @@ Requêtes du dossier éolien. Toutes lisent la vue matérialisée principale
 secondaires à créer / supprimer comme dans les anciens scripts R.
 """
 
-import re
-
-from psycopg.rows import dict_row
-
+from reportgenerator.analysis.common.vm_queries import VM, VmQueries
+from reportgenerator.analysis.common.vm_queries import with_params as _with_params
 from reportgenerator.analysis.eolien import selections as sel
-from reportgenerator.db_auth import get_connection
 
-# nom générique dans le SQL, remplacé à l'exécution par la vue de la génération en cours
-VM = "lpoaura_afo.vm_reportgenerator_data"
+__all__ = ["VM", "EolienQueries", "blur_sql"]
+
 NOM_VERN = (
     "trim(REPLACE(REPLACE(REPLACE(split_part(s.vn_nom_fr, ', ', 1),"
     "'(La)',''),'(Le)',''),'(L'')',''))"
@@ -25,23 +22,7 @@ POINT_COLUMNS = f"""s.id_synthese, s.cd_ref, {NOM_VERN} as nom_vern, s.vn_nom_sc
                     ST_AsText(s.the_geom_local) as geom"""
 
 
-class EolienQueries:
-    def __init__(self, synthese_queries):
-        self.service_name = synthese_queries.service_name
-        self.id_area = int(synthese_queries.id_area)
-        self.anneaux_km = synthese_queries.anneaux_km
-        self.vm = getattr(synthese_queries, "vm", VM)
-
-    def _fetch(self, sql, params=None):
-        with get_connection(self.service_name) as conn:
-            with conn.cursor(row_factory=dict_row) as cur:
-                cur.execute(self._sql(sql), params)
-                return cur.fetchall()
-
-    def _sql(self, sql: str) -> str:
-        """VM générique -> vue de la génération en cours (\\b : pas de remplacement dans un nom déjà unique)."""
-        return re.sub(re.escape(VM) + r"\b", lambda _: self.vm, sql)
-
+class EolienQueries(VmQueries):
     def species_ring_stats(self, where: str = "true", taxon: str = sel.OISEAUX):
         """Une ligne par (taxon, anneau) : nb données, dernière année,
         effectif max, meilleur statut de nidification + statuts du taxon."""
@@ -136,10 +117,6 @@ class EolienQueries:
             where {sel.OISEAUX} and s.geom_maille is not null
             group by s.geom_maille, s.id_area
         """
-        return self._fetch(sql)
-
-    def fetch(self, sql):
-        """Requête brute (couches QGIS de compatibilité, cf. couches_qgis.py)."""
         return self._fetch(sql)
 
     def hors_region(self, region: str):
@@ -336,8 +313,3 @@ def blur_sql(geom: str, floutage_m) -> str:
         return geom
     return (f"ST_SetSRID(ST_MakePoint(floor(ST_X({geom}) / {m}) * {m} + {m / 2}, "
             f"floor(ST_Y({geom}) / {m}) * {m} + {m / 2}), 2154)")
-
-
-def _with_params(sql: str) -> str:
-    """Échappe les % littéraux (ilike 'transit%') puis place les paramètres psycopg."""
-    return sql.replace("%", "%%").replace("{P}", "%s")

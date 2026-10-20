@@ -174,3 +174,17 @@ def test_vm_name_unique_and_orphans():
     eq = EolienQueries(a)
     sql = eq._sql(f"select * from {VM} s join {VM} t using (id)")
     assert sql.count(a.vm) == 2 and eq._sql(sql) == sql
+
+
+def test_template_absent_signale_avant_les_briques(tmp_path):
+    """Sans template, le rapport échoue tout de suite (et pas après la VM et les cartes)."""
+    from dataclasses import replace
+
+    from reportgenerator.core.context import ReportContext
+    from reportgenerator.core.pipeline import run_pipeline
+
+    dossier = replace(load_dossier("generique"), template=tmp_path / "absent.docx")
+    ctx = ReportContext(service_name="x", id_area=1, area_name="t", referee="r", buffer=1, dossier=dossier,
+                        enabled=["socle_data"], output_dirs={}, queries=None, params={})
+    with pytest.raises(FileNotFoundError, match="Template Word absent"):
+        run_pipeline(ctx, tmp_path / "rapport.docx")   # socle_data aurait échoué (queries=None) s'il avait tourné

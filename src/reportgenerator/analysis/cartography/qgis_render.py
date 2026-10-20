@@ -12,8 +12,8 @@ if str(package_root) not in sys.path:
 
 import argparse  # noqa: E402
 
-from qgis.core import (QgsApplication, QgsLayoutExporter, QgsLayoutItemMap,  # noqa: E402
-                       QgsProject, QgsRectangle, QgsVectorLayer)
+from qgis.core import (QgsApplication, QgsExpressionContextUtils, QgsLayoutExporter,  # noqa: E402
+                       QgsLayoutItemMap, QgsProject, QgsRectangle, QgsVectorLayer)
 
 from reportgenerator.analysis.cartography.qgis_sources import (  # noqa: E402
     load_render_config, relink_gpkg_source)
@@ -86,6 +86,27 @@ def relink_gpkg_layers(project, data_dir):
         layer.reload()
 
 
+def export_atlas(layout, output_path, settings):
+    """Une image par entité de la couche de couverture : <mise en page>__<clé>.png
+    (champ « cle » de la couverture s'il existe, sinon numéro de page). L'emprise de chaque page est celle de
+    l'entité (carte « pilotée par l'atlas »)."""
+    atlas = layout.atlas()
+    atlas.updateFeatures()
+    print(f"Atlas {layout.name()} : {atlas.count()} pages")
+    if not atlas.beginRender():
+        print(f"[ERREUR] Atlas {layout.name()} : rendu impossible")
+        return
+    for i in range(atlas.count()):
+        atlas.seekTo(i)
+        feature = atlas.layout().reportContext().feature()
+        key = feature["cle"] if "cle" in feature.fields().names() else f"{i + 1:03d}"
+        output_file = output_path / f"{layout.name()}__{key}.png"
+        result = QgsLayoutExporter(layout).exportToImage(str(output_file), settings)
+        if result != QgsLayoutExporter.Success:
+            print(f"[ERREUR] Atlas {layout.name()}, page {key} : code {result}")
+    atlas.endRender()
+
+
 def set_group_visibility(project, group_name, visibility):
     group = project.layerTreeRoot().findGroup(group_name)
     if group is None:
@@ -134,7 +155,16 @@ def main():
         layouts_to_export = [layout.name() for layout in manager.layouts()]
         print("Layouts disponibles :", ", ".join(layouts_to_export))
 
-        base_extent = layer_extent(project, config["extent_layer"])
+        # variables de projet (ex. @sources dans le texte « Sources » des mises en page)
+        for name, value in (config.get("project_variables") or {}).items():
+            QgsExpressionContextUtils.setProjectVariable(project, name, value)
+
+        # emprise commune : rectangle calculé par le générateur (extent_bbox), sinon emprise d'une couche
+        bbox = config.get("extent_bbox")
+        base_extent = QgsRectangle(*bbox) if bbox else layer_extent(project, config["extent_layer"])
+        settings = QgsLayoutExporter.ImageExportSettings()
+        if config["dpi"]:
+            settings.dpi = config["dpi"]
 
         for layout_name in layouts_to_export:
             print(f"Export du layout : {layout_name}")
@@ -150,16 +180,25 @@ def main():
                 set_group_visibility(project, g, True)
             set_group_visibility(project, layout_name, True)
 
-            if base_extent is not None:
-                zoom_layout_maps(layout, base_extent, config)
+            # atlas : seulement s'il a une couche de couverture (certaines mises en page des projets modèles
+            # ont l'atlas « activé » sans couverture : ce sont des cartes simples)
+            if layout.atlas().enabled() and layout.atlas().coverageLayer() is not None:
+                export_atlas(layout, output_path, settings)
+                continue
+
+            # emprise propre à la mise en page (rectangle calculé, sinon couche), sinon emprise commune
+            fixed = (config.get("layout_extents") or {}).get(layout_name)
+            extent_name = (config.get("layout_extent_layers") or {}).get(layout_name)
+            if fixed:
+                extent = QgsRectangle(*fixed)
+            else:
+                extent = layer_extent(project, extent_name) if extent_name else base_extent
+            if extent is not None:
+                zoom_layout_maps(layout, extent, config)
 
             output_file = output_path / f"{layout_name}.png"
             if output_file.exists():
                 output_file.unlink()
-
-            settings = QgsLayoutExporter.ImageExportSettings()
-            if config["dpi"]:
-                settings.dpi = config["dpi"]
             result = QgsLayoutExporter(layout).exportToImage(str(output_file), settings)
             if result != QgsLayoutExporter.Success:
                 print(f"[ERREUR] Export de la carte {layout_name} : code {result}")
