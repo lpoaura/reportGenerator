@@ -64,6 +64,34 @@ Les chiffres d'un rapport générique produit après cette correction peuvent do
 
 Ces sorties sont disponibles mais pas utilisées dans le template : `{{NB_DATA}}`, `{{ZONAGE_TEXTE}}`, `{{chart_species_vs_pool.png}}`.
 
+### 3 bis. État des connaissances par maille de 1 km (ajouté le 20/10/2026)
+
+Même méthode que le dossier Natura 2000 (briques communes `connaissance`, `couches_qgis_connaissance`,
+`connaissance_atlas` ; méthode détaillée dans `dossiers/natura2000/METHODO.md`, §3.1.1). Elle **complète** les
+cartes et tableaux existants, qui sont conservés. Section « État des connaissances par maille de 1 km » (titre de
+niveau 2, à la fin de « État des connaissances ») :
+
+| Élément | Contenu |
+|---|---|
+| Emprise | mailles de 1 km (`M1`, calculées spatialement, quelle que soit la grille de la VM) couvrant la zone d'étude **et le buffer du formulaire** (`{{CONNAISSANCE_EMPRISE}}`) |
+| Groupes | ceux de la VM (groupes ciblés du rapport générique) |
+| Période | celle de la VM (toutes les années) ; même règle pour le pool local |
+| Référence (« espèces locales ») | espèces du groupe connues à `pool_local_km` (10 km, au moins le buffer) de la zone d'étude |
+| Cartes d'effort | `{{Connaissance_effort_donnees}}`, `{{Connaissance_effort_jours}}` (tous groupes étudiés) |
+| Tableau | `{{TABLE_CONNAISSANCE_GROUPES}}` (copie `tables/connaissance_groupes.xlsx`), puis `{{TEXTE_GROUPES_CARTOGRAPHIES}}` |
+| Atlas | `{{ATLAS_CONNAISSANCE_GROUPES}}` : par groupe ayant au moins 4 espèces dans la zone d'étude, « Part des espèces locales » et « Richesse et prospection » (avertissement si la médiane des jours d'observation par maille est < 2) |
+| Textes fixes | démarche et lecture des cartes (`{{POOL_LOCAL_KM}}`, `{{SEUIL_PEU_DONNEES}}`, `{{TEXTE_LECTURE_CROISEE}}`), paragraphe jaune pour le commentaire de l'expert |
+
+Projet QGIS : mises en page `Connaissance_effort_donnees`, `Connaissance_effort_jours`, `Atlas_connaissance_groupes`,
+`Atlas_connaissance_croisee`, clonées de `statut_connaissance` (même charte) ; couches `connaissance_mailles`,
+`connaissance_grille`, `connaissance_atlas_groupes`. L'emprise des cartes d'effort et des atlas est calculée par la
+brique (contour de l'emprise des mailles + une maille). Le projet a désormais un ordre de rendu personnalisé : les
+couches de ces cartes passent sous la zone d'étude et le périmètre (les autres cartes ne changent pas).
+
+Numérotation : les titres de niveau 2 et 3 suivent leur propre liste, dont le chiffre du chapitre avance grâce à des
+paragraphes vides masqués (« compteurs »). Deux compteurs placés avant le titre de la nouvelle partie la numérotent
+« 3.1 » (chapitre « État des connaissances ») et ses groupes « 3.1.x ».
+
 ## 4. Points de vigilance
 
 - `{{DATE_REPORT}}` annonce les 10 dernières années, alors que la VM ne filtre pas les dates. Le paramètre `annees` du `dossier.toml` permet de filtrer, comme pour l'éolien.

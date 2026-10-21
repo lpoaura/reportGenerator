@@ -34,11 +34,31 @@ def _style(document, *names):
     return next((n for n in names if n in existing), None)
 
 
-def _caption(paragraph, text):
-    """« Figure <SEQ> : texte » : le numéro est un champ Word (mis à jour avec F9, comme le sommaire)."""
+def _figures_avant(document, element) -> int:
+    """Nombre de champs « SEQ Figure » avant element (numéro affiché sans mise à jour des champs)."""
+    n = 0
+    for el in document.element.body.iter():
+        if el is element:
+            break
+        if el.tag == qn("w:fldSimple") and "SEQ Figure" in (el.get(qn("w:instr")) or ""):
+            n += 1
+        elif el.tag == qn("w:instrText") and "SEQ Figure" in (el.text or ""):
+            n += 1
+    return n
+
+
+def _caption(paragraph, text, numero=None):
+    """« Figure <SEQ> : texte » : le numéro est un champ Word (mis à jour avec F9, comme le sommaire) ; numero =
+    valeur affichée en attendant (sinon le champ reste vide tant qu'il n'est pas mis à jour)."""
     paragraph.add_run("Figure ")
     fld = OxmlElement("w:fldSimple")
     fld.set(qn("w:instr"), r" SEQ Figure \* ARABIC ")
+    if numero is not None:
+        r = OxmlElement("w:r")
+        t = OxmlElement("w:t")
+        t.text = str(numero)
+        r.append(t)
+        fld.append(r)
     paragraph._p.append(fld)
     paragraph.add_run(f" : {text}")
 
@@ -54,6 +74,7 @@ def insert_figure_list(document, placeholder, data, note="[Photo et texte de l'e
     heading = _style(document, f"Heading {niveau}", f"Titre {niveau}")
     caption = _style(document, "Caption", "Légende")
     anchor, parent = paragraph._p, paragraph._parent
+    numero = _figures_avant(document, anchor)
     for bloc in data:
         figures = [f for f in bloc["figures"] if Path(f["path"]).exists()]
         if not figures:
@@ -80,7 +101,8 @@ def insert_figure_list(document, placeholder, data, note="[Photo et texte de l'e
             img.add_run().add_picture(str(chemin), width=min(MAX_WIDTH, int(MAX_HEIGHT / ratio)))
             img.paragraph_format.keep_with_next = True     # la carte reste avec sa légende
             cap = _new_paragraph_after(img._p, parent)
-            _caption(cap, fig["legende"])
+            numero += 1
+            _caption(cap, fig["legende"], numero)
             if caption:
                 cap.style = caption
             anchor = cap._p

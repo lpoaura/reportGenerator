@@ -172,7 +172,10 @@ def test_eolien_bricks_render(tmp_path, monkeypatch):
         enabled=[], output_dirs=dirs, queries=FakeSynthese(),
         params=dict(dossier.params),
     )
-    names = [n for n in build_plan(list(dossier.required)) if n not in ("socle_data", "cartography")]
+    # (briques communes de l'état des connaissances : tests/test_connaissance.py)
+    names = [n for n in build_plan(list(dossier.required))
+             if n not in ("socle_data", "cartography", "connaissance", "couches_qgis_connaissance",
+                          "connaissance_atlas")]
     keys = set()
     for name in names:
         keys |= get_brick(name).provided_keys(dossier)

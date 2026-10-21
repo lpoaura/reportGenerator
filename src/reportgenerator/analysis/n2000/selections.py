@@ -45,18 +45,7 @@ def retenu_sql(complexes=()) -> str:
     return f"({ESPECE} or s.cd_ref in ({_cd_refs(complexes)}))"
 
 
-LR_ENJEU = "('CR', 'EN', 'VU', 'NT')"
-
-
-def enjeu_sql(oiseaux_nicheurs_seulement=True) -> str:
-    """Espèce à enjeux (cartes de connaissance) : Natura 2000, ou liste rouge régionale CR/EN/VU/NT (nationale
-    si la régionale manque). Oiseaux : seulement avec un statut de nicheur (sinon presque toutes les mailles
-    comptent des dizaines d'espèces à enjeux de passage)."""
-    lr = (f"(s.lr_aura in {LR_ENJEU} or (s.lr_aura is null and coalesce(s.lr_fr_nich, s.lr_france) in {LR_ENJEU}))")
-    base = f"({N2000_ESPECE} or {lr})"
-    if oiseaux_nicheurs_seulement:
-        return f"({base} and (not {OISEAU} or s.oiso_status_nidif in ('Possible', 'Probable', 'Certain')))"
-    return base
+# (espèces à enjeux des cartes de connaissance : analysis/connaissance/selections.py)
 
 
 def exclus_sql(noms=()) -> str:

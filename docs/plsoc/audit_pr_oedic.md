@@ -346,6 +346,8 @@ Légende : ✅ possible maintenant · 🟡 après harmonisation (§ 5) · 🟠 n
 
 ## 9. Étapes proposées
 
+Script de création du nouveau schéma : [sql/pr_oedic_news.sql](sql/pr_oedic_news.sql).
+
 | Étape | Contenu | Échéance indicative |
 |---|---|---|
 | 1. Valider l'audit | relire, compléter (projet QGIS de coordination, consommateurs des vues `partage`) | novembre |

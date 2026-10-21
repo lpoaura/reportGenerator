@@ -1,11 +1,14 @@
 """Requêtes du dossier Natura 2000 (toutes sur la VM principale, cf. selections.py)."""
 
-from reportgenerator.analysis.common.vm_queries import VM, VmQueries
+from reportgenerator.analysis.common.vm_queries import VM
+from reportgenerator.analysis.connaissance.queries import ConnaissanceQueries
 from reportgenerator.analysis.eolien.queries import NOM_VERN
 from reportgenerator.analysis.n2000 import selections as sel
 
 
-class N2000Queries(VmQueries):
+class N2000Queries(ConnaissanceQueries):
+    """(hérite des requêtes de l'état des connaissances : mailles, pool local, enveloppe de la zone)"""
+
     def site(self):
         """Surface (ha) et nombre de polygones de la zone d'étude."""
         sql = f"""
@@ -97,15 +100,6 @@ class N2000Queries(VmQueries):
         """
         return self._fetch(sql)
 
-    def enveloppe_site(self) -> list[float]:
-        """Rectangle englobant le site [xmin, ymin, xmax, ymax] (Lambert 93) : base des emprises des cartes."""
-        sql = f"""
-            select ST_XMin(b) as xmin, ST_YMin(b) as ymin, ST_XMax(b) as xmax, ST_YMax(b) as ymax
-            from (select Box2D(l.geom) as b from ref_geo.l_areas l where l.id_area = {self.id_area}) e
-        """
-        r = self._fetch(sql)[0]
-        return [float(r["xmin"]), float(r["ymin"]), float(r["xmax"]), float(r["ymax"])]
-
     def chiro_gites(self, complexes=(), exclus=()):
         """Couche n2000_chiro_gites : un point par lieu, taxon et type de gîte (toutes espèces de chiroptères),
         effectif maximal, taxon Natura 2000 ou non."""
@@ -125,67 +119,6 @@ class N2000Queries(VmQueries):
             group by {NOM_VERN}, s.cd_ref, s.the_geom_local, {sel.CHIRO_COLONIE}
         """
         return self._fetch(sql)
-
-    def connaissance_mailles(self, complexes=(), enjeu_sql="false"):
-        """Couche n2000_connaissance : par maille et par groupe (+ « Tous groupes ») : données, jours
-        d'observation, espèces, espèces à enjeux, sur le site et le kilomètre autour (les données lointaines des
-        taxons à grand rayon étaleraient la carte)."""
-        sql = f"""
-            select coalesce(s.tx_group2_inpn_v2, 'Tous groupes') as groupe, s.id_area,
-                   count(*) as nb_donnees,
-                   count(distinct s.date_max) as nb_jours,
-                   count(distinct s.cd_ref) filter (where {sel.ESPECE}) as nb_especes,
-                   count(distinct s.cd_ref) filter (where {sel.ESPECE} and {enjeu_sql}) as nb_enjeux,
-                   ST_AsText(s.geom_maille) as geom
-            from {VM} s
-            where {sel.retenu_sql(complexes)} and s.geom_maille is not null and {sel.PROCHE}
-            group by grouping sets ((s.tx_group2_inpn_v2, s.id_area, s.geom_maille), (s.id_area, s.geom_maille))
-        """
-        return self._fetch(sql)
-
-    def grille(self, code_grille: str, rayon_m=1000):
-        """Couche n2000_grille : toutes les mailles du site + rayon_m, y compris celles sans donnée."""
-        sql = f"""
-            select la.id_area, ST_AsText(la.geom) as geom
-            from ref_geo.l_areas la,
-                 (select ST_Buffer(l.geom, {float(rayon_m)}) as geom from ref_geo.l_areas l
-                  where l.id_area = {self.id_area}) z
-            where la.id_type = ref_geo.get_id_area_type(%s) and ST_Intersects(la.geom, z.geom)
-        """
-        return self._fetch(sql, (code_grille,))
-
-    def pool_local(self, rayon_km: float, annees: int, statuts_validation=("0", "1", "2")):
-        """Nombre d'espèces connues par groupe dans un rayon autour du site (référence des cartes de
-        connaissance). Mêmes règles que la VM : période, statuts de validation, espèces (sous-espèces
-        rattachées), groupes taxonomiques ; toutes les données de la synthèse dans le rayon (pas seulement
-        celles retenues par le rayon de chaque taxon)."""
-        statuts = ", ".join(f"ref_nomenclatures.get_id_nomenclature('STATUT_VALID', '{int(c)}')"
-                            for c in statuts_validation)
-        sql = f"""
-            with z as (select l.geom from ref_geo.l_areas l where l.id_area = {self.id_area}),
-            d as (
-                select distinct case when t.id_rang = 'SSES' then coalesce(tsup.cd_ref, t.cd_ref) else t.cd_ref end
-                           as cd_ref,
-                       t.ordre, t.group2_inpn, t.group3_inpn
-                from gn_synthese.synthese s
-                join taxonomie.taxref t on t.cd_nom = s.cd_nom
-                left join taxonomie.taxref tsup on tsup.cd_nom = t.cd_sup, z
-                where ST_DWithin(s.the_geom_local, z.geom, {float(rayon_km) * 1000})
-                  and s.id_nomenclature_observation_status = 89
-                  and s.id_nomenclature_valid_status = any(array[{statuts}])
-                  and s.date_max >= make_date(extract(year from now())::int - {int(annees)}, 1, 1)
-                  and t.id_rang in ('ES', 'SSES') and t.regne = 'Animalia')
-            select case when d.ordre = 'Chiroptera' then 'Chauves-souris'
-                        when mcs.groupe_taxo_fr is not null then mcs.groupe_taxo_fr
-                        when d.group2_inpn in ('Insectes', 'Arachnides') then d.group3_inpn
-                        else d.group2_inpn end as groupe,
-                   count(distinct d.cd_ref) as nb_especes
-            from d
-            left join (select distinct on (cd_ref) cd_ref, groupe_taxo_fr from taxonomie.mv_c_statut order by cd_ref)
-                 mcs on mcs.cd_ref = d.cd_ref
-            group by 1
-        """
-        return {r["groupe"]: r["nb_especes"] for r in self._fetch(sql) if r["groupe"]}
 
     def sources(self):
         """Nombre de données par source (texte « Sources » des cartes et du rapport)."""

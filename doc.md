@@ -85,8 +85,9 @@ src/reportgenerator/
 │   ├── context.py         ReportContext transmis aux briques
 │   ├── pipeline.py        ordre d'exécution, commande check
 │   └── renderer.py        remplissage du Word
-├── bricks/                lien entre le métier et les placeholders (common, generique, eolien)
+├── bricks/                lien entre le métier et les placeholders (common, connaissance, generique, eolien, n2000…)
 ├── analysis/              code métier : requêtes, calculs, graphiques, tableaux, cartographie
+│   ├── connaissance/      état des connaissances par maille de 1 km (commun aux dossiers)
 │   ├── eolien/            sélections, requêtes, couches QGIS, mises en forme du rapport éolien
 │   ├── cartography/       export GPKG, lancement et script de rendu QGIS
 │   └── common/tables/     insertion des tableaux Word (espèces, zonages, tableaux par anneau)
@@ -113,7 +114,20 @@ Toutes les analyses lisent une seule vue matérialisée, `lpoaura_afo.vm_reportg
 
 Effectifs : vide ou 0 → 1 ; 9999 (valeur de saisie « inconnu ») → non renseigné, exclu des maximums.
 
-La VM porte un **nom unique** : deux rapports ne peuvent pas être générés en même temps. Elle est supprimée en fin de génération, même en cas d'échec.
+La VM est supprimée en fin de génération, même en cas d'échec.
+
+### État des connaissances par maille (briques communes)
+
+Les briques `connaissance`, `couches_qgis_connaissance` et `connaissance_atlas` (`bricks/connaissance.py`,
+`analysis/connaissance/`) sont utilisées par les dossiers Natura 2000, générique et éolien : effort de prospection
+(données, jours d'observation) et part des espèces locales par maille de 1 km, espèces à enjeux, tableau par groupe,
+deux cartes par groupe cartographié (avec avertissement si la prospection est ponctuelle). Méthode :
+`dossiers/natura2000/METHODO.md` (§3.1.1). Chaque dossier règle dans son `dossier.toml` l'emprise des mailles
+(`connaissance_rayon_km`, défaut : plus grand anneau), le rayon des espèces locales (`pool_local_km`), les groupes
+(`connaissance_groupes`, `[params.connaissance_groupes_analyse]`) et le vocabulaire du Word (`connaissance_zone`…).
+Mises en page QGIS attendues (mêmes noms partout) : `Connaissance_effort_donnees`, `Connaissance_effort_jours`,
+`Atlas_connaissance_groupes`, `Atlas_connaissance_croisee` ; couches `connaissance_mailles`, `connaissance_grille`,
+`connaissance_atlas_groupes`.
 
 ---
 
@@ -139,7 +153,8 @@ Les valeurs à insérer sont des **placeholders** : `{{NOM}}`.
 - **Sections conditionnelles** : `{{#nom}}` … `{{/nom}}`, chaque balise seule dans son paragraphe du corps du document. Si la brique `nom` a été exécutée, seules les balises sont retirées ; sinon, toute la section disparaît. Exemple : la partie chiroptères du rapport éolien.
 - **Ajouter une partie à un template** : le plus sûr est de copier des paragraphes existants (titres, corps, légendes, pages de carte) pour garder la mise en page. Deux pièges :
   - un titre copié emporte son signet de sommaire : il faut retirer les signets en double, sinon Word signale un fichier endommagé ;
-  - dans le template éolien, la numérotation des sous-titres (x.1, x.2) est portée par des paragraphes de liste **cachés**, placés avant le premier sous-titre de chaque chapitre : il en faut un de plus par chapitre ajouté.
+  - dans les templates éolien et générique, la numérotation des sous-titres (x.1, x.2) est portée par des paragraphes de liste **cachés**, placés avant le premier sous-titre de chaque chapitre : il en faut un de plus par chapitre ajouté.
+  - les ajouts se font par script (`outils/word/`, voir `outils/README.md`) : le texte de la section « État des connaissances par maille » y est écrit une seule fois pour les trois dossiers.
 - **Contrôle** : vérifier le rendu en ouvrant le rapport dans **Word**. LibreOffice est plus tolérant et peut afficher un fichier que Word refuse.
 - **Vérification** : `reportgenerator check --dossier <type>` liste les placeholders sans source, les sorties non utilisées, et signale un template sans aucun placeholder.
 
@@ -149,6 +164,9 @@ Les valeurs à insérer sont des **placeholders** : `{{NOM}}`.
 
 - **Une carte = une mise en page.** Pour chaque mise en page, le rendu n'affiche que le groupe de couches **du même nom**, plus les groupes indiqués dans `visible_groups`. L'image est enregistrée sous `maps/<mise en page>.png` et remplace le placeholder `{{<mise en page>}}`.
 - **Toutes les mises en page sont exportées** : il n'y a pas de liste à maintenir.
+- **Modifier un projet par script** : `outils/qgis/` (cartes de l'état des connaissances dans la charte du projet,
+  reconstruction du projet Natura 2000, installation dans le dépôt sans chemin local) ; tester avec le dry-run
+  (`outils/dryrun/`, variable `DRYRUN_QGIS`) avant d'installer.
 - **Couches** : leurs sources doivent être des GeoPackage nommés `<couche>.gpkg|layername=<couche>`. Au rendu, elles sont redirigées vers `outputs/<zone>/data/<couche>.gpkg`, en conservant les filtres (`subset`). Une couche absente de `data/` devient invalide, et sa carte sort vide.
 - **Réglages du rendu**, dans le bloc `[params.qgis_render]` du `dossier.toml` :
   - `visible_groups` : groupes toujours affichés ;

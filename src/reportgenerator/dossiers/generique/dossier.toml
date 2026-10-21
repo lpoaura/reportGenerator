@@ -10,7 +10,9 @@ qgis_project = "../../templates/projet_modele.qgs"
 
 [analyses]
 # lancées pour chaque rapport de ce type (dans cet ordre, dépendances en plus)
-required = ["socle_data", "knowledge_status", "synthese_generale", "zonages", "cartography"]
+required = ["socle_data", "knowledge_status", "synthese_generale", "zonages",
+            # état des connaissances par maille de 1 km (briques communes, cf. METHODO.md)
+            "connaissance", "couches_qgis_connaissance", "cartography", "connaissance_atlas"]
 # activées par le champ list_analyse du formulaire QGIS
 optional = ["atlas_nicheur"]
 
@@ -19,3 +21,6 @@ map_layout = "A4"
 # Dédoublonnage entre sources (même taxon, même jour, même cellule de 100 m) : la première source
 # présente de la liste est gardée (cf. METHODO.md).
 sources_prioritaires = ["faune-france", "dbChiroGCRA"]
+# État des connaissances par maille de 1 km (zone d'étude + buffer du formulaire, groupes ciblés de la VM)
+pool_local_km = 10                   # référence : espèces du groupe connues dans ce rayon (au moins le buffer)
+connaissance_renvoi = "les tableaux d'espèces du rapport"

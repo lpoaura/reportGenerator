@@ -16,11 +16,13 @@ required = [
     "n2000_synthese",
     "n2000_chiropteres",
     "n2000_annexes",
-    "n2000_connaissance",    # état des connaissances : effort, richesse / pool local, enjeux
+    "connaissance",          # état des connaissances par maille (commun) : effort, richesse / pool local, enjeux
     "zonages",
     "couches_qgis_n2000",    # couches GPKG + couvertures des atlas
+    "couches_qgis_connaissance",
     "cartography",           # cartes et atlas (toujours en fin de chaîne)
     "n2000_atlas",           # cartes des atlas insérées dans le Word
+    "connaissance_atlas",
 ]
 optional = []
 
@@ -58,8 +60,14 @@ map_layout = "page_legende"          # une carte par page dans le Word, avec sa 
 emprise_marge_ratio = 0.1            # marge autour du contour : 10 % du rayon...
 emprise_marge_min_km = 0.5           # ... et au moins 500 m
 emprise_marge_mailles_km = 1         # cartes par maille : une maille de marge (mailles entières)
-# --- état des connaissances (cartes par maille de 1 km, site + 1 km) ---
+# --- état des connaissances (briques communes connaissance*, cartes par maille de 1 km, site + 1 km) ---
+connaissance_rayon_km = 1            # emprise des mailles : le site et le kilomètre autour
 pool_local_km = 10                   # référence : espèces du groupe connues dans ce rayon autour du site
+connaissance_zone = "le site"        # vocabulaire du Word
+connaissance_zone_court = "site"
+connaissance_renvoi = "l'atlas et le tableau ci-dessus"
+connaissance_niveau_titre = 4        # titres des groupes dans l'atlas (section 3.1.1)
+connaissance_excel = "3_connaissance_groupes"
 connaissance_seuil_donnees = 2       # maille « connaissance insuffisante » sous ce nombre de données
 connaissance_min_especes_site = 4    # groupe cartographié : au moins 4 espèces dans le site (sinon atlas + tableau)
 connaissance_alerte_jours_median = 2 # avertissement si la médiane des jours d'observation par maille est inférieure

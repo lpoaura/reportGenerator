@@ -230,3 +230,9 @@ config/pg_service.conf
 
 # Claude AI
 ClAUDE.md 
+docs/plsoc/audit_pr_oedic.md
+docs/plsoc/sql/pr_oedic_news.sql
+outils/README.md
+
+# Outils
+outils/

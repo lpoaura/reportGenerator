@@ -170,6 +170,10 @@ Légende : 🤖 automatique · ✍️ à rédiger (surligné en jaune dans le te
 
 ### §3.1.1 État des connaissances par groupe taxonomique (porter à connaissance)
 
+Briques **communes** aux dossiers (`connaissance`, `couches_qgis_connaissance`, `connaissance_atlas`, cf. `doc.md`) :
+la même section existe dans les dossiers générique et éolien (20/10/2026). Les paramètres propres à Natura 2000
+sont dans le `dossier.toml` (emprise 1 km, vocabulaire « le site », titres de niveau 4).
+
 Section destinée au porter à connaissance : le chargé d'études la supprime s'il ne la transmet pas (décision). Elle ne
 mesure pas la biodiversité mais **ce que les données permettent d'en dire**, et répond à trois questions : où a-t-on
 prospecté ? connaît-on bien chaque groupe à cet endroit ? où sont les espèces à enjeux ? Le Word explique la démarche
@@ -177,8 +181,9 @@ et la lecture de chaque carte (décision : « expliquer au maximum la démarche 
 
 **Grille** : mailles de **1 km** (`grille = "M1"`) couvrant le site et le kilomètre autour, **même grille sur toutes les
 cartes** (décision : éviter les erreurs de lecture). Les mailles sans donnée sont affichées en blanc (couche
-`n2000_grille`) pour distinguer « aucune donnée » de « hors zone ». Données : celles du rapport (période, validation
-0/1/2, absences et 9999 exclus), au rayon de 1 km quel que soit le taxon.
+`connaissance_grille`) pour distinguer « aucune donnée » de « hors zone ». Données : celles du rapport (période, validation
+0/1/2, absences et 9999 exclus, genres et complexes compris pour l'effort), au rayon de 1 km quel que soit le taxon.
+La maille est calculée spatialement sur la grille `grille_connaissance` (M1).
 
 **Indicateurs par maille et par groupe** (+ « Tous groupes »), requête `connaissance_mailles` :
 - `nb_donnees` ; `nb_jours` = nombre de dates différentes avec au moins une donnée (mesure de l'effort, moins sensible
@@ -190,7 +195,7 @@ cartes** (décision : éviter les erreurs de lecture). Les mailles sans donnée 
   (décision : < 2 données = mauvaise connaissance) ;
 - `nb_enjeux` = espèces à enjeux de la maille : **N2000** (définition 3.1) **ou liste rouge régionale CR/EN/VU/NT** (à
   défaut nationale) ; oiseaux : nicheurs seulement (possible/probable/certain, `enjeux_oiseaux_nicheurs_seulement`).
-  Sélection SQL `enjeu_sql` (`analysis/n2000/selections.py`) ;
+  Sélection SQL `enjeu_sql` (`analysis/connaissance/selections.py`, commune aux dossiers) ;
 - `classe_croisee` = effort × richesse, 3 niveaux chacun (constantes `SEUILS_EFFORT_JOURS` = 3 / 10 jours et
   `SEUILS_RICHESSE_PCT` = 25 / 50 % dans `analysis/n2000/tables.py`).
 
@@ -211,7 +216,7 @@ mailles sont sous 10 % : la carte montre surtout où le groupe a été noté et 
 | Élément | Contenu |
 |---|---|
 | Introduction | texte fixe (démarche, limites) + 🤖 période |
-| Où a-t-on prospecté ? | texte fixe + 🤖 cartes `Carte03a_effort_donnees` (nombre de données par maille) et `Carte03b_effort_jours` (jours d'observation), toutes espèces ; maille grise = 1 donnée / 1 jour |
+| Où a-t-on prospecté ? | texte fixe + 🤖 cartes `Connaissance_effort_donnees` (nombre de données par maille) et `Connaissance_effort_jours` (jours d'observation), toutes espèces ; maille grise = 1 donnée / 1 jour |
 | Connaît-on bien chaque groupe ? | texte fixe + 🤖 `{{POOL_LOCAL_KM}}`, `{{TABLE_CONNAISSANCE_GROUPES}}` (groupe, espèces dans le site, espèces site + 1 km, espèces à 10 km, part locale, espèces en région pour mémoire, mailles avec données, dont < 2 données, médiane de jours par maille, carte oui/non ; copie Excel `3_connaissance_groupes`), `{{TEXTE_GROUPES_CARTOGRAPHIES}}` (critère, liste des groupes, groupes avec avertissement et limite de l'exercice, depuis les paramètres) |
 | Comment lire les cartes ? | texte fixe + 🤖 `{{SEUIL_PEU_DONNEES}}`, `{{TEXTE_LECTURE_CROISEE}}` (classes, depuis les constantes) : part des espèces locales, hachures, chiffre rouge = espèces à enjeux, quatre coins de la carte croisée (gris clair : peu prospecté ; bleu : prospecté, peu d'espèces ; rouge : riche malgré peu de prospection ; brun foncé : riche et bien connu) |
 | Atlas | 🤖 `{{ATLAS_CONNAISSANCE_GROUPES}}` : par groupe cartographié, un titre de niveau 4, l'avertissement éventuel, puis deux cartes « Part des espèces locales – groupe » et « Richesse et prospection – groupe » |
@@ -291,8 +296,8 @@ Word (`{{SOURCES_DONNEES}}`). Libellés des sources : `analysis/n2000/tables.py`
 |---|---|---|
 | Carte01_localisation | site, contours, zonages environnementaux (50 km) | site + 30 km |
 | Carte02_pression_observation | données du site et du kilomètre autour + carte de chaleur | contour 1 km + 1 maille |
-| Carte03a_effort_donnees | nombre de données par maille de 1 km, toutes espèces (site + 1 km) ; 1 donnée en gris | contour 1 km + 1 maille |
-| Carte03b_effort_jours | nombre de jours d'observation par maille de 1 km, toutes espèces ; 1 jour en gris | contour 1 km + 1 maille |
+| Connaissance_effort_donnees | nombre de données par maille de 1 km, toutes espèces (site + 1 km) ; 1 donnée en gris | contour 1 km + 1 maille |
+| Connaissance_effort_jours | nombre de jours d'observation par maille de 1 km, toutes espèces ; 1 jour en gris | contour 1 km + 1 maille |
 | Carte04_chiro_presence_n2000 | observations des chiroptères N2000, une couleur par espèce | contour 10 km + marge |
 | Carte05_chiro_gites_colonies | gîtes et colonies, toutes espèces : taille = effectif maximal (1-3, 3-10, 10-30, 30-100, 100-300, > 300), bleu = reproduction, orange = sans reproduction | contour 10 km + marge |
 | Carte06_chiro_colonies_especes | colonies de reproduction, toutes espèces (décision) : une couleur par espèce, espèces d'un même gîte disposées en cercle | contour 10 km + marge |
@@ -304,8 +309,8 @@ Word (`{{SOURCES_DONNEES}}`). Libellés des sources : `analysis/n2000/tables.py`
 |---|---|---|
 | Atlas_especes_n2000 | taxon N2000 (hors chiroptères ; oiseaux nicheurs seulement), points par type de donnée (nicheur certain / probable / possible / autres) | `n2000_atlas_especes` |
 | Atlas_chiro_gites | taxon N2000 de chiroptère ayant un gîte ou une colonie (complexes compris) | `n2000_atlas_chiro` |
-| Atlas_connaissance_groupes | groupe cartographié (§3.1.1) : part des espèces locales par maille (< 10 / 10-25 / 25-50 / 50-75 / > 75 %, viridis), hachures si < 2 données, nombre d'espèces à enjeux dans un rond rouge | `n2000_atlas_groupes` |
-| Atlas_connaissance_croisee | même groupe : classe effort × richesse, palette bivariée 3 × 3 (légende en matrice dessinée dans la mise en page) | `n2000_atlas_groupes` |
+| Atlas_connaissance_groupes | groupe cartographié (§3.1.1) : part des espèces locales par maille (< 10 / 10-25 / 25-50 / 50-75 / > 75 %, viridis), hachures si < 2 données, nombre d'espèces à enjeux dans un rond rouge | `connaissance_atlas_groupes` |
+| Atlas_connaissance_croisee | même groupe : classe effort × richesse, palette bivariée 3 × 3 (légende en matrice dessinée dans la mise en page) | `connaissance_atlas_groupes` |
 
 Les deux atlas de la connaissance ont une **emprise fixe**, la même que les cartes d'effort 03a/03b (contour 1 km + une
 maille, pour tous les groupes : les cartes se comparent d'un groupe à l'autre). Variables de projet passées par le
@@ -339,9 +344,15 @@ ne veut pas la transmettre (décision).
 Les données sont affichées **au point précis**, données cachées par les observateurs comprises (décision : les clients
 sont des gestionnaires qui protègent les sites).
 
-Couches produites (brique `couches_qgis_n2000`) : `n2000_limit`, `n2000_donnees`, `n2000_connaissance`,
-`n2000_chiro_donnees`, `n2000_chiro_gites`, et les couvertures `n2000_atlas_especes`, `n2000_atlas_chiro`,
-`n2000_atlas_groupes` (+ `zone_etude`, `zones_protegees` de la brique `cartography`).
+Couches produites (brique `couches_qgis_n2000`) : `n2000_limit`, `n2000_donnees`, `n2000_chiro_donnees`,
+`n2000_chiro_gites`, et les couvertures `n2000_atlas_especes`, `n2000_atlas_chiro` ; brique commune
+`couches_qgis_connaissance` : `connaissance_mailles`, `connaissance_grille`, `connaissance_atlas_groupes`
+(+ `zone_etude`, `zones_protegees` de la brique `cartography`).
+
+Correction du 20/10/2026 : `LEGENDE_ZONE_ETUDE` (repris du projet éolien) traçait aussi le tampon de la demande et
+les 50 km autour (`zone_etude.gpkg`) : filtre `"secteur" = 'Zone d''étude'`. Les couches des cartes de connaissance
+sont dessinées sous les contours (zone d'étude, contours 1 / 10 / 20 km) : ils restent visibles sur les mailles
+(ils étaient cachés par les mailles opaques).
 
 ## 6. Paramètres (`dossier.toml`)
 

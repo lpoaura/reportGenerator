@@ -13,10 +13,10 @@ from reportgenerator.analysis.common.figures import insert_figure_list
 from reportgenerator.analysis.common.models import AnalysisResult, ImageBlock, TableBlock
 from reportgenerator.analysis.common.tables.excel_export import export_species_excel
 from reportgenerator.analysis.common.tables.ring_table import insert_grouped_tables, insert_lpo_table
+from reportgenerator.analysis.connaissance import indicateurs as ind
 from reportgenerator.analysis.eolien import couches_qgis
 from reportgenerator.analysis.knowledge_status.dataviz import (create_data_by_group_chart,
                                                                create_species_by_group_chart)
-from reportgenerator.analysis.n2000 import selections as sel
 from reportgenerator.analysis.n2000 import tables as t
 from reportgenerator.analysis.n2000.queries import N2000Queries
 from reportgenerator.core.registry import register_brick
@@ -212,8 +212,7 @@ def n2000_annexes(ctx):
 # mises en page « atlas » du projet QGIS : une image par entité de couverture (<mise en page>__<cle>.png)
 ATLAS_ESPECES = "Atlas_especes_n2000"
 ATLAS_CHIRO = "Atlas_chiro_gites"
-ATLAS_CONNAISSANCE = "Atlas_connaissance_groupes"
-ATLAS_CONNAISSANCE_CROISEE = "Atlas_connaissance_croisee"
+# (état des connaissances par maille : briques communes, bricks/connaissance.py)
 
 
 def _export(ctx, rows, name):
@@ -221,7 +220,7 @@ def _export(ctx, rows, name):
 
 
 # cartes simples cadrées sur un contour (les autres : emprise commune = site + layout_buffers_m)
-CARTES_CONTOUR_1KM = ("Carte02_pression_observation", "Carte03a_effort_donnees", "Carte03b_effort_jours")
+CARTES_CONTOUR_1KM = ("Carte02_pression_observation",)   # (+ cartes d'effort : brique couches_qgis_connaissance)
 CARTES_CHIRO = ("Carte04_chiro_presence_n2000", "Carte05_chiro_gites_colonies", "Carte06_chiro_colonies_especes",
                 "Carte07_chiro_gites_n2000")
 
@@ -243,10 +242,10 @@ class _Emprises:
 
     def taxon(self, rayon_km):
         rayon_m = rayon_km * 1000
-        return t.emprise_contour(self.bbox, rayon_m + t.marge_m(rayon_m, self.ratio, self.minimum_m))
+        return ind.emprise_contour(self.bbox, rayon_m + ind.marge_m(rayon_m, self.ratio, self.minimum_m))
 
     def mailles(self):
-        return t.emprise_contour(self.bbox, 1000 + self.maille_m)
+        return ind.emprise_contour(self.bbox, 1000 + self.maille_m)
 
     def rayon(self, lb_nom, ordre):
         return t.rayon_taxon_km(self.rayons, lb_nom, ordre)
@@ -254,72 +253,22 @@ class _Emprises:
 
 def _couverture(rows, emprise_de):
     """Entités de couverture d'un atlas : une par ligne (ordre d'affichage), géométrie = rectangle d'emprise."""
-    return [{**r, "ordre": i, "geom": t.rectangle_wkt(emprise_de(r))} for i, r in enumerate(rows, start=1)]
+    return [{**r, "ordre": i, "geom": ind.rectangle_wkt(emprise_de(r))} for i, r in enumerate(rows, start=1)]
 
 
-@register_brick(
-    "n2000_connaissance",
-    requires=["n2000_synthese"],
-    provides=["TABLE_CONNAISSANCE_GROUPES", "POOL_LOCAL_KM", "SEUIL_PEU_DONNEES", "TEXTE_GROUPES_CARTOGRAPHIES",
-              "TEXTE_LECTURE_CROISEE"],
-)
-def n2000_connaissance(ctx):
-    """État des connaissances par maille (site + 1 km) : effort (données, jours d'observation), richesse
-    rapportée au pool local du groupe (espèces connues dans un rayon de pool_local_km), espèces à enjeux, et
-    tableau de synthèse par groupe. Cf. METHODO.md, section « État des connaissances »."""
-    p = ctx.params
-    q = _queries(ctx)
-    enjeu = sel.enjeu_sql(bool(p.get("enjeux_oiseaux_nicheurs_seulement", True)))
-    rayon = float(p.get("pool_local_km", 10))
-    seuil = int(p.get("connaissance_seuil_donnees", 2))
-    min_especes = int(p.get("connaissance_min_especes_site", 4))
-    seuil_jours = float(p.get("connaissance_alerte_jours_median", 2))
-    pool_local = q.pool_local(rayon, int(p.get("annees", 10)), tuple(p.get("statuts_validation", ("0", "1", "2"))))
-    pool_regional = {r["tx_group2_inpn_v2"]: r["nb_esp"] for r in ctx.queries.get_number_esp_per_taxonomy()}
-    mailles = t.indicateurs_mailles(q.connaissance_mailles(_cd_complexes(ctx), enjeu), pool_local, seuil)
-    synthese_data = ctx.results["n2000_synthese"].data
-    dans_site = {g["groupe"]: g["nb_especes"] for g in synthese_data["par_groupe"] if g["nb_especes"]}
-    site_1km = {g["groupe"]: g["nb_especes"] for g in synthese_data["par_groupe_1km"] if g["nb_especes"]}
-    groupes = t.groupes_cartographies(mailles, dans_site, min_especes)
-    # prospection surtout ponctuelle (médiane des jours par maille sous le seuil) : carte avec avertissement
-    medianes = t.medianes_jours(mailles)
-    alertes = {g: medianes[g] for g in groupes if medianes.get(g, 0) < seuil_jours}
-    synthese = t.synthese_groupes(mailles, site_1km, pool_local, pool_regional, groupes, seuil, dans_site)
-    columns = [("groupe", "Groupe"), ("nb_especes_site", "Espèces dans le site"),
-               ("nb_especes", "Espèces site + 1 km"), ("pool_local", f"Espèces à {rayon:g} km"),
-               ("pct_local", "Part locale"), ("pool_regional", "Espèces en région"),
-               ("nb_mailles", "Mailles avec données"), ("mailles_peu_donnees", f"dont < {seuil} données"),
-               ("jours_median", "Jours par maille (médiane)"), ("carte", "Carte")]
-    # 10 colonnes : police réduite pour que les en-têtes ne se coupent pas au milieu des mots
-    table, path = _table(ctx, "3_connaissance_groupes", synthese, columns,
-                         widths=[1.4, 1, 1, 1, 0.9, 1, 1, 1, 1.05, 0.8])
-    table.options.update(status_fields=(), font_size=7.5)
-    return AnalysisResult(
-        data={"mailles": mailles, "groupes": groupes, "pool_local": pool_local, "synthese": synthese,
-              "avertissements": {g: t.texte_avertissement_effort(m, seuil_jours) for g, m in alertes.items()}},
-        files={"connaissance_groupes": path},
-        texts={"POOL_LOCAL_KM": f"{rayon:g}", "SEUIL_PEU_DONNEES": str(seuil),
-               "TEXTE_GROUPES_CARTOGRAPHIES": t.texte_groupes_cartographies(groupes, min_especes, alertes,
-                                                                            seuil_jours),
-               "TEXTE_LECTURE_CROISEE": t.texte_lecture_croisee()},
-        tables={"TABLE_CONNAISSANCE_GROUPES": table},
-    )
-
-
-@register_brick("couches_qgis_n2000", requires=["socle_data", "n2000_connaissance"])
+@register_brick("couches_qgis_n2000", requires=["socle_data"])
 def couches_qgis_n2000(ctx):
-    """Couches GPKG du projet QGIS Natura 2000 et couvertures des trois atlas (espèces, gîtes de chiroptères,
-    connaissance par groupe). Le texte « Sources » des cartes est passé au projet (variable @sources)."""
+    """Couches GPKG du projet QGIS Natura 2000 et couvertures des atlas des espèces et des gîtes de chiroptères
+    (connaissance par maille : brique couches_qgis_connaissance). Le texte « Sources » des cartes est passé au
+    projet (variable @sources)."""
     q = _queries(ctx)
     complexes, exclus = _cd_complexes(ctx), tuple(ctx.params.get("n2000_taxons_exclus", ()))
     oiseaux_nn = bool(ctx.params.get("atlas_oiseaux_non_nicheurs", False))
 
     points = q.points(complexes, exclus)
     gites = q.chiro_gites(complexes, exclus)
-    connaissance = ctx.results["n2000_connaissance"].data
-    mailles = connaissance["mailles"]
     sources = t.texte_sources(q.sources(), ctx.params.get("sources_libelles"))
-    emp = _Emprises(ctx, q.enveloppe_site())
+    emp = _Emprises(ctx, q.enveloppe_zone())
 
     # atlas des espèces : emprise = contour du rayon du taxon (1, 10 ou 20 km) + marge
     especes = [{"cd_ref": r["cd_ref"], "cle": t.cle(r["nom"]), "nom": r["nom"], "lb_nom": r["lb_nom"],
@@ -334,39 +283,29 @@ def couches_qgis_n2000(ctx):
                   for c, n, lb in chiro]
     atlas_chiro = _couverture(chiro_rows, lambda r: emp.taxon(r["rayon_km"]))
 
-    # atlas de la connaissance : une page par groupe assez renseigné (brique n2000_connaissance), même emprise
-    # pour tous les groupes et pour les cartes d'effort (contour 1 km + une maille) : les cartes se comparent
-    pool = connaissance["pool_local"]
-    atlas_groupes = _couverture([{"cle": t.cle(g), "groupe": g, "pool_local": pool.get(g)}
-                                 for g in connaissance["groupes"]], lambda r: emp.mailles())
-
     couches = {
         "n2000_limit": q.fetch(couches_qgis.limit_sql(ctx.id_area, ctx.queries.anneaux_km)),
         "n2000_donnees": points,
-        "n2000_connaissance": mailles,
-        "n2000_grille": q.grille(ctx.params.get("grille", "M1")),
         "n2000_chiro_donnees": [p for p in points if p["ordre"] == "Chiroptera" and p["n2000"]],
         "n2000_chiro_gites": gites,
         "n2000_atlas_especes": atlas_especes,
         "n2000_atlas_chiro": atlas_chiro,
-        "n2000_atlas_groupes": atlas_groupes,
     }
     for name, rows in couches.items():
         _export(ctx, rows, name)
 
     # rendu QGIS : variables du projet (texte des sources...) et emprises (site pour la localisation, contours
     # pour les autres cartes simples)
-    render = dict(ctx.params.get("qgis_render", {}))
-    render["project_variables"] = {**render.get("project_variables", {}), "sources": sources,
-                                   "pool_local_km": f"{float(ctx.params.get('pool_local_km', 10)):g}"}
+    render = dict(ctx.params.get("qgis_render") or {})
+    render["project_variables"] = {**(render.get("project_variables") or {}), "sources": sources}
     render["extent_bbox"] = emp.bbox
     rayon_chiro = emp.taxon(emp.rayon("", "Chiroptera"))
-    render["layout_extents"] = {**render.get("layout_extents", {}),
+    render["layout_extents"] = {**(render.get("layout_extents") or {}),
                                 **{c: emp.mailles() for c in CARTES_CONTOUR_1KM},
                                 **{c: rayon_chiro for c in CARTES_CHIRO}}
     ctx.params["qgis_render"] = render
     return AnalysisResult(
-        data={"atlas_especes": atlas_especes, "atlas_chiro": atlas_chiro, "atlas_groupes": atlas_groupes,
+        data={"atlas_especes": atlas_especes, "atlas_chiro": atlas_chiro,
               **{f"nb_{k}": len(v) for k, v in couches.items()}},
         texts={"SOURCES_DONNEES": sources},
     )
@@ -380,12 +319,12 @@ def _figures(ctx, layout, rows, legende):
 @register_brick(
     "n2000_atlas",
     requires=["couches_qgis_n2000", "cartography"],
-    provides=["ATLAS_ESPECES_N2000", "ATLAS_CHIRO_GITES", "ATLAS_CONNAISSANCE_GROUPES"],
+    provides=["ATLAS_ESPECES_N2000", "ATLAS_CHIRO_GITES"],
     last=True,
 )
 def n2000_atlas(ctx):
-    """Cartes des trois atlas insérées dans le Word (après le rendu QGIS) : une figure par page d'atlas,
-    regroupées par groupe taxonomique pour l'atlas des espèces."""
+    """Cartes des atlas des espèces et des gîtes insérées dans le Word (après le rendu QGIS) : une figure par page
+    d'atlas, regroupées par groupe taxonomique pour l'atlas des espèces."""
     data = ctx.results["couches_qgis_n2000"].data
     blocs = []
     for titre in dict.fromkeys(r["titre_groupe"] for r in data["atlas_especes"]):
@@ -394,17 +333,8 @@ def n2000_atlas(ctx):
         blocs.append({"titre": titre, "figures": figures})
     chiro = [{"titre": None, "figures": _figures(ctx, ATLAS_CHIRO, data["atlas_chiro"],
                                                  lambda r: f"Gîtes et colonies connus – {r['nom']}")}]
-    # connaissance : par groupe, la richesse (part du pool local) puis la lecture croisée richesse x effort
-    avertissements = ctx.results["n2000_connaissance"].data.get("avertissements", {})
-    groupes = []
-    for r in data["atlas_groupes"]:
-        figures = (_figures(ctx, ATLAS_CONNAISSANCE, [r], lambda r: f"Part des espèces locales – {r['groupe']}")
-                   + _figures(ctx, ATLAS_CONNAISSANCE_CROISEE, [r],
-                              lambda r: f"Richesse et prospection – {r['groupe']}"))
-        groupes.append({"titre": r["groupe"], "figures": figures, "avertissement": avertissements.get(r["groupe"])})
     return AnalysisResult(tables={
         "ATLAS_ESPECES_N2000": TableBlock(blocs, insert_figure_list),
         "ATLAS_CHIRO_GITES": TableBlock(chiro, insert_figure_list,
                                         {"note": "[Description des gîtes à rédiger]"}),
-        "ATLAS_CONNAISSANCE_GROUPES": TableBlock(groupes, insert_figure_list, {"note": None, "niveau": 4}),
     })

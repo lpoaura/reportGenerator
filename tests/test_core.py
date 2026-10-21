@@ -69,7 +69,10 @@ def test_dossier_params_are_not_swallowed_by_subtables():
 def test_cartography_runs_last():
     dossier = load_dossier("eolien")
     plan = build_plan(list(dossier.required) + ["chiropteres"])
-    assert plan[-1] == "cartography" and plan.index("couches_qgis_chiro") < plan.index("cartography")
+    assert plan.index("couches_qgis_chiro") < plan.index("cartography")
+    assert plan.index("couches_qgis_connaissance") < plan.index("cartography")
+    # seules les briques « last » qui insèrent les cartes rendues passent après la cartographie
+    assert plan[plan.index("cartography") + 1:] == ["connaissance_atlas"]
 
 
 def _doc_with(*paragraphs):
@@ -143,7 +146,10 @@ def test_render_generique_template(tmp_path):
         k: TableBlock([{"a": 1}], insert_general_table, {"columns": [("A", "a")]})
         for k in keys if k.startswith("TABLE_")
     }
-    images = {k.removesuffix(".png"): ImageBlock(png, "normal") for k in keys if k.endswith(".png")}
+    # cartes : anciennes images « {{x.png}} » et mises en page du projet QGIS (ex. Connaissance_effort_donnees)
+    from reportgenerator.bricks.common import qgis_layout_names
+    layouts = set(qgis_layout_names(dossier.qgis_project))
+    images = {k.removesuffix(".png"): ImageBlock(png, "normal") for k in keys if k.endswith(".png") or k in layouts}
     results = {"fake": AnalysisResult(texts=texts, tables=tables, images=images)}
 
     output = tmp_path / "rapport.docx"

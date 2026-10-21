@@ -164,6 +164,36 @@ Légende : 🤖 rempli automatiquement · ✍️ à rédiger ou compléter par l
 | Carte 2 | 🤖 `{{Carte2_Donnee_disponible}}` | observations brutes (couche `vm_eolienne`) |
 | Carte 3 | 🤖 `{{Carte3_Etat_connaissance_globale}}` | nombre de données et d'espèces par maille de 1 km (`vm_eolienne_etat_connaissance`) |
 
+### §3 bis État des connaissances par maille de 1 km (ajouté le 20/10/2026)
+
+Partie de niveau 1 après « Connaissance des oiseaux », en **complément** des cartes 2 et 3 (conservées). Même
+méthode que le dossier Natura 2000 (briques communes `connaissance`, `couches_qgis_connaissance`,
+`connaissance_atlas` ; méthode détaillée dans `dossiers/natura2000/METHODO.md`, §3.1.1).
+
+| Élément | Contenu |
+|---|---|
+| Groupes | **Oiseaux** ; **Chauves-souris** seulement si l'analyse optionnelle `chiropteres` est activée (`connaissance_groupes`, `[params.connaissance_groupes_analyse]`) |
+| Emprise | mailles de 1 km de la zone d'étude **et des 6 km autour** (`connaissance_rayon_km = 6`, anneau intermédiaire) : à 20 km, les mailles seraient trop petites sur la carte pour lire les chiffres des espèces à enjeux |
+| Référence (« espèces locales ») | espèces du groupe connues sur toute l'aire d'étude, 20 km (`pool_local_km = 20`), sur la période du rapport (10 ans) |
+| Cartes d'effort | `{{Connaissance_effort_donnees}}`, `{{Connaissance_effort_jours}}` (groupes étudiés) |
+| Tableau | `{{TABLE_CONNAISSANCE_GROUPES}}` (copie `tables/connaissance_groupes.xlsx`), puis `{{TEXTE_GROUPES_CARTOGRAPHIES}}` |
+| Atlas | `{{ATLAS_CONNAISSANCE_GROUPES}}` : par groupe ayant au moins 4 espèces dans la zone d'étude (titre de niveau 2), « Part des espèces locales » et « Richesse et prospection » ; avertissement si la médiane des jours d'observation par maille est < 2 |
+| Textes fixes | démarche et lecture des cartes, paragraphe jaune pour le commentaire |
+
+Espèces à enjeux des cartes (chiffre rouge) : définition commune à tous les dossiers (Natura 2000 ou liste rouge
+CR à NT, oiseaux nicheurs seulement), différente de celle du §4 (CR/EN/VU ou sensibilité éolienne > 2).
+Projet QGIS : 4 mises en page clonées de `Carte17_sensibilite`. Dans l'ordre de rendu, les couches de ces cartes
+passent **sous** les contours (`LEGENDE_ZONE_ETUDE`, `LEGENDE_LIMITE`) pour que la zone et les anneaux restent
+visibles sur les mailles.
+
+Corrections du projet et du template faites à cette occasion (20/10/2026) :
+- `LEGENDE_ZONE_ETUDE` lit `zone_etude.gpkg`, qui contient aussi le tampon de la demande et les 50 km autour : filtre
+  `"secteur" = 'Zone d''étude'` ajouté (le tampon et les 50 km étaient tracés en rouge comme la zone d'étude) ;
+- numérotation : les titres de niveau 2 suivent leur propre liste, dont le chiffre du chapitre avance grâce à des
+  paragraphes vides masqués placés avant chaque chapitre à sous-titres. Avec la nouvelle partie (chapitre 4), 3 de
+  ces « compteurs » ont été ajoutés après son titre (« 4.1 Oiseaux ») et 2 retirés avant « Nidification » : les
+  sous-titres suivants restent justes (6.1, 9.1, 10.1). **À savoir si on ajoute ou déplace un chapitre.**
+
 ### §4 Espèces à enjeux
 
 | Élément | Placeholder | Contenu |

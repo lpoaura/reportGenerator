@@ -226,6 +226,14 @@ def test_liste_de_figures(tmp_path):
                       "[Photo et texte de l'espèce à rédiger]"]
     assert len(doc.inline_shapes) == 1 and doc.paragraphs[0].style.name == "Heading 3"
     assert 'SEQ Figure' in doc.paragraphs[2]._p.xml
+    # numéro affiché sans mise à jour des champs : figures déjà présentes + 1 ; avertissement en italique
+    doc.add_paragraph("{{ATLAS2}}")
+    insert_figure_list(doc, "{{ATLAS2}}", [{"titre": "Odonates", "avertissement": "À lire avec prudence",
+                                            "figures": [{"path": png, "legende": "z"}]}], note=None)
+    seq = [p for p in doc.paragraphs if "SEQ Figure" in p._p.xml]
+    assert [p._p.xpath(".//w:fldSimple//w:t")[0].text for p in seq] == ["1", "2"]
+    alerte = next(p for p in doc.paragraphs if p.text == "À lire avec prudence")
+    assert alerte.runs[0].italic and alerte.paragraph_format.keep_with_next
 
 
 def test_groupes_pour_graphique():
@@ -238,57 +246,4 @@ def test_groupes_pour_graphique():
     assert len(t.groupes_pour_graphique(groupes[:15], max_groupes=15)) == 15
 
 
-def test_indicateurs_connaissance():
-    mailles = [
-        {"groupe": "Odonates", "id_area": 1, "nb_donnees": 1, "nb_jours": 1, "nb_especes": 1, "nb_enjeux": 0},
-        {"groupe": "Odonates", "id_area": 2, "nb_donnees": 40, "nb_jours": 12, "nb_especes": 30, "nb_enjeux": 2},
-        {"groupe": "Reptiles", "id_area": 2, "nb_donnees": 5, "nb_jours": 4, "nb_especes": 3, "nb_enjeux": 0},
-    ]
-    m = t.indicateurs_mailles(mailles, {"Odonates": 57, "Reptiles": 12})
-    assert m[0]["peu_donnees"] and not m[1]["peu_donnees"]
-    assert m[1]["pct_pool_local"] == 52.6 and m[1]["classe_croisee"] == "e2r2"      # riche et bien prospecté
-    assert m[0]["classe_croisee"] == "e0r0" and m[2]["classe_croisee"] == "e1r1"    # 25 % du pool : moyen
-    # carte dès 4 espèces dans le site, quel que soit l'effort ; l'effort ponctuel donne un avertissement
-    assert t.groupes_cartographies(m, {"Odonates": 4, "Reptiles": 3}) == ["Odonates"]
-    # (dans l'ordre des groupes du rapport)
-    assert t.groupes_cartographies(m, {"Odonates": 4, "Reptiles": 3}, min_especes_site=3) == ["Reptiles", "Odonates"]
-    assert t.medianes_jours(m) == {"Odonates": 6.5, "Reptiles": 4}
-    assert t.medianes_jours(m[:1] + m[2:]) == {"Odonates": 1, "Reptiles": 4}
-    assert t.texte_avertissement_effort(6.5) is None
-    assert "médiane : 1,5 jour d'observation" in t.texte_avertissement_effort(1.5)
-    rows = t.synthese_groupes(m, {"Odonates": 50, "Reptiles": 9}, {"Odonates": 57, "Reptiles": 12},
-                              {"Odonates": 84, "Reptiles": 42}, ["Odonates"], especes_site={"Odonates": 30})
-    odo = next(r for r in rows if r["groupe"] == "Odonates")
-    assert (odo["nb_especes_site"], odo["pct_local"], odo["pct_regional"], odo["mailles_peu_donnees"],
-            odo["jours_median"], odo["carte"]) == (30, "88 %", "60 %", 1, "6,5", "oui")
-    # seuil « peu de données » paramétrable
-    rows6 = t.synthese_groupes(m, {"Odonates": 50}, {}, {}, [], seuil_donnees=6)
-    assert rows6[0]["mailles_peu_donnees"] == 1 and rows6[0]["carte"] == "non"
-    # textes du Word : critères issus des paramètres, groupes en alerte cités
-    txt = t.texte_groupes_cartographies(["Oiseaux", "Papillons de jour", "Odonates"], 4, {"Odonates": 1}, 2)
-    assert "au moins 4 espèces" in txt and "oiseaux, papillons de jour et odonates" in txt
-    assert "Pour odonates, la moitié" in txt and "2 jours" in txt
-    assert "avertissement" not in t.texte_groupes_cartographies(["Oiseaux"], 4, {}, 2)
-    assert t.texte_groupes_cartographies([], 4).startswith("Aucun groupe")
-    assert "1 à 2 jours, 3 à 9 jours, 10 jours et plus" in t.texte_lecture_croisee()
-    assert "moins de 25 %, 25 à 50 %, plus de 50 %" in t.texte_lecture_croisee()
-
-
-def test_emprises_par_rayon():
-    """Cadrage des cartes : contour du rayon du taxon (règle de la vue) + marge."""
-    from reportgenerator.bricks.common import _rayons_km
-    rayons = _rayons_km(dict(load_dossier("natura2000").params))
-    assert t.rayon_taxon_km(rayons, "Pernis apivorus", "Accipitriformes") == 10       # rapace
-    assert t.rayon_taxon_km(rayons, "Canis lupus italicus", "Carnivora") == 20         # sous-espèce du loup
-    assert t.rayon_taxon_km(rayons, "Myotis myotis / M. blythii", "Chiroptera") == 10  # complexe
-    assert t.rayon_taxon_km(rayons, "Bombina variegata", "Anura") == 1                 # défaut
-    assert t.marge_m(1000) == 500 and t.marge_m(10000) == 1000
-    bbox = [900000, 6500000, 910000, 6505000]
-    assert t.emprise_contour(bbox, 1500) == [898500, 6498500, 911500, 6506500]
-    # même rayon -> même emprise, quelle que soit la position des données
-    assert t.rectangle_wkt([0, 0, 2, 1]) == "POLYGON((0 0,2 0,2 1,0 1,0 0))"
-
-
-def test_enjeu_sql():
-    assert "Possible" in sel.enjeu_sql(True) and "Possible" not in sel.enjeu_sql(False)
-    assert "('CR', 'EN', 'VU', 'NT')" in sel.enjeu_sql()
+# (état des connaissances par maille : tests/test_connaissance.py)
