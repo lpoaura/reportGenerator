@@ -12,12 +12,24 @@ if str(package_root) not in sys.path:
 
 import argparse  # noqa: E402
 
-from qgis.core import (QgsApplication, QgsExpressionContextUtils, QgsLayoutExporter,  # noqa: E402
-                       QgsLayoutItemMap, QgsProject, QgsRectangle, QgsVectorLayer)
+from qgis.core import (QgsApplication, QgsCategorizedSymbolRenderer, QgsExpressionContextUtils,  # noqa: E402
+                       QgsLayoutExporter, QgsLayoutItemLabel, QgsLayoutItemMap, QgsMarkerSymbol,
+                       QgsPointDisplacementRenderer, QgsPointDistanceRenderer, QgsProject, QgsProperty,
+                       QgsRectangle, QgsRendererCategory, QgsSimpleMarkerSymbolLayerBase, QgsSymbol, QgsSymbolLayer,
+                       QgsUnitTypes, QgsVectorLayer)
+from qgis.PyQt.QtGui import QColor  # noqa: E402
 
 from reportgenerator.analysis.cartography.qgis_sources import (  # noqa: E402
-    load_render_config, relink_gpkg_source)
+    categories_dynamiques, filtre_page, load_render_config, relink_gpkg_source)
 from reportgenerator.analysis.qgis_runtime import resolve_qgis_prefix  # noqa: E402
+
+FORMES_QGIS = {"circle": QgsSimpleMarkerSymbolLayerBase.Circle, "square": QgsSimpleMarkerSymbolLayerBase.Square,
+               "triangle": QgsSimpleMarkerSymbolLayerBase.Triangle,
+               "diamond": QgsSimpleMarkerSymbolLayerBase.Diamond}
+# propriétés définies par les données des symboles (noms de QGIS 3.40, avec repli sur les anciens)
+PROP_TAILLE = getattr(QgsSymbolLayer, "PropertySize", None) or QgsSymbolLayer.Property.Size
+PROP_CONTOUR = getattr(QgsSymbolLayer, "PropertyStrokeColor", None) or QgsSymbolLayer.Property.StrokeColor
+PROP_LARGEUR = getattr(QgsSymbolLayer, "PropertyStrokeWidth", None) or QgsSymbolLayer.Property.StrokeWidth
 
 
 def reload_project(project, project_path):
@@ -107,6 +119,128 @@ def export_atlas(layout, output_path, settings):
     atlas.endRender()
 
 
+LEGENDE_SEULE = "reportgenerator/legende_seule"   # couche de légende (jamais dessinée), laissée telle quelle
+STYLE_FIXE = "reportgenerator/style_fixe"         # couche gardant son style du projet (ex. carte de synthèse)
+
+
+def layers_gpkg(project, layer_name):
+    """Couches du projet lisant la couche GPKG layer_name (layername de la source, ou nom affiché), hors couches
+    « légende seule » ou « style fixe » (propriétés LEGENDE_SEULE, STYLE_FIXE) : ni restylées, ni filtrées."""
+    return [lyr for lyr in project.mapLayers().values()
+            if isinstance(lyr, QgsVectorLayer) and lyr.isValid()
+            and not lyr.customProperty(LEGENDE_SEULE) and not lyr.customProperty(STYLE_FIXE)
+            and (lyr.name() == layer_name or f"layername={layer_name}" in lyr.source().split("|"))]
+
+
+def _symbole_modele(layer):
+    """Symbole du projet servant de modèle (taille, contour), même après un premier style construit au rendu."""
+    renderer = layer.renderer()
+    if isinstance(renderer, QgsPointDistanceRenderer):
+        renderer = renderer.embeddedRenderer()
+    if hasattr(renderer, "sourceSymbol") and renderer.sourceSymbol():
+        return renderer.sourceSymbol().clone()
+    if hasattr(renderer, "symbol") and renderer.symbol():
+        return renderer.symbol().clone()
+    return QgsSymbol.defaultSymbol(layer.geometryType())
+
+
+def _accentuer(symbol, champ):
+    """Point grossi et cerclé de noir quand le champ booléen `champ` est vrai (ex. site occupé plusieurs années)."""
+    sl = symbol.symbolLayer(0)
+    taille = symbol.size() if isinstance(symbol, QgsMarkerSymbol) else 2
+    sl.setDataDefinedProperty(PROP_TAILLE, QgsProperty.fromExpression(
+        f'if("{champ}", {taille * 1.6:.2f}, {taille:.2f})'))
+    sl.setDataDefinedProperty(PROP_CONTOUR, QgsProperty.fromExpression(f"if(\"{champ}\", '#000000', '#ffffff')"))
+    sl.setDataDefinedProperty(PROP_LARGEUR, QgsProperty.fromExpression(f'if("{champ}", 0.5, 0.2)'))
+
+
+def apply_dynamic_categories(project, spec):
+    """Style catégorisé construit à partir des données de la zone (après le filtre de la page s'il y en a un) :
+    spec = {couche GPKG: [champ, champ d'ordre(, champ couleur(, champ booléen d'accent))]}.
+    Sans champ couleur : palette automatique (qgis_sources.categories_dynamiques) ; avec : couleur de la donnée."""
+    for layer_name, champs in (spec or {}).items():
+        field, order_field = champs[0], champs[1]
+        color_field = champs[2] if len(champs) > 2 else None
+        accent_field = champs[3] if len(champs) > 3 else None
+        layers = layers_gpkg(project, layer_name)
+        if not layers:
+            print(f"Catégories : couche {layer_name} absente du projet")
+        for layer in layers:
+            names = layer.fields().names()
+            if field not in names:
+                print(f"Catégories : champ {field} absent de {layer_name}")
+                continue
+            features = list(layer.getFeatures())
+            valeurs = [(f[field], f[order_field] if order_field in names else None) for f in features]
+            couleurs = ({f[field]: f[color_field] for f in features} if color_field in names else {})
+            base = _symbole_modele(layer)
+            categories = []
+            for valeur, couleur, forme in categories_dynamiques(valeurs):
+                symbol = base.clone()
+                sl = symbol.symbolLayer(0)
+                teinte = QColor(couleurs.get(valeur) or couleur)
+                if sl.color().alpha() == 0 and hasattr(sl, "setStrokeColor"):
+                    sl.setStrokeColor(teinte)      # symbole creux (ex. effectifs de migration) : couleur au contour
+                else:
+                    symbol.setColor(teinte)
+                if hasattr(sl, "setShape") and not couleurs:
+                    sl.setShape(FORMES_QGIS[forme])
+                if accent_field in names:
+                    _accentuer(symbol, accent_field)
+                categories.append(QgsRendererCategory(valeur, symbol, str(valeur)))
+            renderer = QgsCategorizedSymbolRenderer(field, categories)
+            renderer.setSourceSymbol(base.clone())
+            layer.setRenderer(renderer)
+            layer.legendChanged.emit()   # légendes des mises en page (modèle propre, mise à jour automatique coupée)
+            layer.triggerRepaint()
+            print(f"Catégories {layer_name} : {len(categories)} valeurs de {field}")
+
+
+def apply_displacement(project, spec):
+    """Points superposés écartés en anneau autour de leur position : spec = {couche GPKG: distance en mm}.
+    Le style de la couche (ex. catégories) est gardé comme style des points."""
+    for layer_name, distance in (spec or {}).items():
+        for layer in layers_gpkg(project, layer_name):
+            renderer = layer.renderer()
+            if isinstance(renderer, QgsPointDistanceRenderer):
+                renderer = renderer.embeddedRenderer()
+            disp = QgsPointDisplacementRenderer("")   # pas d'étiquette
+            disp.setEmbeddedRenderer(renderer.clone())
+            disp.setTolerance(float(distance))
+            disp.setToleranceUnit(QgsUnitTypes.RenderMillimeters)
+            disp.setPlacement(QgsPointDisplacementRenderer.Ring)
+            disp.setCircleWidth(0)                       # pas de cercle autour du groupe
+            disp.setCircleColor(QColor(0, 0, 0, 0))
+            disp.setCenterSymbol(QgsMarkerSymbol.createSimple(   # petit point : position réelle du groupe
+                {"name": "circle", "size": "0.6", "color": "#3c3c3c", "outline_style": "no"}))
+            layer.setRenderer(disp)
+            layer.legendChanged.emit()
+            layer.triggerRepaint()
+
+
+def export_pages(project, layout, spec, config, settings, output_path):
+    """Une image par page (<mise en page>__<clé>.png) : couches filtrées sur la clé de la page, styles construits sur
+    les données de la page, titre de la page. spec = {champ, couches, pages: [{cle, titre}]}."""
+    champ, couches = spec.get("champ", "cle"), spec.get("couches", [])
+    layers = [lyr for nom in couches for lyr in layers_gpkg(project, nom)]
+    titres = [it for it in layout.items() if isinstance(it, QgsLayoutItemLabel) and it.id() == "Titre"]
+    styles = {k: v for k, v in (config.get("categories_dynamiques") or {}).items() if k in couches}
+    ecarts = {k: v for k, v in (config.get("deplacement_mm") or {}).items() if k in couches}
+    for page in spec.get("pages", []):
+        for lyr in layers:
+            lyr.setSubsetString(filtre_page(champ, page["cle"]))
+        apply_dynamic_categories(project, styles)
+        apply_displacement(project, ecarts)
+        for it in titres:
+            it.setText(page.get("titre", ""))
+        output_file = output_path / f"{layout.name()}__{page['cle']}.png"
+        result = QgsLayoutExporter(layout).exportToImage(str(output_file), settings)
+        if result != QgsLayoutExporter.Success:
+            print(f"[ERREUR] Export de la carte {layout.name()} / {page['cle']} : code {result}")
+    for lyr in layers:
+        lyr.setSubsetString("")
+
+
 def set_group_visibility(project, group_name, visibility):
     group = project.layerTreeRoot().findGroup(group_name)
     if group is None:
@@ -150,6 +284,9 @@ def main():
 
         relink_gpkg_layers(project, data_path)
         reload_project(project, project_path)
+        apply_dynamic_categories(project, config.get("categories_dynamiques"))
+        apply_displacement(project, config.get("deplacement_mm"))
+        pages = config.get("pages") or {}
 
         manager = project.layoutManager()
         layouts_to_export = [layout.name() for layout in manager.layouts()]
@@ -195,6 +332,11 @@ def main():
                 extent = layer_extent(project, extent_name) if extent_name else base_extent
             if extent is not None:
                 zoom_layout_maps(layout, extent, config)
+
+            # mise en page modèle : une image par page de la liste fournie par les briques (ex. cartes par groupe)
+            if layout_name in pages:
+                export_pages(project, layout, pages[layout_name], config, settings, output_path)
+                continue
 
             output_file = output_path / f"{layout_name}.png"
             if output_file.exists():

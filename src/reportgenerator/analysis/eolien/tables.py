@@ -51,6 +51,8 @@ def pivot_par_anneau(rows) -> list[dict]:
         sp[f"derniere_annee__{ALL}"] = _max(sp[f"derniere_annee__{ALL}"], row["derniere_annee"])
         sp[f"effectif_max__{ALL}"] = _max(sp[f"effectif_max__{ALL}"], row.get("effectif_max"))
         sp["code_nidif"] = max(sp["code_nidif"], row.get("code_nidif") or 0)
+        for statut in ("migrateur", "hivernant"):
+            sp[statut] = bool(sp.get(statut) or row.get(statut))
 
     for sp in species.values():
         sp["statut_nidif"] = NIDIF_LABELS.get(sp["code_nidif"], "")
@@ -85,6 +87,13 @@ def est_enjeu(sp: dict, lr_regionale="lr_aura", lr_statuts=("CR", "EN", "VU"), s
         or sp.get("famille") in familles
         or sp.get("ordre") in ordres
     )
+
+
+def groupes_non_vides(data: list[dict], groups, metric="nb_obs") -> list:
+    """Colonnes d'un tableau par anneau : « Ensemble des zones » toujours, un anneau seulement
+    si au moins une espèce du tableau y a des données (gain de largeur)."""
+    return [(suffix, label) for suffix, label in groups
+            if suffix == ALL or any(item.get(f"{metric}__{suffix}") for item in data)]
 
 
 def resume_par_anneau(species: list[dict], anneaux_km) -> list[dict]:
@@ -188,6 +197,13 @@ def periode_etude(annees: int, now: datetime | None = None) -> str:
 def anneaux_texte(anneaux_km) -> str:
     kms = [f"{km:g} km" for km in anneaux_km]
     return kms[0] if len(kms) == 1 else ", ".join(kms[:-1]) + " et " + kms[-1]
+
+
+def vulnerabilite_totale(row: dict) -> float:
+    """Carte 17 bis : vulnérabilité max des espèces de la maille (0,5 à 4,5, 0 si aucune note) + les mêmes bonus
+    que l'indice de sensibilité (nicheur, dortoir, migration)."""
+    return float(row.get("vuln_especes") or 0) + sum(
+        int(row.get(k) or 0) for k in ("bonus_nidif", "bonus_dortoir", "bonus_migration"))
 
 
 def sensibilite_totale(row: dict, plafond=None) -> int:

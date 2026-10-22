@@ -1,0 +1,49 @@
+# Couleur de chaque espèce sur les cartes (nidification, dortoirs) : cd_ref TAXREF ; couleur #rrggbb.
+# Une espèce absente reçoit une couleur automatique, distincte des autres espèces de la même carte.
+# Initialisé le 21/10/2026 depuis les styles du projet QGIS (origine = carte d'où vient la couleur).
+cd_ref;lb_nom;nom_vern;couleur;origine
+2891;Accipiter gentilis;Autour des palombes;#54b04a;Carte9_nidif_diurnes
+2895;Accipiter nisus;Épervier d'Europe;#e04fb5;Carte9_nidif_diurnes
+3533;Aegolius funereus;Chouette de Tengmalm;#e9904c;Carte6_nidif_rapaces_nocturnes
+2869;Aegypius monachus;Vautour moine;#6eb0ef;Carte12.4_dortoir_rapace
+2645;Aquila chrysaetos;Aigle royal;#bf69e4;Carte12.4_dortoir_rapace
+2504;Ardea alba;Grande Aigrette;#8a5743;Carte12_dortoir_toutes_donnees
+2506;Ardea cinerea;Héron cendré;#487bb6;Carte11.1_nidif_Hérons
+2508;Ardea purpurea;Héron pourpré;#954aa2;Carte11.1_nidif_Hérons
+2486;Ardeola ralloides;Crabier chevelu;#f7801e;Carte11.1_nidif_Hérons
+3525;Asio flammeus;Hibou des marais;#383e8b;Carte6_nidif_rapaces_nocturnes
+3522;Asio otus;Hibou moyen-duc;#b546d6;Carte6_nidif_rapaces_nocturnes
+3511;Athene noctua;Chevêche d'Athéna;#47e21c;Carte6_nidif_rapaces_nocturnes
+2473;Botaurus stellaris;Butor étoilé;#846f3d;Carte12.1_dortoir_ardeide
+3493;Bubo bubo;Grand-duc d'Europe;#e42bb6;Carte6_nidif_rapaces_nocturnes
+2489;Bubulcus ibis;Héron garde-boeufs;#db1e2a;Carte11.1_nidif_Hérons
+2623;Buteo buteo;Buse variable;#3ab65d;Carte7_nidif_buse_faucon
+530157;Chroicocephalus ridibundus;Mouette rieuse;#f7581f;Carte10_nidif_Mouette_Sterne_Goeland
+2517;Ciconia ciconia;Cigogne blanche;#ff7f00;Carte11_nidif_Cigogne
+2514;Ciconia nigra;Cigogne noire;#db1e2a;Carte11_nidif_Cigogne
+2873;Circaetus gallicus;Circaète Jean-le-Blanc;#0dcfc9;Carte9_nidif_diurnes
+2878;Circus aeruginosus;Busard des roseaux;#69e5d3;Carte8_nidif_milan_busard
+2881;Circus cyaneus;Busard Saint-Martin;#55a8f5;Carte8_nidif_milan_busard
+2887;Circus pygargus;Busard cendré;#2c4699;Carte8_nidif_milan_busard
+2497;Egretta garzetta;Aigrette garzette;#f27dbf;Carte11.1_nidif_Hérons
+2836;Elanus caeruleus;Élanion blanc;#5a55f4;Carte9_nidif_diurnes
+2938;Falco peregrinus;Faucon pèlerin;#4b65bd;Carte7_nidif_buse_faucon
+2679;Falco subbuteo;Faucon hobereau;#efa224;Carte7_nidif_buse_faucon
+2669;Falco tinnunculus;Faucon crécerelle;#c460ad;Carte7_nidif_buse_faucon
+2674;Falco vespertinus;Faucon kobez;#bd3ac1;Carte12.3_dortoir_faucon
+3507;Glaucidium passerinum;Chevêchette d'Europe;#63ab3d;Carte6_nidif_rapaces_nocturnes
+2852;Gypaetus barbatus;Gypaète barbu;#4d7896;Carte12.4_dortoir_rapace
+2860;Gyps fulvus;Vautour fauve;#128b5b;Carte12.4_dortoir_rapace
+2651;Hieraaetus pennatus;Aigle botté;#db1e2a;Carte9_nidif_diurnes
+3297;Larus fuscus;Goéland brun;#f4df47;Carte12.1_dortoir_ardeide
+199374;Larus michahellis;Goéland leucophée;#ffe205;Carte10_nidif_Mouette_Sterne_Goeland
+2840;Milvus migrans;Milan noir;#e37413;Carte8_nidif_milan_busard
+2844;Milvus milvus;Milan royal;#db1e2a;Carte8_nidif_milan_busard
+2481;Nycticorax nycticorax;Bihoreau gris;#cbcbcb;Carte11.1_nidif_Hérons
+3489;Otus scops;Petit-duc scops;#6c36d0;Carte6_nidif_rapaces_nocturnes
+2660;Pandion haliaetus;Balbuzard pêcheur;#7e3600;Carte9_nidif_diurnes
+2832;Pernis apivorus;Bondrée apivore;#f49724;Carte9_nidif_diurnes
+3343;Sterna hirundo;Sterne pierregarin;#54b04a;Carte10_nidif_Mouette_Sterne_Goeland
+3352;Sternula albifrons;Sterne naine;#487bb6;Carte10_nidif_Mouette_Sterne_Goeland
+3518;Strix aluco;Chouette hulotte;#2c90f4;Carte6_nidif_rapaces_nocturnes
+3482;Tyto alba;Effraie des clochers;#32d4a4;Carte6_nidif_rapaces_nocturnes

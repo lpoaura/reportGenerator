@@ -24,7 +24,8 @@ STATUT_NIDIF_R = """case when bool_or(s.oiso_status_nidif = 'Certain') then 'Nic
                          else 'Nicheur possible' end"""
 
 # 11_vm_nidif.sql : nicheurs probables / certains, rapaces, grands voiliers ou espèces menacées,
-# une ligne par espèce et par point
+# une ligne par espèce et par point. N'est plus utilisée par les cartes du rapport (cartes par groupe :
+# vm_eolienne_nidif_cartes), gardée pour les couches de vérification du projet QGIS.
 NIDIF_SQL = f"""
     select row_number() over (order by t.nom_vern) as id, t.*
     from (
@@ -39,26 +40,10 @@ NIDIF_SQL = f"""
         from {VM} s
         where {sel.both(sel.OISEAUX, sel.NICHEUR_PROBABLE_CERTAIN)}
         and ({sel.GROUPES_ENJEUX} or {LR_MENACEE})
-        -- Cigogne noire : uniquement floutée à 5 km (vm_eolienne_nidif_cn), sinon visible au point
-        -- précis via le filtre "famille in (..., 'Ciconiidae', ...)" du projet QGIS
+        -- Cigogne noire : jamais au point précis (donnée sensible ; floutée à 5 km sur les cartes par groupe)
         and s.vn_nom_sci is distinct from 'Ciconia nigra'
         group by s.vn_nom_fr, s.cd_ref, s.famille, s.ordre, s.the_geom_local
     ) t
-"""
-
-# vm_eolienne_nidif_cn : Cigogne noire floutée à la maille 5 km (donnée sensible)
-NIDIF_CN_SQL = f"""
-    select row_number() over () as id, s.vn_nom_fr as nom_vern, s.cd_ref as cd_nom,
-           s.famille, s.ordre,
-           count(distinct s.id_synthese) as nb_data,
-           max(extract(year from s.date_max))::int as derniere_obs,
-           count(distinct extract(year from s.date_max))::int as nb_annee,
-           {STATUT_NIDIF_R} as oiso_status_nidif,
-           g.geom
-    from {VM} s
-    join ref_geo.mv_aura_gridl93_5x5 g on ST_Within(s.the_geom_local, g.geom)
-    where {sel.NICHEUR_PROBABLE_CERTAIN} and s.vn_nom_sci = 'Ciconia nigra'
-    group by s.vn_nom_fr, s.cd_ref, s.famille, s.ordre, g.geom
 """
 
 # 14_vm_nidif_dortoir.sql
@@ -94,6 +79,7 @@ MIGRATION_SQL = f"""
                  case when {sel.GROUPES_ENJEUX} then 'enjeux' else 'autres' end
     ) t
 """
+
 
 # 03_vm_data.sql (vm_eolienne) : observations d'oiseaux
 DONNEES_SQL = f"""

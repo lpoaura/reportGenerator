@@ -100,7 +100,10 @@ def _style_header(table, n_rows, font_size):
                 p.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
 
 
-def _fill_rows(table, data, keys, status_fields, italic_fields, font_size):
+def _fill_rows(table, data, keys, status_fields, italic_fields, font_size, cell_formats=None):
+    """cell_formats : {clé: fonction(valeur) -> (texte, couleur de fond ou None[, couleur du texte])}
+    (ex. indice de vulnérabilité)."""
+    cell_formats = cell_formats or {}
     if not data:
         row = table.add_row()
         cell = row.cells[0].merge(row.cells[-1])
@@ -112,7 +115,12 @@ def _fill_rows(table, data, keys, status_fields, italic_fields, font_size):
         cells = table.add_row().cells
         for idx, key in enumerate(keys):
             cell = cells[idx]
-            value = _fmt_value(item.get(key))
+            background = text_color = None
+            if key in cell_formats:
+                value, background, *rest = cell_formats[key](item.get(key))
+                text_color = rest[0] if rest else None
+            else:
+                value = _fmt_value(item.get(key))
             cell.text = value
             set_cell_font(cell, size=font_size, font_name=FONT)
             # noms à gauche (le style Normal des templates est souvent justifié), valeurs centrées
@@ -121,6 +129,11 @@ def _fill_rows(table, data, keys, status_fields, italic_fields, font_size):
                 italicize_cell_species(cell)
             if key in status_fields:
                 apply_status_style_species(cell, value)
+            if background:
+                set_cell_background(cell, background)
+            if text_color:   # texte clair sur fond foncé : en gras pour rester lisible
+                set_cell_font(cell, bold=True, size=font_size, font_name=FONT)
+                set_cell_text_color(cell, text_color)
 
 
 def _place(paragraph, placeholder, table):
@@ -128,9 +141,26 @@ def _place(paragraph, placeholder, table):
     paragraph._element.addnext(table._element)
 
 
+def _fixed_widths(table, widths):
+    """Largeurs imposées (proportions `widths` de la largeur de la page) : mise en page fixe et largeur de chaque
+    cellule (python-docx donne sinon la même largeur à toutes les cellules, que Word conserve)."""
+    _set_tblpr_child(table._tbl.tblPr, "tblLayout", type="fixed")
+    total = sum(widths)
+    for row in table.rows:
+        for cell, weight in zip(row.cells, widths):
+            tc_pr = cell._tc.get_or_add_tcPr()
+            for el in tc_pr.findall(qn("w:tcW")):
+                tc_pr.remove(el)
+            tc_w = OxmlElement("w:tcW")
+            tc_w.set(qn("w:w"), str(int(5000 * weight / total)))
+            tc_w.set(qn("w:type"), "pct")
+            tc_pr.insert(0, tc_w)
+
+
 def insert_lpo_table(document, placeholder, data, columns, status_fields=(), italic_fields=(), font_size=9,
-                     widths=None):
-    """Tableau simple : columns = [(clé, libellé), ...] ; widths = largeurs relatives des colonnes."""
+                     widths=None, cell_formats=None, fixed_widths=False):
+    """Tableau simple : columns = [(clé, libellé), ...] ; widths = largeurs relatives des colonnes
+    (fixed_widths : imposées à chaque cellule, sinon simple indication que Word peut ajuster)."""
     paragraph = _find_paragraph(document, placeholder)
     if paragraph is None:
         return
@@ -139,7 +169,9 @@ def insert_lpo_table(document, placeholder, data, columns, status_fields=(), ita
     for idx, (_, label) in enumerate(columns):
         table.cell(0, idx).text = label
     _style_header(table, 1, font_size)
-    _fill_rows(table, data, [k for k, _ in columns], status_fields, italic_fields, font_size)
+    _fill_rows(table, data, [k for k, _ in columns], status_fields, italic_fields, font_size, cell_formats)
+    if fixed_widths and widths:
+        _fixed_widths(table, widths)
     _place(paragraph, placeholder, table)
 
 
@@ -181,6 +213,7 @@ def insert_ring_table(
     status_fields=(),
     italic_fields=("lb_nom",),
     font_size=8,
+    cell_formats=None,
 ):
     """Tableau à double en-tête.
 
@@ -188,6 +221,7 @@ def insert_ring_table(
     - groups        : [(suffixe, libellé)] ex. [("all", "Ensemble des zones"), (0, "Zone d'étude")]
     - metrics       : [(clé, libellé)] ex. [("nb_obs", "Nb données"), ("derniere_annee", "Dernière obs.")]
       la valeur lue dans chaque ligne est item[f"{clé}__{suffixe}"].
+    - cell_formats  : {clé: fonction(valeur) -> (texte, couleur de fond ou None)}
     """
     paragraph = _find_paragraph(document, placeholder)
     if paragraph is None:
@@ -215,5 +249,5 @@ def insert_ring_table(
     keys = [k for k, _ in fixed_columns] + [
         f"{metric}__{suffix}" for suffix, _ in groups for metric, _ in metrics
     ]
-    _fill_rows(table, data, keys, status_fields, italic_fields, font_size)
+    _fill_rows(table, data, keys, status_fields, italic_fields, font_size, cell_formats)
     _place(paragraph, placeholder, table)

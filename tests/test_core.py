@@ -72,7 +72,8 @@ def test_cartography_runs_last():
     assert plan.index("couches_qgis_chiro") < plan.index("cartography")
     assert plan.index("couches_qgis_connaissance") < plan.index("cartography")
     # seules les briques « last » qui insèrent les cartes rendues passent après la cartographie
-    assert plan[plan.index("cartography") + 1:] == ["connaissance_atlas"]
+    assert plan[plan.index("cartography") + 1:] == ["connaissance_atlas", "cartes_word"]
+    assert plan.index("couches_cartes") < plan.index("cartography")
 
 
 def _doc_with(*paragraphs):

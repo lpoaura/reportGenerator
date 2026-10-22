@@ -29,6 +29,11 @@ DORTOIR = """(s.comportement ilike '%dortoir%' or s.behaviour ilike '%dorto%'
 MIGRATION = """(s.comportement ilike '%migration%' or s.behaviour ilike '%migr%'
                 or (s.comment_description ilike '%migr%'
                     and s.comment_description !~* '(aucune?|pas de|sans) +migr'))"""
+# hivernage : du 1er décembre au 31 janvier (hors passages migratoires précoces ou tardifs)
+HIVERNANT = "to_char(s.date_max, 'MMDD') not between '0201' and '1130'"
+# nicheur au sens large (possible, probable ou certain) : indice de vulnérabilité, passereaux
+NICHEUR = "s.oiso_status_nidif in ('Possible', 'Probable', 'Certain')"
+PASSEREAUX = "s.ordre = 'Passeriformes'"
 
 # groupe cartographique des nicheurs (champ "groupe" de la couche nidification)
 GROUPE_NIDIF_SQL = f"""case when {RAPACES_NOCTURNES} then 'rapace_nocturne'
@@ -53,3 +58,7 @@ TYPE_GITE_SQL = (
 
 def both(*fragments: str) -> str:
     return " and ".join(f"({f})" for f in fragments)
+
+
+def non(fragment: str) -> str:
+    return f"not ({fragment})"

@@ -50,7 +50,10 @@ class EolienQueries(VmQueries):
                    max(extract(year from s.date_max))::int as derniere_annee,
                    max(s.count_max) as effectif_max,
                    max(case s.oiso_status_nidif when 'Certain' then 3 when 'Probable' then 2
-                                                when 'Possible' then 1 else 0 end) as code_nidif
+                                                when 'Possible' then 1 else 0 end) as code_nidif,
+                   -- statuts biologiques observés : listes rouges migrateur / hivernant de l'indice de vulnérabilité
+                   bool_or({sel.MIGRATION}) as migrateur,
+                   bool_or({sel.HIVERNANT}) as hivernant
             from {VM} s
             where {sel.both(taxon, where)}
             group by s.cd_ref, s.anneau_ordre
@@ -101,23 +104,136 @@ class EolienQueries(VmQueries):
         rayons = [float(km) for km in tampons_km.values()]
         return self._fetch(sql, (noms, rayons, [str(s) for s in statuts]))
 
-    def sensibilite_mailles(self):
+    def nidification_mailles(self, especes: list[dict]):
+        """Couche des cartes de nidification par groupe : une ligne par espèce et par maille (regroupement des sites
+        proches), point au centre des données de la maille, ou au centre de la maille pour une espèce floutée.
+        especes : [{cd_ref, possible (nicheur possible accepté), maille_m, flouter}] ; sinon probable ou certain."""
+        if not especes:
+            return []
+        sql = f"""
+            with p as (select * from unnest({{P}}::int[], {{P}}::bool[], {{P}}::numeric[], {{P}}::bool[])
+                       as p(cd_ref, possible, maille, flouter)),
+                 d as (
+                    select s.cd_ref, p.maille, p.flouter, s.id_synthese, extract(year from s.date_max)::int as annee,
+                           s.oiso_status_nidif, coalesce(s.donnee_cachee, false) as cachee, s.precision_geo,
+                           s.the_geom_local as geom,
+                           floor(ST_X(s.the_geom_local) / p.maille) as cx,
+                           floor(ST_Y(s.the_geom_local) / p.maille) as cy
+                    from {VM} s
+                    join p on p.cd_ref = s.cd_ref
+                    where s.oiso_status_nidif in ('Probable', 'Certain')
+                       or (p.possible and s.oiso_status_nidif = 'Possible'))
+            select d.cd_ref, count(distinct d.id_synthese) as nb_data, count(distinct d.annee)::int as nb_annee,
+                   max(d.annee) as derniere_obs,
+                   case when bool_or(d.oiso_status_nidif = 'Certain') then 'Nicheur certain'
+                        when bool_or(d.oiso_status_nidif = 'Probable') then 'Nicheur probable'
+                        else 'Nicheur possible' end as statut_nidif,
+                   bool_or(d.cachee) as donnee_cachee, max(d.precision_geo) as precision_geo,
+                   ST_AsText(case when bool_or(d.flouter)
+                                  then ST_SetSRID(ST_MakePoint((d.cx + 0.5) * max(d.maille),
+                                                               (d.cy + 0.5) * max(d.maille)), 2154)
+                                  else ST_Centroid(ST_Collect(d.geom)) end) as geom
+            from d
+            group by d.cd_ref, d.cx, d.cy
+        """
+        params = ([int(e["cd_ref"]) for e in especes], [bool(e.get("possible")) for e in especes],
+                  [float(e["maille_m"]) for e in especes], [bool(e.get("flouter")) for e in especes])
+        return self._fetch(_with_params(sql), params)
+
+    def dortoirs_zones(self, cd_refs, rayon_m):
+        """Couche des cartes de dortoirs par groupe : zones de dortoir d'une espèce = tampons de rayon_m autour de ses
+        données de dortoir (rapaces, grands voiliers), fusionnés quand ils se touchent ; une ligne par zone."""
+        if not cd_refs:
+            return []
+        sql = f"""
+            with d as (
+                select s.cd_ref, s.id_synthese, extract(year from s.date_max)::int as annee,
+                       coalesce(s.donnee_cachee, false) as cachee, s.the_geom_local as p
+                from {VM} s
+                where {sel.both(sel.DORTOIR, sel.GROUPES_ENJEUX)} and s.cd_ref = any({{P}}::int[])),
+                 z as (
+                select u.cd_ref, row_number() over () as zid, u.geom
+                from (select d.cd_ref, (ST_Dump(ST_Union(ST_Buffer(d.p, {float(rayon_m)})))).geom as geom
+                      from d group by d.cd_ref) u),
+                 st as (
+                select z.zid, count(distinct d.id_synthese) as nb_data, count(distinct ST_AsBinary(d.p)) as nb_sites,
+                       max(d.annee) as derniere_obs, count(distinct d.annee)::int as nb_annee,
+                       bool_or(d.cachee) as donnee_cachee
+                from z
+                join d on d.cd_ref = z.cd_ref and ST_Intersects(d.p, z.geom)
+                group by z.zid)
+            select z.cd_ref, st.nb_data, st.nb_sites, st.derniere_obs, st.nb_annee, st.donnee_cachee,
+                   ST_AsText(z.geom) as geom
+            from z
+            join st on st.zid = z.zid
+        """
+        return self._fetch(_with_params(sql), ([int(c) for c in cd_refs],))
+
+    def migration_points(self, cd_refs):
+        """Couche des cartes de migration par espèce : une ligne par espèce et par lieu, effectif maximal."""
+        if not cd_refs:
+            return []
+        sql = f"""
+            select s.cd_ref, count(distinct s.id_synthese) as nb_data, max(s.count_max) as nb_ind_max,
+                   max(extract(year from s.date_max))::int as derniere_obs,
+                   bool_or(coalesce(s.donnee_cachee, false)) as donnee_cachee, max(s.precision_geo) as precision_geo,
+                   ST_AsText(s.the_geom_local) as geom
+            from {VM} s
+            where {sel.MIGRATION} and s.cd_ref = any({{P}}::int[])
+            group by s.cd_ref, s.the_geom_local
+        """
+        return self._fetch(_with_params(sql), ([int(c) for c in cd_refs],))
+
+    def distances_especes(self, cd_refs):
+        """Par espèce : distance (m) de la donnée la plus proche de la zone d'étude (0 = dedans), et du site de
+        nidification probable ou certain le plus proche, avec son statut et son année (phrases des espèces les
+        plus vulnérables)."""
+        if not cd_refs:
+            return []
+        nicheur = sel.NICHEUR_PROBABLE_CERTAIN
+        sql = f"""
+            with z as (select l.geom from ref_geo.l_areas l
+                       where l.id_area = {int(self.id_area)}
+                       and l.id_type = ref_geo.get_id_area_type('LPO_REPORT_STUDY'::character varying)),
+                 d as (select s.cd_ref, s.oiso_status_nidif, extract(year from s.date_max)::int as annee,
+                              {nicheur} as nicheur, ST_Distance(s.the_geom_local, z.geom) as dist
+                       from {VM} s, z
+                       where s.cd_ref = any({{P}}::int[]))
+            select d.cd_ref, min(d.dist) as dist_min_m,
+                   min(d.dist) filter (where d.nicheur) as dist_nidif_m,
+                   (array_agg(d.oiso_status_nidif order by d.dist, d.annee desc) filter (where d.nicheur))[1]
+                       as statut_nidif_proche,
+                   (array_agg(d.annee order by d.dist, d.annee desc) filter (where d.nicheur))[1] as annee_nidif_proche
+            from d
+            group by d.cd_ref
+        """
+        return self._fetch(_with_params(sql), ([int(c) for c in cd_refs],))
+
+    def sensibilite_mailles(self, vulnerabilites: dict | None = None):
         """Indice de sensibilité par maille (grille de la VM) :
         note max des espèces (0-4) +1 nicheur, +1 dortoir, +1 migration
-        (rapaces / grands voiliers). Le total est calculé en Python."""
+        (rapaces / grands voiliers). Le total est calculé en Python.
+        vulnerabilites ({cd_ref: indice}) : ajoute vuln_especes, l'indice de vulnérabilité max de la maille
+        (variante de la carte 17 bis)."""
+        notes = vulnerabilites or {}
+        cd_refs = [int(k) for k in notes] or [0]
+        valeurs = [float(v) for v in notes.values()] or [0.0]
         sql = f"""
+            with v as (select * from unnest({{P}}::int[], {{P}}::numeric[]) as v(cd_ref, note))
             select s.geom_maille, s.id_area,
                    coalesce(max(s.sensibilite_eolien), 0) as sensi_especes,
+                   coalesce(max(v.note), 0) as vuln_especes,
                    max(case when {sel.both(sel.NICHEUR_PROBABLE_CERTAIN, sel.GROUPES_ENJEUX)} then 1 else 0 end)
                        as bonus_nidif,
                    max(case when {sel.both(sel.DORTOIR, sel.GROUPES_ENJEUX)} then 1 else 0 end) as bonus_dortoir,
                    max(case when {sel.both(sel.MIGRATION, sel.GROUPES_ENJEUX)} then 1 else 0 end) as bonus_migration,
                    count(distinct s.id_synthese) as nb_data
             from {VM} s
+            left join v on v.cd_ref = s.cd_ref
             where {sel.OISEAUX} and s.geom_maille is not null
             group by s.geom_maille, s.id_area
         """
-        return self._fetch(sql)
+        return self._fetch(_with_params(sql), (cd_refs, valeurs))
 
     def hors_region(self, region: str):
         """Part (%) et géométrie de l'aire d'étude située hors de la région couverte par la base."""

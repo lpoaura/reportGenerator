@@ -23,14 +23,23 @@ required = [
     "projet_info",
     "perimetres_anneaux",
     "especes_enjeux_eolien",
+    "vulnerabilite_eolien",  # indice de vulnérabilité MEDDE 2015 (§4.2 + annexe)
     "nidification",
+    "passereaux",            # passereaux nicheurs au-dessus du seuil de vulnérabilité (tableau)
+    "autres_nicheurs",       # autres espèces nicheuses à enjeux (tableau)
+    "cartes_nidification",   # plan des cartes de nidification par groupe d'espèces (METHODO §5 bis)
     "dortoirs",
+    "cartes_dortoirs",       # plan des cartes de dortoirs par groupe, zones fusionnées
     "migration",
+    "cartes_migration",      # une carte de migration par espèce à vulnérabilité >= 4 (+ Milan royal)
+    "couverture_cartes",     # contrôle : espèces de vulnérabilité >= 3 absentes des cartes thématiques
     "couches_qgis_eolien",   # couches vm_eolienne_* attendues par le projet QGIS modèle
     "connaissance",          # état des connaissances par maille de 1 km (briques communes)
     "couches_qgis_connaissance",
+    "couches_cartes",        # couleurs par espèce, couche des cartes par groupe, liste des cartes pour le rendu
     "cartography",
     "connaissance_atlas",
+    "cartes_word",           # cartes par groupe insérées dans le Word (après le rendu)
 ]
 # chiropteres : section {{#chiropteres}} ... {{/chiropteres}} du template
 optional = ["chiropteres"]
@@ -58,6 +67,14 @@ enjeux_lr_statuts = ["CR", "EN", "VU"]
 enjeux_sensibilite_min = 2       # sensibilité > 2
 nicheur_enjeux_lr_statuts = ["CR", "EN", "VU", "NT"]   # "enjeux forts" du §5.1
 
+# --- indice de vulnérabilité (MEDDE 2015, METHODO §4 bis) ---
+# Tableau principal, phrase de synthèse et sélection des passereaux : indice > seuil.
+# Pour revenir à « >= 2,5 » (rapport de référence) : vulnerabilite_seuil_inclus = true
+vulnerabilite_seuil = 2.5
+vulnerabilite_seuil_inclus = false
+vulnerabilite_phrases_min = 4    # phrases préremplies (distance, nidification la plus proche) : indice >= 4
+vulnerabilite_carte_min = 3      # contrôle : ces espèces doivent figurer sur au moins une carte thématique
+
 # --- chiroptères ---
 chiro_referentiel = "ref_chiropteres.csv"   # NSE, NHab, rayon autour des gîtes, par espèce (cd_ref)
 # classes de vulnérabilité (note minimale -> libellé), reprises du document chiroptères
@@ -80,6 +97,19 @@ connaissance_niveau_titre = 2        # titres des groupes dans l'atlas (la parti
 map_layout = "page"             # carte dans le paragraphe du placeholder (1 page par carte dans le template)
 zonage_rayon_km = 30             # zonages affichés sur la carte de localisation
 tampons_statuts_nidif = ["Certain"]
+
+# --- cartes par groupe d'espèces (nidification ; METHODO §5 bis) ---
+# Groupes : [[params.groupes_cartes]] en fin de fichier. Couleurs : couleurs_especes.csv (une par cd_ref).
+cartes_max_especes = 6           # au-delà, le groupe est découpé (lisibilité de la carte et de la légende)
+couleurs_especes = "couleurs_especes.csv"
+nidif_regroupement_m = 100       # données d'une espèce regroupées par maille de 100 m (point au centre des données)
+nidif_annees_site = 3            # site (maille) occupé au moins 3 années : point grossi et cerclé de noir
+# Dortoirs : mêmes groupes ; zones = tampons de ce rayon autour des données d'une espèce, fusionnés s'ils se touchent
+# (750 m ≈ l'ancien rond de 8 mm de la carte 12 à l'échelle du rapport)
+dortoirs_rayon_m = 750
+# Migration : une carte par espèce migratrice d'indice de vulnérabilité >= ce seuil, plus les espèces de la liste
+migration_cartes_vulnerabilite_min = 4
+migration_cartes_especes = ["Milvus milvus"]
 
 # Tampons autour des sites de nidification (km), par nom scientifique.
 # Liste du template (§8.2). Le SQL R contenait en plus : Aquila chrysaetos,
@@ -105,6 +135,142 @@ dpi = 150
 [params.qgis_render.layout_buffers_m]
 Carte1_zone_localisation = 30000
 
+# Style construit au rendu (une catégorie par valeur, légende dans l'ordre du 2e champ, couleur lue dans le 3e) :
+# couche = [champ, ordre, couleur, accent (point grossi et cerclé de noir)]
+[params.qgis_render.categories_dynamiques]
+vm_eolienne_nidif_cartes = ["nom", "ordre_legende", "couleur", "site_pluriannuel"]
+vm_eolienne_dortoirs_cartes = ["nom", "ordre_legende", "couleur"]
+vm_eolienne_migration_especes = ["nom", "ordre_legende", "couleur"]
+
+# Points écartés en anneau quand ils se superposent (distance en mm sur la carte)
+[params.qgis_render.deplacement_mm]
+vm_eolienne_nidif_cartes = 1.0     # environ 190 m : seulement les points vraiment superposés (colonies, lieux-dits)
+
 # État des connaissances : groupe gardé seulement si l'analyse optionnelle est activée
 [params.connaissance_groupes_analyse]
 "Chauves-souris" = "chiropteres"
+
+# Floutage des sites de nidification (m), par nom scientifique : point au centre d'une maille de cette taille
+# (au lieu de nidif_regroupement_m). Cigogne noire : maille de 5 km (comme l'ancienne couche floutée).
+[params.nidif_floutage_m]
+"Ciconia nigra" = 5000
+
+# Groupes des cartes, dans l'ordre de priorité : une espèce va dans le premier groupe dont une règle la reconnaît
+# (ordres, familles, genres ou especes = noms scientifiques). Au-delà de cartes_max_especes, le groupe est découpé
+# selon ses sous-groupes [[...decoupage]] s'il en a, sinon en gardant les genres ensemble. Les espèces d'aucun groupe
+# vont sur la carte « Autres ». section : sous-partie du rapport où la carte est insérée.
+[[params.groupes_cartes]]
+cle = "nocturnes"
+titre = "rapaces nocturnes"
+section = "rapaces"
+ordres = ["Strigiformes"]
+  [[params.groupes_cartes.decoupage]]
+  cle = "hiboux"
+  titre = "hiboux"
+  genres = ["Bubo", "Asio", "Otus"]
+  [[params.groupes_cartes.decoupage]]
+  cle = "chouettes"
+  titre = "chouettes"
+  genres = ["Strix", "Athene", "Glaucidium", "Aegolius", "Tyto"]
+
+[[params.groupes_cartes]]
+cle = "buses_faucons"
+titre = "buses et faucons"
+section = "rapaces"
+genres = ["Buteo", "Falco"]
+
+[[params.groupes_cartes]]
+cle = "milans_busards"
+titre = "milans et busards"
+section = "rapaces"
+genres = ["Milvus", "Circus"]
+
+[[params.groupes_cartes]]
+cle = "vautours"
+titre = "vautours"
+section = "rapaces"
+genres = ["Gyps", "Aegypius", "Neophron", "Gypaetus"]
+
+[[params.groupes_cartes]]
+cle = "diurnes"
+titre = "autres rapaces diurnes"
+section = "rapaces"
+ordres = ["Accipitriformes", "Falconiformes"]
+  [[params.groupes_cartes.decoupage]]
+  cle = "aigles"
+  titre = "aigles, circaète et balbuzard"
+  genres = ["Aquila", "Hieraaetus", "Clanga", "Haliaeetus", "Circaetus", "Pandion"]
+  [[params.groupes_cartes.decoupage]]
+  cle = "eperviers"
+  titre = "autour, épervier, bondrée et élanion"
+  genres = ["Accipiter", "Astur", "Pernis", "Elanus"]
+
+[[params.groupes_cartes]]
+cle = "larides"
+titre = "mouettes, goélands et sternes"
+section = "grands_voiliers"
+familles = ["Laridae", "Sternidae"]
+
+[[params.groupes_cartes]]
+cle = "cigognes"
+titre = "cigognes et grues"
+section = "grands_voiliers"
+familles = ["Ciconiidae", "Gruidae"]
+
+[[params.groupes_cartes]]
+cle = "herons"
+titre = "hérons et aigrettes"
+section = "grands_voiliers"
+familles = ["Ardeidae"]
+
+[[params.groupes_cartes]]
+cle = "canards"
+titre = "canards, grèbes et cormorans"
+section = "autres"
+familles = ["Anatidae", "Podicipedidae", "Phalacrocoracidae"]
+
+[[params.groupes_cartes]]
+cle = "limicoles"
+titre = "limicoles"
+section = "autres"
+familles = ["Charadriidae", "Scolopacidae", "Recurvirostridae", "Burhinidae", "Haematopodidae"]
+
+[[params.groupes_cartes]]
+cle = "rallides"
+titre = "râles, marouettes et foulques"
+section = "autres"
+familles = ["Rallidae"]
+
+[[params.groupes_cartes]]
+cle = "passereaux"
+titre = "passereaux à enjeux"
+section = "passereaux"
+ordres = ["Passeriformes"]
+  [[params.groupes_cartes.decoupage]]
+  cle = "pies_grieches"
+  titre = "pies-grièches"
+  familles = ["Laniidae"]
+  [[params.groupes_cartes.decoupage]]
+  cle = "bruants"
+  titre = "bruants"
+  familles = ["Emberizidae"]
+  [[params.groupes_cartes.decoupage]]
+  cle = "alouettes_pipits"
+  titre = "alouettes, pipits et bergeronnettes"
+  familles = ["Alaudidae", "Motacillidae"]
+  [[params.groupes_cartes.decoupage]]
+  cle = "fauvettes"
+  titre = "fauvettes, pouillots et rousserolles"
+  familles = ["Sylviidae", "Phylloscopidae", "Acrocephalidae", "Locustellidae", "Cisticolidae"]
+  [[params.groupes_cartes.decoupage]]
+  cle = "traquets_gobemouches"
+  titre = "traquets, monticoles, gobemouches et grives"
+  familles = ["Muscicapidae", "Turdidae"]
+  [[params.groupes_cartes.decoupage]]
+  cle = "fringilles"
+  titre = "fringilles et moineaux"
+  familles = ["Fringillidae", "Passeridae"]
+  [[params.groupes_cartes.decoupage]]
+  cle = "corvides"
+  titre = "crave, chocard et autres corvidés"
+  familles = ["Corvidae"]

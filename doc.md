@@ -179,7 +179,21 @@ Les valeurs à insérer sont des **placeholders** : `{{NOM}}`.
   - `extent_bbox` / `layout_extents` : emprise commune / par mise en page donnée directement en rectangle
     `[xmin, ymin, xmax, ymax]` (Lambert 93), calculée par une brique (prioritaire sur les couches ; ex. Natura 2000 :
     contours 1 / 10 / 20 km) ;
-  - `project_variables` : variables de projet (ex. `@sources`, ajoutée par une brique).
+  - `project_variables` : variables de projet (ex. `@sources`, ajoutée par une brique) ;
+  - `categories_dynamiques` : `{couche GPKG = [champ, champ d'ordre(, champ couleur(, champ booléen d'accent))]}`,
+    style « une catégorie par valeur » construit au rendu à partir des données de la zone (ex. une couleur par espèce,
+    légende dans l'ordre du 2e champ). Couleur lue dans la donnée si le 3e champ est donné, sinon palette automatique
+    (au-delà de 12 valeurs, les couleurs reviennent avec une autre forme). Accent : point grossi et cerclé de noir
+    quand le 4e champ est vrai. Le symbole de la couche dans le projet sert de modèle ;
+  - `deplacement_mm` : `{couche GPKG = distance}`, points superposés écartés en cercle autour de leur position ;
+  - `pages` : `{mise en page = {champ, couches, pages: [{cle, titre}]}}`, fourni par une brique : la mise en page est
+    un **modèle** exporté une fois par page (`maps/<mise en page>__<cle>.png`), couches filtrées sur `"champ" = cle`,
+    styles construits sur les données de la page, élément « Titre » remplacé. Les couches marquées « légende seule »
+    (propriété `reportgenerator/legende_seule`) ou « style fixe » (`reportgenerator/style_fixe`, ex. carte de
+    synthèse lisant la même couche) ne sont ni filtrées ni restylées. Symbole creux (remplissage transparent) : la
+    couleur de la catégorie va au contour.
+- **Listes de paragraphes** : `insert_paragraph_list` (`analysis/common/paragraphs.py`) remplace un placeholder par un
+  paragraphe par élément (début en gras), ex. phrases préremplies par espèce (dossier éolien).
 - **Atlas** : une mise en page avec un atlas et une couche de couverture est exportée page par page (`maps/<mise en page>__<cle>.png`, champ `cle` de la couverture). Dans le Word, la fonction `insert_figure_list` (`analysis/common/figures.py`) insère toutes les pages d'un atlas à la place d'un placeholder, avec titre de groupe, légende numérotée et paragraphe à rédiger (cf. dossier Natura 2000).
 - **Poids du Word** : les cartes sont insérées en JPEG (copie dans `maps/_word/`), les PNG restent dans `maps/`.
 - **Pièces jointes** : le fichier `<projet>_attachments.zip`, placé à côté du `.qgs`, est copié avec lui.

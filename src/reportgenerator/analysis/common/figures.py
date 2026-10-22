@@ -63,11 +63,14 @@ def _caption(paragraph, text, numero=None):
     paragraph.add_run(f" : {text}")
 
 
-def insert_figure_list(document, placeholder, data, note="[Photo et texte de l'espèce à rédiger]", niveau=3):
+def insert_figure_list(document, placeholder, data, note="[Photo et texte de l'espèce à rédiger]", niveau=3,
+                       hauteur_max_mm=None):
     """data = [{"titre": str | None, "avertissement": str | None (optionnel),
                 "figures": [{"path": Path, "legende": str}, ...]}, ...].
     Les figures absentes (image non produite) sont ignorées ; un groupe sans figure n'a pas de titre.
-    niveau : niveau de titre des groupes (3 = Titre 3)."""
+    niveau : niveau de titre des groupes (3 = Titre 3) ; hauteur_max_mm : hauteur maximale d'une image (195 mm par
+    défaut, pour que la légende et le texte à rédiger tiennent sur la même page)."""
+    max_height = Mm(hauteur_max_mm) if hauteur_max_mm else MAX_HEIGHT
     paragraph = next((p for p in document.paragraphs if placeholder in p.text), None)
     if paragraph is None:
         return
@@ -98,7 +101,7 @@ def insert_figure_list(document, placeholder, data, note="[Photo et texte de l'e
             chemin = compact_image(fig["path"])  # JPEG pour le Word (le PNG reste dans maps/)
             image = DocxImage.from_file(str(chemin))
             ratio = image.px_height / image.px_width
-            img.add_run().add_picture(str(chemin), width=min(MAX_WIDTH, int(MAX_HEIGHT / ratio)))
+            img.add_run().add_picture(str(chemin), width=min(MAX_WIDTH, int(max_height / ratio)))
             img.paragraph_format.keep_with_next = True     # la carte reste avec sa légende
             cap = _new_paragraph_after(img._p, parent)
             numero += 1

@@ -3,10 +3,10 @@ Règles du dossier Natura 2000, écrites une seule fois (SQL sur la VM, alias «
 Cf. dossiers/natura2000/METHODO.md.
 """
 
-from reportgenerator.analysis.eolien.selections import MIGRATION
+from reportgenerator.analysis.eolien.selections import HIVERNANT, MIGRATION
 from reportgenerator.queries import sql_literals
 
-__all__ = ["MIGRATION"]
+__all__ = ["HIVERNANT", "MIGRATION"]
 
 ESPECE = "s.id_rang in ('ES', 'SSES')"
 PROCHE = "s.anneau_ordre <= 1"   # site et premier anneau (le kilomètre autour)
@@ -22,8 +22,6 @@ N2000_ESPECE = (f"(({OISEAU} and s.n2k ~ '{N2K_ANNEXE_I_RE}') "
 
 STATUT_NIDIF_RANG = ("case s.oiso_status_nidif when 'Certain' then 3 when 'Probable' then 2 "
                      "when 'Possible' then 1 else 0 end")
-# hivernage : du 1er décembre au 31 janvier
-HIVERNANT = "to_char(s.date_max, 'MMDD') not between '0201' and '1130'"
 # catégorie d'une donnée sur les cartes de l'atlas (légende)
 TYPE_DONNEE = ("case s.oiso_status_nidif when 'Certain' then 'Nicheur certain' when 'Probable' then 'Nicheur probable' "
                "when 'Possible' then 'Nicheur possible' else 'Autres données' end")
