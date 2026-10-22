@@ -13,6 +13,7 @@ Plusieurs **types de rapport** coexistent. Chacun a son modèle Word, son projet
 | `generique` | par défaut ; `atlas_nicheur` ajoute l'atlas | état des connaissances, tous taxons ([fiche](src/reportgenerator/dossiers/generique/METHODO.md)) |
 | `eolien` | `analyse_eolien` | synthèse oiseaux + chiroptères pour un projet éolien ([fiche](src/reportgenerator/dossiers/eolien/METHODO.md)) |
 | `natura2000` | `n2000` | synthèse faune d'un site Natura 2000 : espèces N2000, chiroptères, atlas par espèce ([fiche](src/reportgenerator/dossiers/natura2000/METHODO.md)) |
+| `plsoc` | `plsoc` | rapport annuel du suivi de l'Œdicnème criard (PLSOC) sur l'emprise dessinée, données du schéma `pr_oedic_news` (pas de VM de synthèse) ([fiche](src/reportgenerator/dossiers/plsoc/METHODO.md)) |
 
 ---
 

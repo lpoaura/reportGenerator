@@ -1,0 +1,40 @@
+# Rapport annuel du suivi de l'Œdicnème criard (plan local de sauvegarde, PLSOC).
+# Process, contenu du rapport et règles : METHODO.md (à mettre à jour si une règle change).
+# Données : schéma pr_oedic_news (historique 2015-2025 + saisies Mergin + validations experte), lecture seule.
+
+label = "PLSOC Œdicnème - rapport annuel de suivi"
+template = "template.docx"
+
+# Valeur du champ list_analyse (formulaire QGIS) qui déclenche ce rapport. L'emprise du rapport est la zone dessinée
+# dans la demande : toutes les données du suivi qui l'intersectent sont prises en compte.
+[declencheurs]
+plsoc = []
+
+[analyses]
+required = [
+    "plsoc_socle",           # lecture des données de l'emprise + déductions (milieu, culture, lieu-dit)
+    "plsoc_resultats",       # bilan, communes, série depuis le début du suivi, carte, graphiques
+    "plsoc_milieux",
+    "plsoc_secteurs",        # un bloc par secteur (polygones de pr_oedic_news.ref_secteur)
+    "plsoc_protection",
+    "plsoc_succes",          # phénologie, succès, Mayfield, causes
+    "plsoc_rassemblements",
+    "plsoc_baguage",
+    "plsoc_urbanisme",
+    "plsoc_mesures",         # synthèse + une fiche par projet de compensation
+    "plsoc_bilan",           # bilan pré-rédigé, anomalies de saisie (annexe)
+]
+optional = []
+
+[params]
+schema = "pr_oedic_news"
+titre = "Plan local de sauvegarde de l'Œdicnème criard"
+# saison du rapport : 0 = dernière saison terminée (paramètre fin_saison du schéma : 1er octobre)
+annee = 0
+# emprise : "demande" = zone dessinée (id_area de la demande) ; "zone_etude:<id>" = pr_oedic_news.ref_zone_etude
+# (essais : "zone_etude:1" = périmètre du plan de l'Est lyonnais)
+emprise = "demande"
+annee_debut_serie = 2015       # début des séries (borné par la première année présente dans l'emprise)
+mayfield_duree_jours = 64      # période de nidification ponte → envol (Cramp & Simmons 1983)
+distance_lieu_dit_m = 1000     # lieu-dit déduit : lieu-dit Faune-France le plus proche, à moins de cette distance
+map_layout = "normal"
