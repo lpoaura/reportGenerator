@@ -93,10 +93,39 @@ class N2000Queries(ConnaissanceQueries):
                    ({sel.n2000_sql(complexes, exclus)}) as n2000,
                    {sel.TYPE_DONNEE} as type_donnee,
                    s.date_max as date, extract(year from s.date_max)::int as annee, s.count_max,
-                   s.source, s.precision_geo, coalesce(s.donnee_cachee, false) as donnee_cachee,
+                   s.comportement, s.behaviour, s.source, s.precision_geo,
+                   coalesce(s.donnee_cachee, false) as donnee_cachee,
                    (s.anneau_ordre = 0) as dans_site, s.anneau_ordre, ST_AsText(s.the_geom_local) as geom
             from {VM} s
             where {sel.retenu_sql(complexes)}
+        """
+        return self._fetch(sql)
+
+    def sites_recurrents(self, complexes=(), exclus=(), rayon_m=50, min_annees=3):
+        """Couche n2000_recurrence : par espèce Natura 2000, groupes de données de nidification (possible à certaine)
+        distantes de moins de rayon_m de proche en proche (ST_ClusterDBSCAN), observées au moins min_annees années
+        différentes. Beaucoup de données sont placées au lieu-dit : un site peut être un lieu-dit souvent cité."""
+        sql = f"""
+            with d as (
+                select s.cd_ref, {NOM_VERN} as nom_vern, extract(year from s.date_max)::int as annee,
+                       {sel.STATUT_NIDIF_RANG} as rang, s.the_geom_local as geom
+                from {VM} s
+                where {sel.retenu_sql(complexes)} and ({sel.n2000_sql(complexes, exclus)}) and {sel.NICHEUR}
+            ), g as (
+                select d.*, ST_ClusterDBSCAN(d.geom, eps := {float(rayon_m)}, minpoints := 1)
+                            over (partition by d.cd_ref) as grappe
+                from d
+            )
+            select cd_ref, max(nom_vern) as nom_vern, grappe,
+                   count(*) as nb_donnees, count(distinct annee) as nb_annees,
+                   min(annee) as premiere_annee, max(annee) as derniere_annee,
+                   case max(rang) when 3 then 'Nicheur certain' when 2 then 'Nicheur probable'
+                                  else 'Nicheur possible' end as niveau_max,
+                   round(ST_MaxDistance(ST_Collect(geom), ST_Collect(geom)))::int as etendue_m,
+                   ST_AsText(ST_Centroid(ST_Collect(geom))) as geom
+            from g
+            group by cd_ref, grappe
+            having count(distinct annee) >= {int(min_annees)}
         """
         return self._fetch(sql)
 

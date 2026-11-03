@@ -53,6 +53,12 @@ n2000_taxons_exclus = ["Salmo trutta"]
 
 # --- cartes ---
 atlas_oiseaux_non_nicheurs = false   # atlas : oiseaux N2000 nicheurs seulement (les autres sont dans le tableau)
+# atlas des espèces : forme du symbole selon l'ancienneté (âge = année du rapport - année de la donnée) :
+# rond <= 1 an (2 dernières saisons), carré <= 5 ans, triangle <= 10 ans, losange au-delà
+atlas_anciennete_ans = [1, 5, 10]
+recurrence_rayon_m = 50              # site de nidification récurrent : indices à moins de 50 m les uns des autres...
+recurrence_min_annees = 3            # ... observés au moins 3 années différentes (cercle blanc sur l'atlas)
+atlas_fiche = ["graphique", "tableau"]   # 2e page de chaque espèce : texte + graphique et / ou tableau par année
 zonage_rayon_km = 50                 # zonages de la carte de localisation
 map_layout = "page_legende"          # une carte par page dans le Word, avec sa légende
 # Emprises (cf. METHODO § 5) : cartes d'espèces = contour du rayon du taxon + marge (même cadrage pour toutes les

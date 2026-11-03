@@ -340,6 +340,18 @@ while cur is not None and cur.tag != W("w:sectPr"):
     remove(cur)
     cur = nxt
 
+# ================================================================= mise en forme générale
+# interligne 1,15 (le rapport de référence est à 1,5 pour « Normal » et 1,2 pour « Corps de texte »), et chaque
+# titre de niveau 1 (X.) et 2 (X.X) sur une nouvelle page (02/11/2026)
+import mise_en_forme  # noqa: E402
+
+mise_en_forme.appliquer(doc, interligne=1.15, niveaux=(1, 2))
+
+# lecture des cartes de l'atlas des espèces et de la page qui suit chaque carte (03/11/2026)
+import lecture_atlas_n2000  # noqa: E402
+
+lecture_atlas_n2000.inserer(doc)
+
 # sommaire et numéros de figures : mis à jour par Word à l'ouverture (les anciens titres et signets n'existent plus)
 settings = doc.settings.element
 if settings.find(W("w:updateFields")) is None:

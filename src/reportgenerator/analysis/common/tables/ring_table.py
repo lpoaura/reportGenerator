@@ -164,6 +164,15 @@ def insert_lpo_table(document, placeholder, data, columns, status_fields=(), ita
     paragraph = _find_paragraph(document, placeholder)
     if paragraph is None:
         return
+    table = build_lpo_table(document, data, columns, status_fields, italic_fields, font_size, widths, cell_formats,
+                            fixed_widths)
+    _place(paragraph, placeholder, table)
+
+
+def build_lpo_table(document, data, columns, status_fields=(), italic_fields=(), font_size=9, widths=None,
+                    cell_formats=None, fixed_widths=False):
+    """Tableau LPO (en-tête bleu) construit en fin de document, à déplacer par l'appelant (table._element).
+    fixed_widths : largeurs `widths` imposées (sinon Word les ajuste au contenu)."""
     table = document.add_table(rows=1, cols=len(columns))
     _fit_page_width(table, len(columns), widths)
     for idx, (_, label) in enumerate(columns):
@@ -172,17 +181,20 @@ def insert_lpo_table(document, placeholder, data, columns, status_fields=(), ita
     _fill_rows(table, data, [k for k, _ in columns], status_fields, italic_fields, font_size, cell_formats)
     if fixed_widths and widths:
         _fixed_widths(table, widths)
-    _place(paragraph, placeholder, table)
+    return table
 
 
-def insert_grouped_tables(document, placeholder, data, status_fields=(), italic_fields=(), font_size=9):
+def insert_grouped_tables(document, placeholder, data, status_fields=(), italic_fields=(), font_size=9,
+                          saut_de_page=False):
     """Suite de tableaux précédés d'un titre (ex. une annexe par groupe), à la place du placeholder.
-    data = [{"titre": ..., "rows": [...], "columns": [(clé, libellé), ...]}, ...]."""
+    data = [{"titre": ..., "rows": [...], "columns": [(clé, libellé), ...]}, ...].
+    saut_de_page : chaque titre à partir du 2e commence une nouvelle page (le 1er suit le placeholder, placé par le
+    template en haut de page : un saut de page de plus laisserait une page vide)."""
     paragraph = _find_paragraph(document, placeholder)
     if paragraph is None:
         return
     anchor = paragraph._element
-    for bloc in data:
+    for i, bloc in enumerate(data):
         title = copy.deepcopy(paragraph._element)
         for child in list(title):
             if child.tag != qn("w:pPr"):
@@ -191,6 +203,7 @@ def insert_grouped_tables(document, placeholder, data, status_fields=(), italic_
         title_p = Paragraph(title, paragraph._parent)
         title_p.add_run(bloc["titre"]).bold = True
         title_p.paragraph_format.keep_with_next = True   # le titre ne reste pas seul en bas de page
+        title_p.paragraph_format.page_break_before = saut_de_page and i > 0
         columns = bloc["columns"]
         table = document.add_table(rows=1, cols=len(columns))
         _fit_page_width(table, len(columns))

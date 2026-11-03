@@ -132,6 +132,9 @@ def move(item, xy, wh=None):
 def clone_layout(model, name, title, legend_layers, note=None, columns=1, legend_y=None, note_y=None,
                  font_size=None):
     manager = P.layoutManager()
+    assert manager.layoutByName(model) is not None, (
+        f"mise en page modèle « {model} » absente du projet éolien : le projet a évolué depuis la construction du "
+        "projet Natura 2000 (cf. outils/README.md) ; partir de sa version du commit 543ed81 ou adapter les modèles")
     lay = manager.layoutByName(model).clone()
     lay.setName(name)
     manager.addLayout(lay)
@@ -269,12 +272,6 @@ group("Carte02_pression_observation", [heat, pts])
 clone_layout("Carte9_nidif_diurnes", "Carte02_pression_observation", "Pression d'observation",
              [(pts, "Données")], note="En orange : zones de forte concentration de données.")
 
-# cartes de l'état des connaissances : module commun aux projets (profil éolien, texte Sources = @sources)
-sys.path.insert(0, str(Path(__file__).parent))
-import connaissance_qgis  # noqa: E402
-
-connaissance_qgis.ajouter(P, DATA, "eolien", sources_variable=True)
-
 # atlas : espèces Natura 2000 (points, statut de nidification)
 filtre = "\"cd_ref\" = attribute(@atlas_feature, 'cd_ref')"
 esp = layer("n2000_donnees", "Données de l'espèce",
@@ -333,6 +330,14 @@ lay = clone_layout("Carte9_nidif_diurnes", "Atlas_chiro_gites", "Gîtes et colon
                    [(g_atlas, "Effectif maximal")], columns=2, legend_y=258, note_y=287,
                    note="Bleu : colonies de reproduction. Orange : gîtes sans reproduction.")
 set_atlas(lay, cov_chiro)
+
+# cartes de l'état des connaissances : module commun aux projets (profil éolien, texte Sources = @sources).
+# EN DERNIER : il fixe l'ordre de rendu à partir de toutes les couches du projet ; une couche créée après irait
+# sous le fond de carte (cartes vides, constaté le 02/11/2026 sur les atlas et les cartes chiroptères).
+sys.path.insert(0, str(Path(__file__).parent))
+import connaissance_qgis  # noqa: E402
+
+connaissance_qgis.ajouter(P, DATA, "eolien", sources_variable=True)
 
 # suppression des mises en page éoliennes (modèles compris)
 manager = P.layoutManager()

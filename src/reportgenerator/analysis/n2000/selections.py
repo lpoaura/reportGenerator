@@ -25,6 +25,8 @@ STATUT_NIDIF_RANG = ("case s.oiso_status_nidif when 'Certain' then 3 when 'Proba
 # catégorie d'une donnée sur les cartes de l'atlas (légende)
 TYPE_DONNEE = ("case s.oiso_status_nidif when 'Certain' then 'Nicheur certain' when 'Probable' then 'Nicheur probable' "
                "when 'Possible' then 'Nicheur possible' else 'Autres données' end")
+# indice de nidification (oiseaux) : nicheur possible, probable ou certain
+NICHEUR = "s.oiso_status_nidif in ('Possible', 'Probable', 'Certain')"
 CHIRO_COLONIE = "coalesce(s.bat_breed_colo, false)"
 CHIRO_GITE = "(coalesce(s.bat_is_gite, false) or coalesce(s.bat_breed_colo, false))"
 

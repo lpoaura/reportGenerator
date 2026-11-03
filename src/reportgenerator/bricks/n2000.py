@@ -6,6 +6,7 @@ rapaces, chiroptères, grands prédateurs : [params.rayons_km]). Les tableaux ne
 une colonne indique si le taxon est connu dans le site ou seulement à proximité.
 """
 
+from collections import Counter, defaultdict
 from datetime import datetime
 
 from reportgenerator.analysis.cartography.export import export_gpkg
@@ -18,6 +19,7 @@ from reportgenerator.analysis.eolien import couches_qgis
 from reportgenerator.analysis.knowledge_status.dataviz import (create_data_by_group_chart,
                                                                create_species_by_group_chart)
 from reportgenerator.analysis.n2000 import tables as t
+from reportgenerator.analysis.n2000.dataviz import graphique_fiche
 from reportgenerator.analysis.n2000.queries import N2000Queries
 from reportgenerator.core.registry import register_brick
 
@@ -200,8 +202,10 @@ def n2000_annexes(ctx):
         files[f"annexe_{num}"] = path
     return AnalysisResult(
         files=files,
+        # une annexe par page (lisibilité)
         tables={"TABLES_ANNEXES": TableBlock(blocs, insert_grouped_tables,
-                                             {"status_fields": STATUS_FIELDS, "italic_fields": ITALIC_FIELDS})},
+                                             {"status_fields": STATUS_FIELDS, "italic_fields": ITALIC_FIELDS,
+                                              "saut_de_page": True})},
     )
 
 
@@ -265,10 +269,20 @@ def couches_qgis_n2000(ctx):
     complexes, exclus = _cd_complexes(ctx), tuple(ctx.params.get("n2000_taxons_exclus", ()))
     oiseaux_nn = bool(ctx.params.get("atlas_oiseaux_non_nicheurs", False))
 
+    p = ctx.params
     points = q.points(complexes, exclus)
+    # ancienneté de chaque donnée (forme du symbole sur l'atlas des espèces) et ordre de dessin (récentes au-dessus)
+    annee_ref = datetime.now().year
+    seuils = tuple(p.get("atlas_anciennete_ans", (1, 5, 10)))
+    for pt in points:
+        pt["anciennete"] = t.classe_anciennete(pt["annee"], annee_ref, seuils)
+        pt["ordre_dessin"] = t.ordre_dessin(pt["anciennete"], pt["type_donnee"])
     gites = q.chiro_gites(complexes, exclus)
-    sources = t.texte_sources(q.sources(), ctx.params.get("sources_libelles"))
+    sources = t.texte_sources(q.sources(), p.get("sources_libelles"))
     emp = _Emprises(ctx, q.enveloppe_zone())
+    # sites de nidification récurrents (cercles blancs de l'atlas des espèces)
+    rayon_rec, min_rec = float(p.get("recurrence_rayon_m", 50)), int(p.get("recurrence_min_annees", 3))
+    recurrents = q.sites_recurrents(complexes, exclus, rayon_rec, min_rec)
 
     # atlas des espèces : emprise = contour du rayon du taxon (1, 10 ou 20 km) + marge
     especes = [{"cd_ref": r["cd_ref"], "cle": t.cle(r["nom"]), "nom": r["nom"], "lb_nom": r["lb_nom"],
@@ -276,6 +290,26 @@ def couches_qgis_n2000(ctx):
                 "rayon_km": emp.rayon(r["lb_nom"], r["ordre"])}
                for r in t.taxons_atlas(_taxons(ctx), oiseaux_nn)]
     atlas_especes = _couverture(especes, lambda r: emp.taxon(r["rayon_km"]))
+
+    # fiche annuelle de chaque espèce (2e page de sa carte dans le Word)
+    annees = range(annee_ref - int(p.get("annees", 10)), annee_ref + 1)
+    par_espece = defaultdict(list)
+    for pt in points:
+        par_espece[pt["cd_ref"]].append(pt)
+    nb_recurrents = Counter(r["cd_ref"] for r in recurrents)
+    fiches = {r["cle"]: t.fiche_espece(r["nom"], par_espece.get(r["cd_ref"], []), annees,
+                                       nb_recurrents.get(r["cd_ref"], 0), r["groupe"] == "Oiseaux")
+              for r in atlas_especes}
+    # contenu de la fiche (atlas_fiche) : graphique des données par année et / ou tableau
+    contenu = set(p.get("atlas_fiche", ("graphique", "tableau")))
+    dataviz = ctx.output_dirs.get("dataviz", ctx.output_dirs["tables"])
+    dataviz.mkdir(parents=True, exist_ok=True)
+    for cle_espece, fiche in fiches.items():
+        if "graphique" in contenu and fiche["series"]:
+            fiche["graphique"] = dataviz / f"fiche_{cle_espece}.png"
+            graphique_fiche(fiche, fiche["graphique"])
+        if "tableau" not in contenu:
+            fiche["lignes"] = []
 
     # atlas des gîtes de chiroptères : taxons N2000 ayant au moins un gîte ou une colonie ; même emprise
     chiro = sorted({(g["cd_ref"], g["nom_vern"], g["lb_nom"]) for g in gites if g["n2000"]}, key=lambda c: c[1])
@@ -290,6 +324,7 @@ def couches_qgis_n2000(ctx):
         "n2000_chiro_gites": gites,
         "n2000_atlas_especes": atlas_especes,
         "n2000_atlas_chiro": atlas_chiro,
+        "n2000_recurrence": recurrents,
     }
     for name, rows in couches.items():
         _export(ctx, rows, name)
@@ -305,7 +340,7 @@ def couches_qgis_n2000(ctx):
                                 **{c: rayon_chiro for c in CARTES_CHIRO}}
     ctx.params["qgis_render"] = render
     return AnalysisResult(
-        data={"atlas_especes": atlas_especes, "atlas_chiro": atlas_chiro,
+        data={"atlas_especes": atlas_especes, "atlas_chiro": atlas_chiro, "fiches": fiches,
               **{f"nb_{k}": len(v) for k, v in couches.items()}},
         texts={"SOURCES_DONNEES": sources},
     )
@@ -319,7 +354,7 @@ def _figures(ctx, layout, rows, legende):
 @register_brick(
     "n2000_atlas",
     requires=["couches_qgis_n2000", "cartography"],
-    provides=["ATLAS_ESPECES_N2000", "ATLAS_CHIRO_GITES"],
+    provides=["ATLAS_ESPECES_N2000", "ATLAS_CHIRO_GITES", "TEXTE_LECTURE_ATLAS"],
     last=True,
 )
 def n2000_atlas(ctx):
@@ -330,11 +365,19 @@ def n2000_atlas(ctx):
     for titre in dict.fromkeys(r["titre_groupe"] for r in data["atlas_especes"]):
         rows = [r for r in data["atlas_especes"] if r["titre_groupe"] == titre]
         figures = _figures(ctx, ATLAS_ESPECES, rows, lambda r: f"Répartition – {r['nom']}")
+        # 2e page de chaque espèce : synthèse annuelle (texte, graphique, tableau), puis texte de l'expert
+        for fig, r in zip(figures, rows):
+            fig["fiche"] = data.get("fiches", {}).get(r["cle"])
         blocs.append({"titre": titre, "figures": figures})
     chiro = [{"titre": None, "figures": _figures(ctx, ATLAS_CHIRO, data["atlas_chiro"],
                                                  lambda r: f"Gîtes et colonies connus – {r['nom']}")}]
-    return AnalysisResult(tables={
-        "ATLAS_ESPECES_N2000": TableBlock(blocs, insert_figure_list),
+    p = ctx.params
+    lecture = t.texte_lecture_atlas(tuple(p.get("atlas_anciennete_ans", (1, 5, 10))),
+                                    float(p.get("recurrence_rayon_m", 50)), int(p.get("recurrence_min_annees", 3)),
+                                    tuple(p.get("atlas_fiche", ("graphique", "tableau"))))
+    return AnalysisResult(texts={"TEXTE_LECTURE_ATLAS": lecture}, tables={
+        "ATLAS_ESPECES_N2000": TableBlock(blocs, insert_figure_list, {
+            "note": "[Photo et commentaire de la situation de l'espèce sur le site à rédiger]"}),
         "ATLAS_CHIRO_GITES": TableBlock(chiro, insert_figure_list,
                                         {"note": "[Description des gîtes à rédiger]"}),
     })

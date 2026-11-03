@@ -25,7 +25,10 @@ Comme `run_single.py` (toutes les briques, cartes QGIS, Word), mais la VM est un
 demande n'est pas modifiée. `id_area` : une zone de demande (type `LPO_REPORT_STUDY`). La VM est gardée en cache
 (dossier temporaire du système, ou `DRYRUN_CACHE`) : les essais suivants la rechargent en quelques secondes. Supprimer
 le cache si le SQL de la VM change. Pour tester un projet QGIS ou un template modifié sans les installer :
-`DRYRUN_QGIS=<projet.qgs>` et `DRYRUN_TEMPLATE=<template.docx>`. Pour remplacer des paramètres du `dossier.toml` :
+`DRYRUN_QGIS=<projet.qgs>` et `DRYRUN_TEMPLATE=<template.docx>`. Pour travailler sur le Word sans relancer QGIS
+(10 minutes pour un dossier Natura 2000) : `DRYRUN_MAPS=<dossier maps d'un rendu précédent>` reprend ces cartes.
+**Un seul rendu QGIS à la fois** sur la machine : deux rendus simultanés (dry-run et génération) se gênent sur la base
+des projections de QGIS (`proj.db` : « disk I/O error », projet illisible). Pour remplacer des paramètres du `dossier.toml` :
 `DRYRUN_PARAMS` en JSON. Exemple PLSOC sur la zone d'étude du plan, sans demande (`id_area` inutilisé) :
 `$env:DRYRUN_PARAMS='{"annee": 2024, "emprise": "zone_etude:1"}'` puis `... dryrun_dossier.py plsoc 0 0 PLSOC_2024 C:\temp\plsoc`.
 
@@ -48,8 +51,18 @@ poetry run python outils/qgis/integrer_projet.py C:\temp\projet_eolien\projet_eo
 ```
 
 Projet Natura 2000 : reconstruit en entier depuis le projet éolien (même charte) par `build_projet_n2000.py`
-(`<projet_eolien.qgs> <dossier de travail contenant data/ d'un dry-run n2000>`), qui appelle `connaissance_qgis.py`,
-puis installé avec `integrer_projet.py`.
+(`<projet_eolien.qgs> <dossier de travail contenant data/ d'un dry-run n2000>`), qui appelle `connaissance_qgis.py`
+en dernier, puis installé avec `integrer_projet.py`. Il clone des mises en page éoliennes qui ont depuis été
+remplacées (`Carte9_nidif_diurnes`…) : partir du projet éolien du commit `543ed81`
+(`git show 543ed81:src/reportgenerator/dossiers/eolien/qgis/projet_eolien.qgs`, avec ses pièces jointes), ou
+adapter les modèles. Pour une petite correction, modifier plutôt le projet N2000 existant.
+
+**Ordre de rendu** : pour que les contours restent visibles sur les mailles, les projets ont un ordre de rendu
+personnalisé (couches de connaissance sous les contours). Toute couche ajoutée **après** cet ordre va en bas, sous le
+fond OpenStreetMap : sa carte sort vide (défaut constaté le 02/11/2026 sur les atlas et les cartes chiroptères du
+projet N2000). `ordre_rendu.py <projet.qgs> <sortie.qgs>` remet l'ordre de l'arbre des couches (couches de
+connaissance sous les contours) et vérifie qu'aucune couche n'est sous le fond : à lancer après tout ajout de couche
+par script.
 
 `ajout_cartes_vulnerabilite.py <projet.qgs> <data_dir> <sortie.qgs>` (Python de QGIS) ajoute au projet éolien les
 cartes `Carte11.2_nidif_passereaux` (couleurs par espèce construites au rendu) et `Carte17bis_vulnerabilite`
@@ -62,6 +75,14 @@ dry-run ; une image par groupe d'espèces au rendu, cf. METHODO éolien §5 bis)
 `ajout_cartes_dortoirs_migration.py <projet.qgs> <data_dir> <sortie.qgs>` (Python de QGIS) : mises en page modèles
 `Cartes_dortoirs` (zones de dortoir par groupe, à la place des cartes 12.1 à 12.4 ; carte 12 de synthèse reprise sur
 les zones, « style fixe ») et `Cartes_migration` (une image par espèce, à la place de la carte 16).
+
+`atlas_n2000_temporalite.py <projet_n2000.qgs> <data_dir> <sortie.qgs>` (Python de QGIS) : symbologie de l'atlas des
+espèces Natura 2000 (couleur = type de donnée, forme = ancienneté, statut au-dessus puis tri sur `ordre_dessin` :
+récentes au-dessus, anneau sur les indices récents recouverts, cercle blanc = site de nidification récurrent,
+légende « Ancienneté » ; couches `n2000_donnees`
+avec les colonnes `anciennete` et `ordre_dessin` et `n2000_recurrence` d'un dry-run). Il copie `data_dir` à côté du projet produit : sinon QGIS ouvre les couches
+invalides et réécrit leur ancienne définition à l'enregistrement (modifications perdues). Installation avec
+`integrer_projet.py`.
 
 `inspect_layout.py <projet> <mise en page>` liste les éléments d'une mise en page (positions, légendes, textes).
 
@@ -104,6 +125,12 @@ Le texte de la section « État des connaissances par maille » est écrit **une
   (`dossiers/plsoc/template.docx`). Il reprend la page de garde et la charte du template Natura 2000, puis écrit la
   trame des rapports 2018-2024 : textes fixes, placeholders, passages à rédiger. Il se relance après toute
   modification de la trame.
+- `mise_en_forme.py <template.docx> <sortie> [interligne] [niveaux]` : interligne du texte (1,15 par défaut, styles
+  « Normal » et « Corps de texte ») et saut de page avant les titres de niveau 1 et 2 (paragraphes du template, pas les
+  styles : le sommaire hérite de « Heading 1 »). Appliqué au template Natura 2000 (aussi par `convert_template_n2000.py`).
+- `lecture_atlas_n2000.py <template.docx> <sortie>` : paragraphe `{{TEXTE_LECTURE_ATLAS}}` (lecture des cartes de
+  l'atlas et de la page qui suit chaque carte, texte produit par `tables.texte_lecture_atlas` à partir des paramètres)
+  après la présentation de l'atlas des espèces du template Natura 2000. Idempotent.
 - `plan_docx.py <docx>` : titres et placeholders d'un document (structure).
 
 ## 4. Vérifications (`verif/`)

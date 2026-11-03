@@ -177,6 +177,9 @@ def test_n2000_bricks_render(tmp_path, monkeypatch):
     text = "\n".join(p.text for p in rendered.paragraphs)
     # annexes : un titre par groupe présent, dans l'ordre (oiseaux, mammifères, chiroptères, invertébrés)
     titres = [p.text for p in rendered.paragraphs if p.text.startswith("Annexe ")]
+    # une annexe par page : saut de page avant chaque titre, sauf le 1er (déjà en haut de page dans le template)
+    sauts = [p.paragraph_format.page_break_before for p in rendered.paragraphs if p.text.startswith("Annexe ")]
+    assert not sauts[0] and all(sauts[1:])
     assert titres == ["Annexe 1 : liste des oiseaux recensés sur le site et à proximité",
                       "Annexe 2 : liste des mammifères recensés sur le site et à proximité",
                       "Annexe 3 : liste des chiroptères recensés sur le site et à proximité",

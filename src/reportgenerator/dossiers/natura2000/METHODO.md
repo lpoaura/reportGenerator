@@ -231,8 +231,37 @@ Par groupe :
 - 🤖 un chiffre (ex. « 14 espèces d'oiseaux nicheuses inscrites à l'annexe I ») ;
 - 🤖 **une carte par espèce N2000** (atlas en points : nicheur certain / probable / possible / autres données), avec sa
   légende « Répartition de … ». Oiseaux : **nicheurs seulement** pour l'instant (`atlas_oiseaux_non_nicheurs = false`),
-  les autres sont cités dans le tableau récapitulatif ;
-- ✍️ après chaque carte : photo et texte de l'espèce.
+  les autres sont cités dans le tableau récapitulatif. Lecture de la carte (décisions du 02/11/2026) :
+  - **couleur = type de donnée**, taille croissante avec le niveau (le nicheur certain, plus grand, dépasse d'un
+    symbole plus petit posé dessus) ;
+  - **ordre de dessin** (champ `ordre_dessin`, `tables.ordre_dessin`) : le **statut prime** (autres < possible <
+    probable < certain : un triangle « certain » reste au-dessus d'un rond « possible »), puis, à statut égal, les
+    données les plus récentes au-dessus, puis la date. Pour qu'un indice récent recouvert reste visible, les nicheurs
+    possibles et probables des 2 dernières saisons (ronds) ont un **anneau de leur couleur** dessiné au-dessus de tous
+    les symboles (décision du 03/11 ; sur Combe de Savoie, environ 12 000 paires de points proches mêlent un statut
+    supérieur ancien et un statut inférieur plus récent). Un anneau pour toutes les anciennetés empâtait les amas de
+    points des lieux-dits ;
+  - **forme = ancienneté** (âge = année du rapport − année de la donnée, `atlas_anciennete_ans = [1, 5, 10]`) :
+    rond ≤ 1 an (2 dernières saisons), carré 2 à 5 ans, triangle 6 à 10 ans, losange au-delà (vide tant que le dossier
+    ne garde que 10 ans). Les données anciennes ne sont **pas atténuées** (pour ne pas minimiser l'information) ;
+  - **cercle blanc = site de nidification récurrent** : indices de nidification (possible à certaine) de l'espèce à
+    moins de `recurrence_rayon_m` (50 m) les uns des autres de proche en proche (`ST_ClusterDBSCAN`), observés au moins
+    `recurrence_min_annees` (3) années différentes (couche `n2000_recurrence`). Plus de la moitié des données sont
+    placées au lieu-dit : un cercle peut signaler un lieu-dit souvent cité autant qu'un nid réoccupé. Sur DombeN2000 :
+    175 sites, 15 espèces, étendue médiane 11 m (maximum 274 m, colonies) ;
+- 🤖 **2e page par espèce** (`atlas_fiche = ["graphique", "tableau"]`, l'un ou l'autre peut être retiré) :
+  - texte en phrases : années d'observation (« Espèce observée 10 années sur 11, de 2017 à 2026 ») ; oiseaux : années
+    classées par niveau de nidification maximal de l'année (« La nidification est certaine 4 années, probable 4 années
+    et possible 2 années ; la dernière nidification certaine date de 2024 »), sites de nidification récurrents ;
+    effectif le plus élevé de la période avec sa date et ce qu'il représente (comportement saisi dans VisioNature,
+    sinon comportement de la synthèse, sinon statut de nidification), pour savoir s'il s'agit de migrateurs, d'un
+    dortoir, de nicheurs... (pas affiché pour un effectif de 1) ;
+  - graphique : nombre de données par année, barres empilées par type de donnée avec les couleurs de la carte ;
+  - tableau par année : données ; oiseaux : données de nidification, niveau maximal C / Pr / Po, effectif maximal
+    des données de nidification et des autres données (autres groupes : effectif maximal). L'effectif d'une donnée
+    est son `count_max` : selon l'espèce et la donnée, des adultes, des jeunes, un groupe en migration...
+  Les chiffres portent sur les données de la carte (site et rayon de prise en compte du taxon) ;
+- ✍️ sous ce tableau : photo et commentaire de la situation de l'espèce sur le site (paragraphe jaune).
 
 Les groupes sans espèce N2000 n'ont pas de section (ex. reptiles sur Combe de Savoie).
 
@@ -277,7 +306,11 @@ de page), par script :
   n'est pas transmise) ; les espèces passent en **3.1.2 Espèces Natura 2000**, suivies de l'atlas (un titre par
   groupe : Oiseaux nicheurs, Mammifères…) ;
 - partie « Résultats par secteur » retirée ; section des cartes chiroptères passée d'A3 paysage à A4 portrait ;
-  annexes en paysage, un tableau par groupe ;
+  annexes en paysage, un tableau par groupe, **chaque annexe sur une nouvelle page** (option `saut_de_page` de
+  `insert_grouped_tables`) ;
+- mise en forme (02/11/2026, `outils/word/mise_en_forme.py`) : interligne **1,15** (« Normal » et « Corps de texte » ;
+  1,5 et 1,2 dans le rapport de référence) ; **saut de page avant chaque titre de niveau 1 et 2** (X. et X.X), réglé
+  sur les paragraphes de titre (le sommaire hérite du style « Heading 1 ») ;
 - **sommaire et numéros de figures mis à jour par Word à l'ouverture** (Word demande « Mettre à jour les champs ? » :
   répondre Oui ; sinon F9 après Ctrl+A).
 
@@ -354,11 +387,20 @@ les 50 km autour (`zone_etude.gpkg`) : filtre `"secteur" = 'Zone d''étude'`. Le
 sont dessinées sous les contours (zone d'étude, contours 1 / 10 / 20 km) : ils restent visibles sur les mailles
 (ils étaient cachés par les mailles opaques).
 
+Correction du 02/11/2026 : l'ordre de rendu personnalisé posé lors de cet ajout avait été fixé avant la création des
+couches de l'atlas des espèces et des cartes chiroptères, qui se retrouvaient sous le fond OpenStreetMap : **atlas et
+cartes chiroptères vides** (légendes correctes, aucun point). Ordre refait à partir de l'arbre des couches
+(`outils/qgis/ordre_rendu.py`, qui vérifie qu'aucune couche n'est sous le fond de carte).
+
 ## 6. Paramètres (`dossier.toml`)
 
 À compléter pendant le développement : `anneaux_km`, `rayon_defaut_km`, `[params.rayons_km]`, `annees`,
 `groupes_taxo`, `statuts_validation`, `n2000_taxons_complexes`, `periode_hivernage`, `periodes_migration`,
 `atlas_oiseaux_non_nicheurs`, `zonage_rayon_km`.
+
+Atlas des espèces : `atlas_anciennete_ans` ([1, 5, 10], formes des symboles), `recurrence_rayon_m` (50),
+`recurrence_min_annees` (3). Les libellés de légende (« ≤ 1 an », « 2 à 5 ans »…) sont dans le projet QGIS
+(`outils/qgis/atlas_n2000_temporalite.py`) : à reprendre si les seuils changent.
 
 État des connaissances (§3.1.1) : `grille` (M1), `pool_local_km` (10), `connaissance_seuil_donnees` (2),
 `connaissance_min_especes_site` (4), `connaissance_alerte_jours_median` (2), `enjeux_oiseaux_nicheurs_seulement` (true).

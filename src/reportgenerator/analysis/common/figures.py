@@ -16,6 +16,7 @@ from docx.oxml.ns import qn
 from docx.shared import Mm
 from docx.text.paragraph import Paragraph
 
+from reportgenerator.analysis.common.tables.ring_table import _set_tblpr_child, build_lpo_table
 from reportgenerator.core.renderer import compact_image
 
 # taille maximale d'une carte : la légende et le texte à rédiger tiennent sur la même page (A4, marges LPO)
@@ -61,6 +62,43 @@ def _caption(paragraph, text, numero=None):
         fld.append(r)
     paragraph._p.append(fld)
     paragraph.add_run(f" : {text}")
+
+
+def _fiche(document, parent, anchor, fiche):
+    """Page qui suit une carte : texte de synthèse (nouvelle page, titre en gras), graphique puis tableau
+    (colonnes = années), chacun facultatif.
+    fiche = {"titre": str, "texte": str, "graphique": Path, "colonnes": [(clé, libellé)], "lignes": [dict]} ;
+    retourne le dernier élément inséré."""
+    p = _new_paragraph_after(anchor, parent)
+    if fiche.get("titre"):
+        p.add_run(f"{fiche['titre']}. ").bold = True
+    p.add_run(fiche["texte"])
+    p.paragraph_format.page_break_before = True
+    p.paragraph_format.keep_with_next = True
+    anchor = p._p
+    if fiche.get("graphique") and Path(fiche["graphique"]).exists():
+        img = _new_paragraph_after(anchor, parent)
+        img.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+        img.add_run().add_picture(str(fiche["graphique"]), width=Mm(160))
+        img.paragraph_format.keep_with_next = True
+        anchor = img._p
+    if not fiche.get("lignes"):
+        return anchor
+    table = build_lpo_table(document, fiche["lignes"], fiche["colonnes"], font_size=8,
+                            widths=[3] + [1] * (len(fiche["colonnes"]) - 1), fixed_widths=True)
+    # 12 colonnes : marges de cellule réduites (0,7 mm) pour que « 2020 » tienne sur une ligne
+    _set_tblpr_child(table._tbl.tblPr, "tblCellMar")   # à sa place dans tblPr (ordre du schéma)
+    marges = table._tbl.tblPr.find(qn("w:tblCellMar"))
+    for cote in ("left", "right"):
+        m = OxmlElement(f"w:{cote}")
+        m.set(qn("w:w"), "40")
+        m.set(qn("w:type"), "dxa")
+        marges.append(m)
+    for row in table.rows:   # libellés à gauche, valeurs centrées
+        for i, cell in enumerate(row.cells):
+            cell.paragraphs[0].alignment = WD_PARAGRAPH_ALIGNMENT.LEFT if i == 0 else WD_PARAGRAPH_ALIGNMENT.CENTER
+    anchor.addnext(table._element)
+    return table._element
 
 
 def insert_figure_list(document, placeholder, data, note="[Photo et texte de l'espèce à rédiger]", niveau=3,
@@ -109,6 +147,8 @@ def insert_figure_list(document, placeholder, data, note="[Photo et texte de l'e
             if caption:
                 cap.style = caption
             anchor = cap._p
+            if fig.get("fiche"):   # 2e page : synthèse (phrase + tableau), le texte à rédiger vient après
+                anchor = _fiche(document, parent, anchor, fig["fiche"])
             if note:
                 txt = _new_paragraph_after(anchor, parent)
                 txt.add_run(note).font.highlight_color = WD_COLOR_INDEX.YELLOW

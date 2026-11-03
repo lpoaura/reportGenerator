@@ -113,6 +113,23 @@ def socle_dryrun(ctx):
 
 registry._REGISTRY["socle_data"] = dataclasses.replace(socle, run=socle_dryrun)
 
+# DRYRUN_MAPS=<dossier de cartes déjà rendues> : pas de rendu QGIS (essais rapides du Word ; les cartes ne
+# reflètent pas les données ni le projet du moment)
+if os.getenv("DRYRUN_MAPS"):
+    cartographie = registry.get_brick("cartography")
+
+    def cartographie_sans_qgis(ctx):
+        import shutil
+        from reportgenerator.analysis.common.models import ImageBlock
+        for png in Path(os.environ["DRYRUN_MAPS"]).glob("*.png"):
+            shutil.copy2(png, ctx.output_dirs["maps"] / png.name)
+        print(f"[dry-run] cartes reprises de {os.environ['DRYRUN_MAPS']} (pas de rendu QGIS)")
+        layout = ctx.params.get("map_layout", "A4")
+        return AnalysisResult(images={png.stem: ImageBlock(png, layout)
+                                      for png in sorted(ctx.output_dirs["maps"].glob("*.png"))})
+
+    registry._REGISTRY["cartography"] = dataclasses.replace(cartographie, run=cartographie_sans_qgis)
+
 dossier = resolve_dossier(list_analyse)
 # essais : projet QGIS et/ou template Word de remplacement (DRYRUN_QGIS, DRYRUN_TEMPLATE), sans toucher au dépôt
 if os.getenv("DRYRUN_QGIS"):

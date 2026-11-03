@@ -15,7 +15,7 @@ Profils :
 import re
 
 from qgis.core import (Qgis, QgsFillSymbol, QgsGraduatedSymbolRenderer, QgsLayoutItemHtml,
-                       QgsLayoutItemLabel, QgsLayoutItemLegend, QgsLayoutItemMap, QgsLayoutItemPicture,
+                       QgsLayoutItemLabel, QgsLayoutItemLegend, QgsLayoutItemMap, QgsLayoutItemPicture, QgsMapLayerType,
                        QgsLayoutItemScaleBar, QgsLayoutItemShape, QgsLayoutPoint, QgsLayoutSize, QgsLegendRenderer,
                        QgsLegendStyle, QgsLinePatternFillSymbolLayer, QgsPalLayerSettings, QgsRendererRange,
                        QgsRuleBasedRenderer, QgsSingleSymbolRenderer, QgsTextBackgroundSettings, QgsTextFormat,
@@ -56,19 +56,47 @@ class _Projet:
 
     def ordre_rendu(self):
         """Couches ajoutées dessinées juste SOUS les contours de la zone d'étude (sinon les mailles opaques les
-        cachent) : ordre de rendu personnalisé = ordre actuel, couches ajoutées déplacées après la dernière couche
-        de contour affichée (groupe FDC : éolien LEGENDE_ZONE_ETUDE / LEGENDE_LIMITE, générique zone et périmètre,
-        limites administratives dans les deux cas)."""
-        noms = ("LEGENDE_ZONE_ETUDE", "LEGENDE_LIMITE", "Zone d'étude", "Périmètre d'étude", "LEGENDE_Région",
-                "LEGENDE_Départements")
-        zone = {n.layerId() for n in self.root.findLayers() if n.name() in noms}
-        ordre = self.root.customLayerOrder() if self.root.hasCustomLayerOrder() else self.root.layerOrder()
-        ids = {lyr.id() for lyr in self.ajoutees}
-        nouveaux = [lyr for lyr in ordre if lyr.id() in ids]
-        reste = [lyr for lyr in ordre if lyr.id() not in ids]
-        pos = max((i for i, lyr in enumerate(reste) if lyr.id() in zone), default=-1) + 1
-        self.root.setCustomLayerOrder(reste[:pos] + nouveaux + reste[pos:])
-        self.root.setHasCustomLayerOrder(True)
+        cachent) : ordre de rendu personnalisé = ordre de l'ARBRE des couches (celui qu'on voit et modifie dans
+        QGIS ; un ordre personnalisé existant est ignoré), couches ajoutées déplacées après la dernière couche de
+        contour affichée (groupe FDC : éolien LEGENDE_ZONE_ETUDE / LEGENDE_LIMITE, générique zone et périmètre,
+        limites administratives dans les deux cas).
+        À appeler quand TOUTES les couches du projet existent : une couche ajoutée ensuite irait en bas de l'ordre
+        personnalisé, sous le fond de carte (cartes vides)."""
+        fixer_ordre_rendu(self.P, {lyr.id() for lyr in self.ajoutees})
+
+
+CONTOURS = ("LEGENDE_ZONE_ETUDE", "LEGENDE_LIMITE", "Zone d'étude", "Périmètre d'étude", "LEGENDE_Région",
+            "LEGENDE_Départements")
+
+
+def couches_connaissance(P):
+    """Identifiants des couches des cartes de connaissance (sources connaissance_*.gpkg)."""
+    return {lyr.id() for lyr in P.mapLayers().values()
+            if any(f"layername={c}" in lyr.source() for c in COUCHES)}
+
+
+def fixer_ordre_rendu(P, ids_dessous):
+    """Ordre de rendu = ordre de l'arbre des couches, les couches ids_dessous déplacées juste sous la dernière couche
+    de contour affichée (CONTOURS) ; puis vérification qu'aucune couche vecteur n'est sous le fond de carte."""
+    root = P.layerTreeRoot()
+    arbre = [n.layer() for n in root.findLayers() if n.layer() is not None]
+    zone = {lyr.id() for lyr in arbre if lyr.name() in CONTOURS}
+    dessous = [lyr for lyr in arbre if lyr.id() in ids_dessous]
+    reste = [lyr for lyr in arbre if lyr.id() not in ids_dessous]
+    pos = max((i for i, lyr in enumerate(reste) if lyr.id() in zone), default=-1) + 1
+    root.setCustomLayerOrder(reste[:pos] + dessous + reste[pos:])
+    root.setHasCustomLayerOrder(True)
+    verifier_fond_de_carte(P)
+
+
+def verifier_fond_de_carte(P):
+    """Aucune couche vecteur sous le dernier fond raster (OSM) dans l'ordre de rendu : elle serait invisible."""
+    root = P.layerTreeRoot()
+    ordre = root.customLayerOrder() if root.hasCustomLayerOrder() else root.layerOrder()
+    rasters = [i for i, lyr in enumerate(ordre) if lyr.type() == QgsMapLayerType.RasterLayer]
+    if rasters:
+        sous_le_fond = [lyr.name() for lyr in ordre[rasters[-1] + 1:] if lyr.type() == QgsMapLayerType.VectorLayer]
+        assert not sous_le_fond, f"couches sous le fond de carte (invisibles) : {sous_le_fond}"
 
     # ---------------------------------------------------------------- nettoyage (idempotent)
     def nettoyer(self):
