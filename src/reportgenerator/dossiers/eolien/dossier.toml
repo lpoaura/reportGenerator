@@ -87,7 +87,8 @@ chiro_floutage_m = 0                      # 0 = position précise ; ex. 1000 = c
 
 # --- état des connaissances par maille de 1 km (briques communes, cf. METHODO.md §3 bis) ---
 connaissance_groupes = ["Oiseaux", "Chauves-souris"]   # chiroptères : si l'analyse est activée (sous-table)
-connaissance_rayon_km = 6            # emprise des mailles : zone d'étude + 6 km (anneau intermédiaire)
+connaissance_rayon_km = 20           # emprise des mailles : zone d'étude + 20 km (toute l'aire d'étude, comme les
+                                     # cartes 3 et 17) ; atlas sans les chiffres des espèces à enjeux (illisibles)
 pool_local_km = 20                   # référence : espèces du groupe connues sur toute l'aire d'étude (20 km)
 connaissance_renvoi = "les tableaux d'espèces par anneau"
 connaissance_niveau_titre = 2        # titres des groupes dans l'atlas (la partie est de niveau 1)
@@ -134,6 +135,13 @@ dpi = 150
 
 [params.qgis_render.layout_buffers_m]
 Carte1_zone_localisation = 30000
+Carte2bis_Donnee_zone_etude = 1000               # cartes zoomées : zone d'étude + 1 km
+Carte3bis_Etat_connaissance_zone_etude = 1000
+
+# Emprise propre à une mise en page : celle d'une couche du projet (+ layout_buffers_m)
+[params.qgis_render.layout_extent_layers]
+Carte2bis_Donnee_zone_etude = "LEGENDE_ZONE_ETUDE"
+Carte3bis_Etat_connaissance_zone_etude = "LEGENDE_ZONE_ETUDE"
 
 # Style construit au rendu (une catégorie par valeur, légende dans l'ordre du 2e champ, couleur lue dans le 3e) :
 # couche = [champ, ordre, couleur, accent (point grossi et cerclé de noir)]

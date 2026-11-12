@@ -176,7 +176,15 @@ Légende : 🤖 rempli automatiquement · ✍️ à rédiger ou compléter par l
 | Tableau de répartition | 🤖 `{{TABLE_PERIMETRES}}` | une ligne par zone (anneaux + toute la zone), avec le nombre d'observations, le nombre d'espèces et la dernière année d'observation |
 | Description de la prospection | ✍️ | — |
 | Carte 2 | 🤖 `{{Carte2_Donnee_disponible}}` | observations brutes (couche `vm_eolienne`) |
+| Carte 2 bis | 🤖 `{{Carte2bis_Donnee_zone_etude}}` | carte 2 zoomée sur la zone d'étude + 1 km (ajoutée le 10/11/2026) |
 | Carte 3 | 🤖 `{{Carte3_Etat_connaissance_globale}}` | nombre de données et d'espèces par maille de 1 km (`vm_eolienne_etat_connaissance`) |
+| Carte 3 bis | 🤖 `{{Carte3bis_Etat_connaissance_zone_etude}}` | carte 3 zoomée sur la zone d'étude + 1 km (ajoutée le 10/11/2026) |
+
+Cartes zoomées : mises en page clonées des cartes 2 et 3 (`outils/qgis/cartes_connaissance_eolien.py`), avec une liste
+de couches figée (celles de la carte d'origine, zone d'étude et contours au-dessus). Emprise : couche
+`LEGENDE_ZONE_ETUDE` + 1 km (`[params.qgis_render.layout_extent_layers]` et `layout_buffers_m` du `dossier.toml`) ; la
+carte garde son format, la marge est donc plus grande dans un sens. Une couche ajoutée au groupe d'une carte 2 ou 3
+n'apparaît dans son zoom qu'après un nouveau passage du script.
 
 ### §3 bis État des connaissances par maille de 1 km (ajouté le 20/10/2026)
 
@@ -187,22 +195,31 @@ méthode que le dossier Natura 2000 (briques communes `connaissance`, `couches_q
 | Élément | Contenu |
 |---|---|
 | Groupes | **Oiseaux** ; **Chauves-souris** seulement si l'analyse optionnelle `chiropteres` est activée (`connaissance_groupes`, `[params.connaissance_groupes_analyse]`) |
-| Emprise | mailles de 1 km de la zone d'étude **et des 6 km autour** (`connaissance_rayon_km = 6`, anneau intermédiaire) : à 20 km, les mailles seraient trop petites sur la carte pour lire les chiffres des espèces à enjeux |
+| Emprise | mailles de 1 km de la zone d'étude **et des 20 km autour** (`connaissance_rayon_km = 20`, toute l'aire d'étude, comme les cartes 3 et 17 ; 6 km jusqu'au 10/11/2026) |
 | Référence (« espèces locales ») | espèces du groupe connues sur toute l'aire d'étude, 20 km (`pool_local_km = 20`), sur la période du rapport (10 ans) |
 | Cartes d'effort | `{{Connaissance_effort_donnees}}`, `{{Connaissance_effort_jours}}` (groupes étudiés) |
 | Tableau | `{{TABLE_CONNAISSANCE_GROUPES}}` (copie `tables/connaissance_groupes.xlsx`), puis `{{TEXTE_GROUPES_CARTOGRAPHIES}}` |
 | Atlas | `{{ATLAS_CONNAISSANCE_GROUPES}}` : par groupe ayant au moins 4 espèces dans la zone d'étude (titre de niveau 2), « Part des espèces locales » et « Richesse et prospection » ; avertissement si la médiane des jours d'observation par maille est < 2 |
 | Textes fixes | démarche et lecture des cartes, paragraphe jaune pour le commentaire |
 
-Espèces à enjeux des cartes (chiffre rouge) : définition commune à tous les dossiers (Natura 2000 ou liste rouge
-CR à NT, oiseaux nicheurs seulement), différente de celle du §4 (CR/EN/VU ou sensibilité éolienne > 2).
+Différences avec les autres dossiers depuis le passage à 20 km (10/11/2026) :
+- **pas de chiffre rouge** (espèces à enjeux par maille) sur « Part des espèces locales » : illisible avec les mailles
+  des 20 km. Couche « Espèces à enjeux » retirée du projet et phrase retirée de la note de légende
+  (`outils/qgis/cartes_connaissance_eolien.py`) ; les espèces à enjeux sont localisées dans les chapitres suivants ;
+- **tableau** : l'emprise des mailles est la référence locale (20 km), donc « Espèces (zone + 20 km) » et « Part
+  locale » (100 %) ne sont pas affichées (`indicateurs.colonnes_synthese`, règle commune : colonnes retirées dès que
+  `connaissance_rayon_km` >= `pool_local_km`) ;
+- **textes** : les textes communs (`outils/word/textes_connaissance.py`) sont adaptés dans le template éolien seulement
+  (`outils/word/connaissance_eolien_20km.py`) : deux questions au lieu de trois, description du tableau, paragraphe du
+  « rond rouge » retiré.
 Projet QGIS : 4 mises en page clonées de `Carte17_sensibilite`. Dans l'ordre de rendu, les couches de ces cartes
 passent **sous** les contours (`LEGENDE_ZONE_ETUDE`, `LEGENDE_LIMITE`) pour que la zone et les anneaux restent
 visibles sur les mailles.
 
 Corrections du projet et du template faites à cette occasion (20/10/2026) :
 - `LEGENDE_ZONE_ETUDE` lit `zone_etude.gpkg`, qui contient aussi le tampon de la demande et les 50 km autour : filtre
-  `"secteur" = 'Zone d''étude'` ajouté (le tampon et les 50 km étaient tracés en rouge comme la zone d'étude) ;
+  `"secteur" = 'Zone d''étude'` ajouté (le tampon et les 50 km étaient tracés en rouge comme la zone d'étude). Perdu
+  au 21/10/2026, rétabli le 10/11/2026 (§5 « Limites de la zone d'étude ») ;
 - numérotation : les titres de niveau 2 suivent leur propre liste, dont le chiffre du chapitre avance grâce à des
   paragraphes vides masqués placés avant chaque chapitre à sous-titres. Avec la nouvelle partie (chapitre 4), 3 de
   ces « compteurs » ont été ajoutés après son titre (« 4.1 Oiseaux ») et 2 retirés avant « Nidification » : les
@@ -512,6 +529,31 @@ Ils sont dans le bloc `[params.qgis_render]` du `dossier.toml` :
 - 150 dpi.
 
 **Toutes** les mises en page du projet sont exportées. Pour chacune, seul le groupe de couches qui porte son nom est affiché.
+
+### Limites de la zone d'étude (reprises le 10/11/2026)
+
+Sur toutes les cartes, seules trois limites sont tracées : la zone d'étude, le contour 6 km et le contour 20 km.
+
+| Limite | Couche | Style |
+|---|---|---|
+| Zone d'étude | `LEGENDE_ZONE_ETUDE` (`zone_etude.gpkg`, filtre `"secteur" = 'Zone d''étude'`) | rouge continu 0,7 mm |
+| Contour 6 km | `LEGENDE_LIMITE` (`vm_eolienne_limit`, catégorie `contour 6 km`) | gris foncé, tirets longs 0,55 mm |
+| Contour 20 km | `LEGENDE_LIMITE` (catégorie `contour 20 km`) | gris foncé, tirets courts 0,45 mm |
+
+- Chaque trait est posé sur un liseré blanc, ce qui le garde lisible sur le fond OSM, sur les mailles (palette viridis)
+  et sur les points rouges.
+- La zone d'étude est rouge et continue : c'est la limite réelle du projet, et elle se distingue des limites
+  administratives (sombres).
+- Les contours sont des distances calculées : ils sont en tirets, et se différencient par la longueur des tirets plutôt
+  que par la couleur, pour laisser les couleurs aux données.
+- Les autres polygones ne sont pas tracés : l'anneau 1 km de `vm_eolienne_limit` (toujours utilisé par les tableaux),
+  ainsi que le tampon du formulaire et les 50 km de `zone_etude.gpkg`. Ce filtre avait été perdu le 21/10/2026 : le
+  tampon de la demande (5 km, 10 km…) et les 50 km étaient tracés en rouge comme la zone d'étude.
+- **Limites au-dessus des données** sur les cartes 1, 2, 3, 17 et 17 bis : une copie des deux couches
+  (`… (dessus) <carte>`) est placée dans le groupe de la carte, en tête de l'ordre de rendu. Les légendes ne changent
+  pas. Sur les autres cartes, les limites restent sous les données. Les cartes zoomées 2 bis et 3 bis (§3) ont leurs
+  limites au-dessus par leur liste de couches figée.
+- Script : `outils/qgis/limites_eolien.py` (idempotent). La liste des cartes et les styles se règlent en tête du script.
 
 ### Modifier une carte ou en ajouter une
 

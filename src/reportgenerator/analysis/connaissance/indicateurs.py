@@ -99,6 +99,22 @@ def synthese_groupes(mailles, site_par_groupe: dict, pool_local: dict, pool_regi
     return rows
 
 
+def colonnes_synthese(court="zone", rayon_km=1.0, pool_km=10.0, seuil_donnees=2) -> list[tuple]:
+    """Colonnes du tableau par groupe. Si l'emprise des mailles couvre toute la référence locale (rayon_km >=
+    pool_km, ex. éolien : 20 km et 20 km), ses espèces sont les espèces locales : « Espèces (zone + X km) » et
+    « Part locale » (100 %) ne sont pas répétées."""
+    columns = [("groupe", "Groupe"), ("nb_especes_site", f"Espèces ({court})")]
+    emprise_distincte = rayon_km < pool_km
+    if rayon_km and emprise_distincte:
+        columns.append(("nb_especes", f"Espèces ({court} + {rayon_km:g} km)"))
+    columns.append(("pool_local", f"Espèces à {pool_km:g} km"))
+    if emprise_distincte:
+        columns.append(("pct_local", "Part locale"))
+    return columns + [("pool_regional", "Espèces en région"), ("nb_mailles", "Mailles avec données"),
+                      ("mailles_peu_donnees", f"dont < {seuil_donnees} données"),
+                      ("jours_median", "Jours par maille (médiane)"), ("carte", "Carte")]
+
+
 # ---------------------------------------------------------------- textes du Word
 def texte_groupes_cartographies(groupes, min_especes_site=4, alertes=None, seuil_jours=2, zone="le site",
                                 renvoi="l'atlas et le tableau ci-dessus") -> str:

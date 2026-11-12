@@ -151,14 +151,30 @@ def test_briques_connaissance_generique(tmp_path, monkeypatch):
     assert find_placeholders(Document(tmp_path / "rapport.docx")) == set()
 
 
+def test_colonnes_synthese():
+    """Emprise plus petite que la référence (Natura 2000, générique) : espèces de l'emprise et part locale ;
+    emprise = référence (éolien, 20 km) : colonnes redondantes retirées."""
+    cles = [k for k, _ in ind.colonnes_synthese("site", 1, 10)]
+    assert {"nb_especes", "pct_local"} <= set(cles)
+    assert cles[:4] == ["groupe", "nb_especes_site", "nb_especes", "pool_local"]
+    assert dict(ind.colonnes_synthese("site", 1, 10))["nb_especes"] == "Espèces (site + 1 km)"
+    cles = [k for k, _ in ind.colonnes_synthese("zone", 20, 20)]
+    assert "nb_especes" not in cles and "pct_local" not in cles and "pool_local" in cles
+    assert "nb_especes" not in [k for k, _ in ind.colonnes_synthese("zone", 0, 10)]
+
+
 def test_briques_connaissance_eolien(tmp_path, monkeypatch):
-    """Éolien : oiseaux, et chiroptères seulement si l'analyse optionnelle est activée ; emprise 6 km."""
+    """Éolien : oiseaux, et chiroptères seulement si l'analyse optionnelle est activée ; emprise 20 km (= référence
+    locale : tableau sans colonnes redondantes)."""
     monkeypatch.setattr(bricks, "ConnaissanceQueries", FakeQueries)
     ctx = _ctx(tmp_path, "eolien")
-    get_brick("connaissance").run(ctx)
+    res = get_brick("connaissance").run(ctx)
     rayon_m, _, groupes = FakeQueries.appels["mailles"]
-    assert groupes == ("Oiseaux",) and rayon_m == ctx.params["connaissance_rayon_km"] * 1000
-    assert FakeQueries.appels["pool"][0] >= ctx.params["connaissance_rayon_km"]
+    assert groupes == ("Oiseaux",) and rayon_m == 20000
+    assert FakeQueries.appels["pool"][0] == 20
+    assert res.texts["CONNAISSANCE_EMPRISE"] == "la zone d'étude et les 20 km autour"
+    cles = [k for k, _ in res.tables["TABLE_CONNAISSANCE_GROUPES"].options["columns"]]
+    assert "pct_local" not in cles and "nb_especes" not in cles
     ctx = _ctx(tmp_path, "eolien", enabled=["chiropteres"])
     get_brick("connaissance").run(ctx)
     assert FakeQueries.appels["mailles"][2] == ("Oiseaux", "Chauves-souris")

@@ -84,6 +84,16 @@ avec les colonnes `anciennete` et `ordre_dessin` et `n2000_recurrence` d'un dry-
 invalides et réécrit leur ancienne définition à l'enregistrement (modifications perdues). Installation avec
 `integrer_projet.py`.
 
+`limites_eolien.py <projet_eolien.qgs> <data_dir> <sortie.qgs>` (Python de QGIS) : limites de la zone d'étude du projet
+éolien (zone d'étude, contours 6 et 20 km seulement, trait sur liseré blanc, contours en tirets), et copie de ces
+limites au-dessus des données sur les cartes 1, 2, 3, 17 et 17 bis (cf. METHODO éolien §5). Copie `data_dir` à côté
+du projet produit. Installation avec `integrer_projet.py`.
+
+`cartes_connaissance_eolien.py <projet_eolien.qgs> <data_dir> <sortie.qgs>` (Python de QGIS) : cartes 2 et 3 zoomées
+sur la zone d'étude (`Carte2bis_Donnee_zone_etude`, `Carte3bis_Etat_connaissance_zone_etude` : clones avec liste de
+couches figée, emprise réglée dans `dossier.toml`) et atlas « Part des espèces locales » sans les chiffres des espèces
+à enjeux (mailles des 20 km). Puis `limites_eolien.py`, puis installation avec `integrer_projet.py`.
+
 `inspect_layout.py <projet> <mise en page>` liste les éléments d'une mise en page (positions, légendes, textes).
 
 `projet_oedic_coordination.py <projet_source.qgz> <projet_sortie.qgz>` (Python de QGIS) construit le projet de
@@ -119,6 +129,9 @@ Le texte de la section « État des connaissances par maille » est écrit **une
   paragraphe de lecture des cartes).
 - `cartes_dortoirs_migration.py <template.docx> <sortie>` : cartes 12.1 à 12.4 -> `{{CARTES_DORTOIRS}}` (par groupe),
   carte 16 -> `{{CARTES_MIGRATION_ESPECES}}` (par espèce), phrases de méthode.
+- `connaissance_eolien_20km.py <template.docx> <sortie>` : template éolien, cartes zoomées après les cartes 2 et 3,
+  et textes de l'état des connaissances par maille adaptés aux 20 km (sans chiffre des espèces à enjeux, tableau
+  sans colonnes redondantes). Refuse un template déjà modifié.
 - `tableaux_paysage.py <template.docx> <sortie> [PLACEHOLDER ...]` : tableaux larges sur une page A4 paysage, la suite
   repassant en portrait (par défaut `TABLE_VULNERABILITE` et `TABLE_CHIRO_VULNERABILITE`).
 - `template_plsoc.py <template_natura2000.docx> <sortie.docx>` : construit le template du rapport annuel PLSOC

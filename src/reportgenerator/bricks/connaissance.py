@@ -88,13 +88,7 @@ def connaissance(ctx):
     alertes = {g: medianes[g] for g in groupes if medianes.get(g, 0) < seuil_jours}
     synthese = ind.synthese_groupes(mailles, emprise, pool_local, pool_regional, groupes, seuil, dans_zone)
 
-    columns = [("groupe", "Groupe"), ("nb_especes_site", f"Espèces ({court})")]
-    if rayon_km:
-        columns.append(("nb_especes", f"Espèces ({court} + {rayon_km:g} km)"))
-    columns += [("pool_local", f"Espèces à {pool_km:g} km"), ("pct_local", "Part locale"),
-                ("pool_regional", "Espèces en région"), ("nb_mailles", "Mailles avec données"),
-                ("mailles_peu_donnees", f"dont < {seuil} données"), ("jours_median", "Jours par maille (médiane)"),
-                ("carte", "Carte")]
+    columns = ind.colonnes_synthese(court, rayon_km, pool_km, seuil)
     # jusqu'à 10 colonnes : police réduite pour que les en-têtes ne se coupent pas au milieu des mots
     widths = [1.4] + [1] * (len(columns) - 2) + [0.8]
     table = TableBlock(synthese, insert_lpo_table, {"columns": columns, "widths": widths, "font_size": 7.5})
