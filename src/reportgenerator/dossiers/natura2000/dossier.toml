@@ -20,6 +20,7 @@ required = [
     "zonages",
     "couches_qgis_n2000",    # couches GPKG + couvertures des atlas
     "couches_qgis_connaissance",
+    "geometries",            # transects et placettes (lignes / polygones < 1 km) : carte, tableau, méthode (commun)
     "cartography",           # cartes et atlas (toujours en fin de chaîne)
     "n2000_atlas",           # cartes des atlas insérées dans le Word
     "connaissance_atlas",

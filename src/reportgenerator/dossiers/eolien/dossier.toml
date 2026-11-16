@@ -36,6 +36,7 @@ required = [
     "couches_qgis_eolien",   # couches vm_eolienne_* attendues par le projet QGIS modèle
     "connaissance",          # état des connaissances par maille de 1 km (briques communes)
     "couches_qgis_connaissance",
+    "geometries",            # transects et placettes (lignes / polygones < 1 km) : carte, tableau, méthode (commun)
     "couches_cartes",        # couleurs par espèce, couche des cartes par groupe, liste des cartes pour le rendu
     "cartography",
     "connaissance_atlas",

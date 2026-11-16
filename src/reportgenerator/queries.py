@@ -53,6 +53,29 @@ ABSENCE_RE = "^(aucun|no )"
 # Effectif saisi « 9999 » = valeur conventionnelle (inconnu / très nombreux) : exclue des maximums
 EFFECTIF_INCONNU = 9999
 
+# Géométries des données (règle commune à tous les dossiers, cf. doc.md « Géométries des données ») :
+# - point, ou ligne / polygone d'étendue <= GEOM_ETENDUE_MAX_M (transects STERF, POPReptile, petites placettes...) :
+#   donnée gardée, analysée à son point représentatif (milieu de la ligne, point intérieur du polygone) ;
+# - au-delà (donnée rattachée à une commune, une maille de 10 km, un site d'étude...) : non localisable, écartée.
+# Étendue = diagonale du rectangle englobant (calcul sur la boîte, sans parcourir les sommets).
+GEOM_ETENDUE_MAX_M = 1000
+
+
+def etendue_sql(g: str) -> str:
+    return f"sqrt(power(ST_XMax({g}) - ST_XMin({g}), 2) + power(ST_YMax({g}) - ST_YMin({g}), 2))"
+
+
+def point_representatif_sql(g: str) -> str:
+    """Point d'analyse d'une géométrie : elle-même (point), point intérieur (polygone), point de la géométrie le plus
+    proche de son centre (ligne : vers le milieu du transect ; multipoint : un de ses points)."""
+    return (f"case when ST_GeometryType({g}) = 'ST_Point' then {g} "
+            f"when ST_Dimension({g}) = 2 then ST_PointOnSurface({g}) "
+            f"else ST_ClosestPoint({g}, ST_Centroid({g})) end")
+
+
+def type_geom_sql(g: str) -> str:
+    return f"case ST_Dimension({g}) when 0 then 'point' when 1 then 'ligne' else 'polygone' end"
+
 
 def sql_literals(values) -> str:
     """Liste Python -> 'a', 'b' (valeurs échappées) pour un IN (...)."""
@@ -178,17 +201,15 @@ class SyntheseQueries:
             source_rang_sql = "0"
             dedup_sql = ""
 
-        rayon_sql = self._rayon_par_taxon_sql(rayons_km, rayon_m)
+        point_sql = point_representatif_sql("s.the_geom_local")
+        rayon_sql = self._rayon_par_taxon_sql(rayons_km, rayon_m, point_sql)
 
         anneau_cases = ["when ST_Intersects(s.the_geom_local, z.geom_zone) then 0"]
         for i, km in enumerate(self.anneaux_km[:-1], start=1):
             anneau_cases.append(f"when ST_DWithin(s.the_geom_local, z.geom_zone, {km * 1000}) then {i}")
         anneau_sql = f"case {' '.join(anneau_cases)} else {len(self.anneaux_km)} end"
 
-        sql = f"""
-            drop materialized view if exists {self.vm};
-            create materialized view {self.vm} as
-                       with zone_etude as (
+        zone_sql = f"""zone_etude as (
                 select ST_Buffer(l.geom, {rayon_m}) as geom, l.geom as geom_zone
                 from ref_geo.l_areas l
                 where l.id_area = {id_area}
@@ -202,7 +223,9 @@ class SyntheseQueries:
                             {grille_sql} AS grille_code
                         FROM zone_etude
                     ) g
-                ),
+                )"""
+        # données retenues (__ETENDUE__ : condition sur l'étendue de la géométrie, cf. GEOM_ETENDUE_MAX_M)
+        donnees_sql = f"""
                 obs_info as (  select s.id_synthese
                                         , s.date_max::date as date_max
                                         , case when t.id_rang = 'ES' then t.cd_ref
@@ -219,7 +242,12 @@ class SyntheseQueries:
                                                 else s.count_max end as count_max
                                         , tcse.bird_breed_code as oiso_code_nidif
                                         , tcse.breed_status as oiso_status_nidif
-                                        , s.the_geom_local
+                                        -- géométrie d'analyse : point représentatif (cf. GEOM_ETENDUE_MAX_M)
+                                        , {point_sql} as the_geom_local
+                                        , s.the_geom_local as geom_origine
+                                        , {type_geom_sql("s.the_geom_local")} as type_geom
+                                        , round({etendue_sql("s.the_geom_local")})::int as etendue_m
+                                        , s.id_dataset
                                         , s.comment_description
                                         , s.observers
                                         , s.id_source
@@ -254,7 +282,9 @@ class SyntheseQueries:
                                 {validation_sql}
                                                                 ])) IS TRUE
                                     {date_sql}
-                                    and  ST_Within(s.the_geom_local, (select geom from zone_etude ))
+                                    and s.the_geom_local && (select geom from zone_etude)
+                                    and ST_Within({point_sql}, (select geom from zone_etude))
+                                    and {etendue_sql("s.the_geom_local")} __ETENDUE__
                                     {rayon_sql}
                 ),
                 obs_final as ( select  s.*
@@ -297,8 +327,12 @@ class SyntheseQueries:
                                      ) as source_rang_min
                               from obs_final o
                               where {groupes_filtre_sql}
-                              and ST_GeometryType(o.the_geom_local) = 'ST_Point'
-                            )
+                            )"""
+        sql = f"""
+            drop materialized view if exists {self.vm};
+            create materialized view {self.vm} as
+                       with {zone_sql},
+                {donnees_sql.replace("__ETENDUE__", f"<= {GEOM_ETENDUE_MAX_M}")}
             select s.*, la.id_area, la.geom as geom_maille , gs.grille_code, gs.air_km2,
                    {anneau_sql} as anneau_ordre
             from obs_rang s
@@ -321,13 +355,31 @@ class SyntheseQueries:
             CREATE INDEX ON {self.vm} USING GIST (geom_maille);
             ANALYZE {self.vm};
         """
+        # données écartées (géométrie trop étendue) avec les mêmes filtres : phrase de méthode du rapport
+        self._sql_geom_exclues = f"""
+            with {zone_sql},
+            {donnees_sql.replace("__ETENDUE__", f"> {GEOM_ETENDUE_MAX_M}")}
+            select s.type_geom, count(*) as nb_donnees, count(distinct s.cd_ref) as nb_taxons,
+                   round(percentile_cont(0.5) within group (order by s.etendue_m))::int as etendue_mediane_m
+            from obs_rang s
+            group by s.type_geom
+        """
         with get_connection(self.service_name) as conn:
             with conn.cursor() as cur:
                 cur.execute(sql)
 
+    def geometries_exclues(self):
+        """Données écartées de la vue parce que leur géométrie dépasse GEOM_ETENDUE_MAX_M (mêmes filtres que la
+        vue : zone, rayons, taxons, validation, période ; sans dédoublonnage entre sources), par type de géométrie."""
+        with get_connection(self.service_name) as conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(self._sql_geom_exclues)
+                return cur.fetchall()
+
     @staticmethod
-    def _rayon_par_taxon_sql(rayons_km, rayon_max_m) -> str:
-        """Filtre « à moins du rayon de son taxon » (espèce, sinon ordre, sinon défaut), en mètres."""
+    def _rayon_par_taxon_sql(rayons_km, rayon_max_m, geom="s.the_geom_local") -> str:
+        """Filtre « à moins du rayon de son taxon » (espèce, sinon ordre, sinon défaut), en mètres, mesuré depuis
+        geom (expression SQL : point représentatif de la donnée)."""
         if not rayons_km:
             return ""
         cases = []
@@ -341,7 +393,7 @@ class SyntheseQueries:
         rayons = [defaut_m, *(float(k) * 1000 for d in ("especes", "ordres") for k in (rayons_km.get(d) or {}).values())]
         if max(rayons) > rayon_max_m:
             raise ValueError(f"Un rayon ({max(rayons) / 1000:g} km) dépasse l'emprise de la vue ({rayon_max_m / 1000:g} km)")
-        return (f"and ST_DWithin(s.the_geom_local, (select geom_zone from zone_etude), "
+        return (f"and ST_DWithin({geom}, (select geom_zone from zone_etude), "
                 f"case {' '.join(cases)} else {defaut_m} end)")
 
     def get_resum_taxo_group(self):

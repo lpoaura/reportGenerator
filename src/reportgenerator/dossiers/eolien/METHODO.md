@@ -84,7 +84,7 @@ outputs/<zone>/
 | Période | depuis le 1er janvier de (année en cours − 10) | `annees` |
 | Validation | statuts 0 (en attente), 1 et 2 | `statuts_validation` |
 | Emprise | zone d'étude + 20 km | dernier élément de `anneaux_km` |
-| Géométries | points uniquement (multipoints et polygones exclus : ~0,3 % des données) | — |
+| Géométries | points, et lignes / polygones de moins de 1 km (transects STERF, POPReptile, placettes) pris à leur point central ; géométries plus étendues (commune, maille de 10 km...) écartées. Règle commune : `doc.md`, « Géométries des données » (12/11/2026). Carte et tableau des transects : section « Transects et placettes de suivi » (brique `geometries`, masquée sans transect) | `GEOM_ETENDUE_MAX_M` (commun, `queries.py`) |
 | Grille | mailles de 1 km (`M1`), **calculées spatialement** (voir ci-dessous) | `grille` |
 | Doublons entre sources | même taxon, même jour, même cellule de 100 m : seule la source la mieux classée est gardée | `sources_prioritaires` |
 | Liste rouge régionale | `lr_aura` | `lr_regionale` |

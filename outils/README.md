@@ -50,6 +50,17 @@ poetry run python outils/qgis/integrer_projet.py C:\temp\projet_eolien\projet_eo
     src/reportgenerator/dossiers/eolien/qgis/projet_eolien.qgs
 ```
 
+**Carte des transects et placettes** (brique commune `geometries`) : `transects_qgis.py` ajoute les couches
+`transects_lignes` et `transects_polygones` et la mise en page `Carte_transects`, clone de
+`Connaissance_effort_donnees` du projet (même charte, dans les trois projets ; titre et légende remplacés).
+Couleurs : construites au rendu sur les données (protocole, couleur fournie par la brique). Même enchaînement que
+ci-dessus, avec `ajout_transects.py <projet.qgs> <data_dir d'un dry-run> <sortie.qgs>` à l'étape 2 (pas de profil).
+Installé le 12/11/2026 dans les projets générique, éolien et Natura 2000.
+
+`connaissance_qgis.py` : `fixer_ordre_rendu`, `verifier_fond_de_carte`, `couches_connaissance` et `CONTOURS` sont des
+fonctions du module, **après** la classe `_Projet` (insérées au milieu de la classe le 02/11, elles lui avaient retiré
+ses méthodes `nettoyer`, `layer`, `clone`… et `ajouter()` ne fonctionnait plus ; corrigé le 12/11).
+
 Projet Natura 2000 : reconstruit en entier depuis le projet éolien (même charte) par `build_projet_n2000.py`
 (`<projet_eolien.qgs> <dossier de travail contenant data/ d'un dry-run n2000>`), qui appelle `connaissance_qgis.py`
 en dernier, puis installé avec `integrer_projet.py`. Il clone des mises en page éoliennes qui ont depuis été
@@ -117,6 +128,10 @@ Le texte de la section « État des connaissances par maille » est écrit **une
   « État des connaissances ») ou éolien (chapitre après « Connaissance des oiseaux »), et ajuste les paragraphes
   masqués qui numérotent les sous-titres (voir les METHODO). Refuse un template qui a déjà la section : pour la
   regénérer après une modification du texte, repartir du template d'avant la section (historique git).
+- `section_transects.py <template.docx> <sortie>` : templates générique, éolien et Natura 2000, phrase de méthode
+  `{{TEXTE_GEOMETRIES}}` (données prises en compte) et section `{{#geometries}}` « Transects et placettes de suivi »
+  (carte `{{Carte_transects}}`, `{{TABLE_GEOMETRIES}}`, commentaire de l'expert) après l'état des connaissances par
+  maille ; mise en forme copiée de cette section. Idempotent. Appliqué le 12/11/2026 aux trois templates.
 - `convert_template_n2000.py <Synthese_faune_Combe_Savoie_2025.docx> <sortie>` : construit tout le template Natura
   2000 à partir du rapport de référence (gardé hors du dépôt), section de connaissance comprise.
 - `section_vulnerabilite.py <template.docx> <sortie>` : ajoute au template éolien l'indice de vulnérabilité des

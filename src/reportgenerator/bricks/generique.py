@@ -8,7 +8,7 @@ from reportgenerator.analysis.atlas.analysis import run_atlas
 from reportgenerator.analysis.common.models import AnalysisResult, ImageBlock, TableBlock
 from reportgenerator.analysis.common.tables.excel_export import export_species_excel
 from reportgenerator.analysis.common.tables.generic_table import insert_general_table
-from reportgenerator.analysis.common.tables.species_table import insert_species_table
+from reportgenerator.analysis.common.tables.species_table import insert_species_table, trier_par_groupe
 from reportgenerator.analysis.knowledge_status.analysis import run as run_knowledge_status
 from reportgenerator.analysis.knowledge_status.summary_text import TEXTE_CONNAISSANCE
 from reportgenerator.core.registry import register_brick
@@ -70,7 +70,7 @@ def knowledge_status(ctx):
 def synthese_generale(ctx):
     """Chiffres clés par secteur, tableaux taxons / espèces, export Excel."""
     taxo_data = ctx.results["knowledge_status"].data["taxo_group_data"]
-    species = ctx.queries.get_species_data()
+    species = trier_par_groupe(ctx.queries.get_species_data())   # groupe puis nom (Word et Excel)
     resum = {row["secteur"]: row for row in ctx.queries.get_resum_data()}
 
     year = datetime.now().year

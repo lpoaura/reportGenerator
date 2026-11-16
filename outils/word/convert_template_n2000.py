@@ -352,6 +352,11 @@ import lecture_atlas_n2000  # noqa: E402
 
 lecture_atlas_n2000.inserer(doc)
 
+# transects et placettes (brique commune geometries) : phrase de méthode et section (12/11/2026)
+import section_transects  # noqa: E402
+
+section_transects.inserer(doc)
+
 # sommaire et numéros de figures : mis à jour par Word à l'ouverture (les anciens titres et signets n'existent plus)
 settings = doc.settings.element
 if settings.find(W("w:updateFields")) is None:

@@ -31,7 +31,7 @@ atlas_nicheur       (option) une planche PNG par espèce dans atlas/, non insér
 | Période | **toutes les années**. Le texte « {{DATE_REPORT}} » affiche pourtant les 10 dernières années (voir la section 4) |
 | Validation | statuts 0 (en attente), 1 et 2 |
 | Taxons | Amphibiens, Chauves-souris, Mammifères, Odonates, Oiseaux, Papillons de jour, Poissons, Reptiles |
-| Géométries | points uniquement |
+| Géométries | points, et lignes / polygones de moins de 1 km (transects STERF, POPReptile, placettes) pris à leur point central ; géométries plus étendues (commune, maille de 10 km...) écartées. Règle commune : `doc.md`, « Géométries des données » (12/11/2026). Carte et tableau des transects : section « Transects et placettes de suivi » (brique `geometries`, masquée sans transect) |
 | Grille | choisie automatiquement selon la surface (de 200 m à 5 km), maille **calculée spatialement** |
 | Doublons entre sources | même taxon, même jour, même cellule de 100 m : seule la source la mieux classée de `sources_prioritaires` est gardée |
 
@@ -53,6 +53,8 @@ Les chiffres d'un rapport générique produit après cette correction peuvent do
 | `{{TABLE_TAXO}}` | par groupe taxonomique : nombre de données, d'espèces, d'espèces nicheuses, protégées et en danger |
 | `{{TABLE_ESP}}` | toutes les espèces : statuts, nombre d'années, nombre de données, dernière observation (copie dans `tables/tableau_especes.xlsx`) |
 | `{{TABLE_ESP_LR}}` | les espèces CR, EN, VU ou NT sur `lr_aura` ou sur une liste rouge France (nicheur, hivernant, migrateur) |
+
+Les deux tableaux d'espèces (et la copie Excel) sont triés par **groupe taxonomique** (oiseaux, mammifères, chauves-souris, amphibiens, reptiles, poissons, odonates, papillons…, ordre de l'état des connaissances), puis par **nom vernaculaire** (accents ignorés). Dans le Word, une ligne d'intertitre « Groupe — n espèces » ouvre chaque groupe et l'en-tête est répété en haut de chaque page (16/11/2026 ; avant : un seul ordre alphabétique, tous groupes mêlés).
 | `{{TEXTE_CONNAISSANCE}}` | texte fixe sur l'interprétation du taux de connaissance |
 | `{{chart_evolution.png}}` | nombre de données et d'espèces par an, depuis 2000 |
 | `{{chart_species_by_group.png}}`, `{{chart_data_by_group.png}}` | espèces et données par groupe taxonomique |

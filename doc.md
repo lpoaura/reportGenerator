@@ -89,6 +89,7 @@ src/reportgenerator/
 ├── bricks/                lien entre le métier et les placeholders (common, connaissance, generique, eolien, n2000…)
 ├── analysis/              code métier : requêtes, calculs, graphiques, tableaux, cartographie
 │   ├── connaissance/      état des connaissances par maille de 1 km (commun aux dossiers)
+│   ├── geometries/        transects et placettes (lignes / polygones < 1 km) : carte, tableau (commun)
 │   ├── eolien/            sélections, requêtes, couches QGIS, mises en forme du rapport éolien
 │   ├── cartography/       export GPKG, lancement et script de rendu QGIS
 │   └── common/tables/     insertion des tableaux Word (espèces, zonages, tableaux par anneau)
@@ -116,6 +117,31 @@ Toutes les analyses lisent une seule vue matérialisée, `lpoaura_afo.vm_reportg
 Effectifs : vide ou 0 → 1 ; 9999 (valeur de saisie « inconnu ») → non renseigné, exclu des maximums.
 
 La VM est supprimée en fin de génération, même en cas d'échec.
+
+### Géométries des données (règle commune à tous les dossiers)
+
+La synthèse contient des points, mais aussi des lignes (transects des protocoles de suivi : STERF, POPReptile...) et
+des polygones (placettes, mais aussi communes, mailles de 10 km, sites d'études d'impact). Règle appliquée dans la
+VM (`queries.py`, constante `GEOM_ETENDUE_MAX_M` = 1 000 m, définie une seule fois pour tous les dossiers) :
+
+| Géométrie | Traitement |
+|---|---|
+| point, multipoint (souvent un seul point mal typé : ONF, CEN 74) | gardée |
+| ligne ou polygone dont l'**étendue** (diagonale du rectangle englobant) est ≤ 1 000 m | gardée, analysée à son **point représentatif** : milieu du transect (point de la ligne le plus proche de son centre), point intérieur du polygone |
+| ligne ou polygone plus étendu (rattachement à une commune, une maille, un site d'étude) | écartée : non localisable, fausserait les anneaux et les alertes |
+
+Dans la VM, `the_geom_local` est ce point représentatif : toutes les analyses en aval (anneaux, mailles,
+dédoublonnage, atlas, cartes) restent sur des points, sans changement. Colonnes ajoutées : `geom_origine` (géométrie
+saisie), `type_geom` (point / ligne / polygone), `etendue_m`, `id_dataset`. L'emprise et le rayon par taxon sont
+mesurés depuis le point représentatif (un transect qui déborde de l'emprise n'est plus perdu). Sur les zones de test
+(10 ans, zone + 10 km), il y a une coupure nette entre ≈ 600 m (plus grandes placettes) et ≈ 4 km (communes).
+
+La brique commune `geometries` (`bricks/geometries.py`, `analysis/geometries/`) en rend compte dans le rapport :
+phrase de méthode `{{TEXTE_GEOMETRIES}}` (données sur des lignes / polygones retenues, données écartées : requête
+`SyntheseQueries.geometries_exclues`, mêmes filtres que la VM), et section `{{#geometries}}` (masquée sans transect ni
+placette) avec la carte `Carte_transects` (couches `transects_lignes`, `transects_polygones`, couleur par protocole
+calculée par la brique) et le tableau `{{TABLE_GEOMETRIES}}` par protocole / source et jeu de données. Une brique
+peut masquer sa section `{{#brique}}` en renvoyant `meta={"sans_section": True}`.
 
 ### État des connaissances par maille (briques communes)
 

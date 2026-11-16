@@ -53,6 +53,7 @@ Rendu Word            template.docx rempli → outputs/<zone>/<zone>.docx (+ cop
 | Période | depuis le 1er janvier de (année en cours − 10) : 2015-2025 pour un rapport de 2025 | `annees` |
 | Validation | statuts 0, 1 et 2 (comme tous les dossiers) | `statuts_validation` |
 | Emprise | site + 20 km (rayon maximal) | `anneaux_km = [1, 10, 20]` |
+| Géométries | points, et lignes / polygones de moins de 1 km (transects STERF, POPReptile, placettes) pris à leur point central ; géométries plus étendues (commune, maille de 10 km...) écartées. Règle commune : `doc.md`, « Géométries des données » (12/11/2026). Carte et tableau des transects : section « Transects et placettes de suivi » (brique `geometries`, masquée sans transect) | `GEOM_ETENDUE_MAX_M` (commun, `queries.py`) |
 | Doublons entre sources | même taxon, même jour, même cellule de 100 m : une seule source gardée | `sources_prioritaires` |
 | Effectifs | effectif vide ou 0 → 1 ; **effectif ≥ 9999 → non renseigné** (valeur de saisie « inconnu », exclue des maximums ; vaut pour tous les dossiers) | — |
 | Liste rouge régionale | `lr_aura` | `lr_regionale` |

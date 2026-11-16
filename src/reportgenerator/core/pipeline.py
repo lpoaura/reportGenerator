@@ -54,8 +54,10 @@ def run_pipeline(ctx, output_file: Path) -> set[str]:
             ctx.results[name] = get_brick(name).run(ctx)
 
     with timer.step("Génération du rapport Word"):
-        # sections {{#brique}} ... {{/brique}} : gardées si la brique a été exécutée
-        unresolved = render_report(ctx.dossier.template, ctx.results, output_file, sections=set(plan))
+        # sections {{#brique}} ... {{/brique}} : gardées si la brique a été exécutée et n'a pas demandé à masquer sa
+        # section (meta « sans_section » : ex. aucune donnée à montrer)
+        sections = {n for n in plan if not ((ctx.results[n].meta or {}).get("sans_section"))}
+        unresolved = render_report(ctx.dossier.template, ctx.results, output_file, sections=sections)
 
     timer.summary()
     return unresolved

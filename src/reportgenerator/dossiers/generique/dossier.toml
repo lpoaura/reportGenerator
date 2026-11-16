@@ -12,7 +12,9 @@ qgis_project = "../../templates/projet_modele.qgs"
 # lancées pour chaque rapport de ce type (dans cet ordre, dépendances en plus)
 required = ["socle_data", "knowledge_status", "synthese_generale", "zonages",
             # état des connaissances par maille de 1 km (briques communes, cf. METHODO.md)
-            "connaissance", "couches_qgis_connaissance", "cartography", "connaissance_atlas"]
+            "connaissance", "couches_qgis_connaissance", "cartography", "connaissance_atlas",
+            # transects et placettes (lignes / polygones < 1 km) : carte, tableau, méthode (commun)
+            "geometries"]
 # activées par le champ list_analyse du formulaire QGIS
 optional = ["atlas_nicheur"]
 

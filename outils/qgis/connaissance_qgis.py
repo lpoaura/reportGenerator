@@ -64,40 +64,6 @@ class _Projet:
         personnalisé, sous le fond de carte (cartes vides)."""
         fixer_ordre_rendu(self.P, {lyr.id() for lyr in self.ajoutees})
 
-
-CONTOURS = ("LEGENDE_ZONE_ETUDE", "LEGENDE_LIMITE", "Zone d'étude", "Périmètre d'étude", "LEGENDE_Région",
-            "LEGENDE_Départements")
-
-
-def couches_connaissance(P):
-    """Identifiants des couches des cartes de connaissance (sources connaissance_*.gpkg)."""
-    return {lyr.id() for lyr in P.mapLayers().values()
-            if any(f"layername={c}" in lyr.source() for c in COUCHES)}
-
-
-def fixer_ordre_rendu(P, ids_dessous):
-    """Ordre de rendu = ordre de l'arbre des couches, les couches ids_dessous déplacées juste sous la dernière couche
-    de contour affichée (CONTOURS) ; puis vérification qu'aucune couche vecteur n'est sous le fond de carte."""
-    root = P.layerTreeRoot()
-    arbre = [n.layer() for n in root.findLayers() if n.layer() is not None]
-    zone = {lyr.id() for lyr in arbre if lyr.name() in CONTOURS}
-    dessous = [lyr for lyr in arbre if lyr.id() in ids_dessous]
-    reste = [lyr for lyr in arbre if lyr.id() not in ids_dessous]
-    pos = max((i for i, lyr in enumerate(reste) if lyr.id() in zone), default=-1) + 1
-    root.setCustomLayerOrder(reste[:pos] + dessous + reste[pos:])
-    root.setHasCustomLayerOrder(True)
-    verifier_fond_de_carte(P)
-
-
-def verifier_fond_de_carte(P):
-    """Aucune couche vecteur sous le dernier fond raster (OSM) dans l'ordre de rendu : elle serait invisible."""
-    root = P.layerTreeRoot()
-    ordre = root.customLayerOrder() if root.hasCustomLayerOrder() else root.layerOrder()
-    rasters = [i for i, lyr in enumerate(ordre) if lyr.type() == QgsMapLayerType.RasterLayer]
-    if rasters:
-        sous_le_fond = [lyr.name() for lyr in ordre[rasters[-1] + 1:] if lyr.type() == QgsMapLayerType.VectorLayer]
-        assert not sous_le_fond, f"couches sous le fond de carte (invisibles) : {sous_le_fond}"
-
     # ---------------------------------------------------------------- nettoyage (idempotent)
     def nettoyer(self):
         manager = self.P.layoutManager()
@@ -269,6 +235,40 @@ def verifier_fond_de_carte(P):
                 it.setAtlasScalingMode(QgsLayoutItemMap.Auto)
                 # générique : la carte passe sous le bandeau du titre, d'où une marge plus large
                 it.setAtlasMargin(0.10 if self.profil == "generique" else 0.02)
+
+
+CONTOURS = ("LEGENDE_ZONE_ETUDE", "LEGENDE_LIMITE", "Zone d'étude", "Périmètre d'étude", "LEGENDE_Région",
+            "LEGENDE_Départements")
+
+
+def couches_connaissance(P):
+    """Identifiants des couches des cartes de connaissance (sources connaissance_*.gpkg)."""
+    return {lyr.id() for lyr in P.mapLayers().values()
+            if any(f"layername={c}" in lyr.source() for c in COUCHES)}
+
+
+def fixer_ordre_rendu(P, ids_dessous):
+    """Ordre de rendu = ordre de l'arbre des couches, les couches ids_dessous déplacées juste sous la dernière couche
+    de contour affichée (CONTOURS) ; puis vérification qu'aucune couche vecteur n'est sous le fond de carte."""
+    root = P.layerTreeRoot()
+    arbre = [n.layer() for n in root.findLayers() if n.layer() is not None]
+    zone = {lyr.id() for lyr in arbre if lyr.name() in CONTOURS}
+    dessous = [lyr for lyr in arbre if lyr.id() in ids_dessous]
+    reste = [lyr for lyr in arbre if lyr.id() not in ids_dessous]
+    pos = max((i for i, lyr in enumerate(reste) if lyr.id() in zone), default=-1) + 1
+    root.setCustomLayerOrder(reste[:pos] + dessous + reste[pos:])
+    root.setHasCustomLayerOrder(True)
+    verifier_fond_de_carte(P)
+
+
+def verifier_fond_de_carte(P):
+    """Aucune couche vecteur sous le dernier fond raster (OSM) dans l'ordre de rendu : elle serait invisible."""
+    root = P.layerTreeRoot()
+    ordre = root.customLayerOrder() if root.hasCustomLayerOrder() else root.layerOrder()
+    rasters = [i for i, lyr in enumerate(ordre) if lyr.type() == QgsMapLayerType.RasterLayer]
+    if rasters:
+        sous_le_fond = [lyr.name() for lyr in ordre[rasters[-1] + 1:] if lyr.type() == QgsMapLayerType.VectorLayer]
+        assert not sous_le_fond, f"couches sous le fond de carte (invisibles) : {sous_le_fond}"
 
 
 def _texte(lay, txt, xy, wh, taille=6.5, gras=False):
