@@ -200,3 +200,110 @@ def couverture(jeu, saison, regle, par: str) -> list[dict]:
     if lignes:
         lignes.append({**_ligne("Total", p, jeu, nouvelles, completes, par), "total": True})
     return lignes
+
+
+# ---------------------------------------------------------------------------------------------------- historique
+def pourcent(n, total) -> int | None:
+    """Pourcentage arrondi à l'entier (arrondi commercial) ; None si le total est nul."""
+    return None if not total else int(100 * n / total + 0.5)
+
+
+def serie(jeu, debut: int, saison: int, temps: dict) -> list[dict]:
+    """Chiffres de chaque saison depuis le début de la série (especes = None hors fenêtre des observations)."""
+    return [{"saison": s, **chiffres(jeu, s, temps)} for s in range(debut, saison + 1)]
+
+
+def series_categories(jeu, debut: int, saison: int) -> list[dict]:
+    """Observateurs (comptes) par catégorie et par saison."""
+    lignes = []
+    for s in range(debut, saison + 1):
+        obs = observateurs_de(jeu, releves(jeu, s)["id_passage"]).drop_duplicates("id_observateur")
+        compte = Counter(obs["categorie"])
+        lignes.append({"saison": s, **{c: compte[c] for c in CATEGORIES}})
+    return lignes
+
+
+def _observateurs(jeu, saison) -> set:
+    return set(observateurs_de(jeu, releves(jeu, saison)["id_passage"])["id_observateur"])
+
+
+def fidelisation(jeu, saison) -> dict:
+    """Reconduction des aires et des observateurs d'une année sur l'autre, cumul et ancienneté (comptes, jamais
+    de noms)."""
+    n, n1 = aires_suivies(jeu, saison), aires_suivies(jeu, saison - 1)
+    o, o1 = _observateurs(jeu, saison), _observateurs(jeu, saison - 1)
+    passe = jeu.passages[jeu.passages["saison"] <= saison]
+    premieres = passe.groupby("id_aire")["saison"].min()
+    annees = passe.groupby("id_aire")["saison"].nunique()
+    noms = jeu.aires.set_index("id_aire")["nom_aire"].to_dict()
+    plus_ancienne = None
+    if n:
+        a = min(n, key=lambda x: (premieres[x], str(noms.get(x, x))))
+        plus_ancienne = {"nom_aire": noms.get(a, a), "premiere": int(premieres[a]), "annees": int(annees[a])}
+    return {
+        "aires_n1": len(n1),
+        "reconduites": len(n & n1),
+        "taux_reconduction_aires": pourcent(len(n & n1), len(n1)),
+        "nouvelles": sum(1 for a in n if premieres[a] == saison),
+        "abandonnees": len(n1 - n),
+        "observateurs_gagnes": len(o - o1),
+        "observateurs_perdus": len(o1 - o),
+        "taux_reconduction_observateurs": pourcent(len(o & o1), len(o1)),
+        "cumul_aires": int(passe["id_aire"].nunique()),
+        "cumul_observateurs": int(observateurs_de(jeu, passe["id_passage"])["id_observateur"].nunique()),
+        "anciennete_moyenne": round(float(annees[list(n)].mean()), 1) if n else None,
+        "plus_ancienne": plus_ancienne,
+    }
+
+
+# ------------------------------------------------------------------------------------------------------- espèces
+def _frequences(jeu, saison) -> pd.DataFrame | None:
+    p = releves(jeu, saison)
+    obs = jeu.observations.merge(p[["id_passage", "id_aire", "id_unite"]], on="id_passage")
+    if obs.empty:
+        return None
+    nb_aires, nb_unites = p["id_aire"].nunique(), p["id_unite"].nunique()
+    g = obs.groupby("cd_ref").agg(nom=("nom", "first"), aires=("id_aire", "nunique"),
+                                  unites=("id_unite", "nunique"), effectif=("effectif", "sum")).reset_index()
+    g["freq_aires"] = [pourcent(a, nb_aires) for a in g["aires"]]
+    g["freq_unites"] = [pourcent(u, nb_unites) for u in g["unites"]]
+    return g.sort_values(["aires", "effectif", "nom"], ascending=[False, False, True]).reset_index(drop=True)
+
+
+def especes(jeu, saison, n: int | None) -> list[dict]:
+    """Espèces de la saison : part des aires suivies et des unités visitées où l'espèce est notée (%), somme des
+    effectifs ; triées par fréquence puis effectif. n = None : toutes (annexe)."""
+    g = _frequences(jeu, saison)
+    if g is None:
+        return []
+    g = g if n is None else g.head(n)
+    return [{"rang": i, "nom": r.nom, "cd_ref": r.cd_ref, "freq_aires": r.freq_aires, "freq_unites": r.freq_unites,
+             "effectif": int(r.effectif)} for i, r in enumerate(g.itertuples(), 1)]
+
+
+def evolution_especes(jeu, saison, n: int, annees: int) -> list[dict]:
+    """Fréquence (part des aires) des n premières espèces de N sur les dernières saisons : indicateur descriptif.
+    None pour une saison sans observations chargées."""
+    premieres = especes(jeu, saison, n)
+    saisons = range(saison - annees + 1, saison + 1)
+    freqs = {s: _frequences(jeu, s) for s in saisons}
+    lignes = []
+    for e in premieres:
+        ligne = {"nom": e["nom"]}
+        for s in saisons:
+            g = freqs[s]
+            if g is None:
+                ligne[s] = None
+            else:
+                v = g.loc[g["cd_ref"] == e["cd_ref"], "freq_aires"]
+                ligne[s] = int(v.iloc[0]) if len(v) else 0
+        lignes.append(ligne)
+    return lignes
+
+
+def observateurs_multi_protocoles(jeux: dict, saisons: dict) -> int:
+    """Comptes GeoNature (role:) actifs, à leur saison, dans au moins deux protocoles."""
+    compte = Counter()
+    for code, jeu in jeux.items():
+        compte.update({o for o in _observateurs(jeu, saisons[code]) if str(o).startswith("role:")})
+    return sum(1 for v in compte.values() if v >= 2)

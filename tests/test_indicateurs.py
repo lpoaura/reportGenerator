@@ -149,8 +149,8 @@ def test_temps_forfaitaires():
     par_aire = {"terrain_h": 5, "unite_terrain": "aire", "complement_h": 1, "unite_complement": "aire"}
     par_visite = {"terrain_h": 2, "unite_terrain": "visite", "complement_h": 0, "unite_complement": "aire"}
     assert communes.temps_heures(j, 2025, par_aire)["heures"] == 18
-    assert communes.temps_heures(j, 2025, par_visite) == {"heures": 6, "estime": True,
-        "par_categorie": {"Salarié LPO": 2, "Organisme tiers": 2, "Non renseigné": 2}}
+    attendu = {"Salarié LPO": 2, "Organisme tiers": 2, "Non renseigné": 2}
+    assert communes.temps_heures(j, 2025, par_visite) == {"heures": 6, "estime": True, "par_categorie": attendu}
 
 
 def test_statut_completude_couverture():
@@ -162,3 +162,33 @@ def test_statut_completude_couverture():
     assert [(r["departement"], r["aires"]) for r in dep] == [("Isère", 1), ("Savoie", 2), ("Total", 3)]
     zb = communes.couverture(j, 2025, {"periodes": [["05-01", "06-30"]]}, par="zbiog")
     assert [(r["zbiog"], r["aires"]) for r in zb] == [("Plaine rhodanienne", 1), ("Zone alpine", 2), ("Total", 3)]
+
+
+# ---------------------------------------------------------------------------- historique, fidélisation, espèces
+def test_serie_et_categories():
+    s_ = communes.serie(jeu_factice(), 2023, 2025, TEMPS_MESURE)
+    assert [(r["saison"], r["aires"]) for r in s_] == [(2023, 2), (2024, 3), (2025, 3)]
+    assert s_[0]["especes"] is None                                     # pas d'observations chargées en 2023
+    cat = {r["saison"]: r for r in communes.series_categories(jeu_factice(), 2023, 2025)}
+    assert cat[2025]["Bénévole"] == 1 and cat[2025]["Salarié LPO"] == 1 and cat[2025]["Organisme tiers"] == 1
+
+
+def test_fidelisation():
+    f = communes.fidelisation(jeu_factice(), 2025)
+    assert (f["reconduites"], f["taux_reconduction_aires"], f["nouvelles"], f["abandonnees"]) == (2, 67, 1, 1)
+    assert (f["observateurs_gagnes"], f["observateurs_perdus"], f["taux_reconduction_observateurs"]) == (0, 0, 100)
+    assert (f["cumul_aires"], f["cumul_observateurs"], f["anciennete_moyenne"]) == (4, 3, 2.0)
+    assert f["plus_ancienne"]["premiere"] == 2023 and f["plus_ancienne"]["annees"] == 3
+
+
+def test_especes():
+    e = communes.especes(jeu_factice(), 2025, n=None)
+    assert [(r["nom"], r["freq_aires"], r["freq_unites"], r["effectif"]) for r in e] == [
+        ("Merle noir", 67, 75, 6), ("Pinson des arbres", 67, 50, 6), ("Rouge-gorge familier", 33, 25, 1)]
+    evo = communes.evolution_especes(jeu_factice(), 2025, n=2, annees=2)
+    assert evo[0]["nom"] == "Merle noir" and evo[0][2024] == 33 and evo[0][2025] == 67
+
+
+def test_observateurs_multi_protocoles():
+    j = jeu_factice()
+    assert communes.observateurs_multi_protocoles({"a": j, "b": j}, {"a": 2025, "b": 2025}) == 3
