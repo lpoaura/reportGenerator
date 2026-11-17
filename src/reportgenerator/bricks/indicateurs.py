@@ -171,7 +171,9 @@ def section_protocole(ctx, code: str) -> AnalysisResult:
         f"{P}_TEXTE_PARTICIPATION": tx.texte_participation(
             r["label"], aire, libelle, c, c1, tx.note_temps(temps, c["heures_estimees"], aire)),
         f"{P}_NOTE_CATEGORIES": NOTE_STATUT if r.get("note_statut") else "",
-        f"{P}_TEXTE_COUVERTURE": tx.texte_couverture(aire, c, fid, s["par_departement"], len(s["departements"])),
+        f"{P}_TEXTE_COUVERTURE": tx.texte_couverture(
+            aire, c, fid, s["par_departement"],
+            len({x["departement"] for x in couv if not x.get("total")}) if par == "departement" else 1),
         f"{P}_TEXTE_HISTORIQUE": _texte_historique(r, serie, debut, debut_obs),
         f"{P}_TEXTE_FIDELISATION": tx.texte_fidelisation(aire, fid) if c["aires"] else "",
         f"{P}_TEXTE_ESPECES": tx.texte_especes(c, esp, aire) if c["aires"] else "",

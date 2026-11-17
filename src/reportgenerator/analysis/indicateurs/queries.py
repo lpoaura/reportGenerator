@@ -52,6 +52,9 @@ sz AS (SELECT s.* FROM sites s
        WHERE (s.id_aire <> 'sans_aire' AND s.id_aire IN (SELECT id_aire FROM dans))
           OR s.id_base_site IN (SELECT id_base_site FROM dans WHERE id_aire = 'sans_aire'))"""
 
+# nom français : premier nom vernaculaire de TAXREF, sans l'article final des papillons (« Fadet commun (Le) »)
+NOM_VERN = r"""regexp_replace(split_part(coalesce(t.nom_vern, t.lb_nom), ',', 1), '\s*\((Le|La|Les|L'')\)\s*$', '')"""
+
 DUREE_HEURES_VISITE = r"""CASE WHEN vc.data->>'start_hour' ~ '^\d{1,2}:\d{2}'
       AND vc.data->>'end_hour' ~ '^\d{1,2}:\d{2}'
       AND (vc.data->>'end_hour')::time > (vc.data->>'start_hour')::time
@@ -139,7 +142,7 @@ class IndicateursQueries:
 
     def observations_vigienature(self, protocoles: list[str], annee_min: int, par_site: bool = False) -> list[dict]:
         return self._fetch(f"""WITH {RELEVES_VN}
-            SELECT o.releve_id AS id_passage, t.cd_ref, split_part(coalesce(t.nom_vern, t.lb_nom), ',', 1) AS nom,
+            SELECT o.releve_id AS id_passage, t.cd_ref, {NOM_VERN} AS nom,
                    sum(coalesce(o.nombre, 0)) AS effectif
             FROM rz
             JOIN pr_vigienature.t_observation o ON o.releve_id = rz.id
@@ -215,7 +218,7 @@ class IndicateursQueries:
             raise ValueError(f"Module sans règle d'effectif : {module!r}")
         return self._fetch(f"""WITH {SITES_MON}
             SELECT o.id_base_visit AS id_passage, t.cd_ref,
-                   split_part(coalesce(t.nom_vern, t.lb_nom), ',', 1) AS nom, sum({EFFECTIFS[module]}) AS effectif
+                   {NOM_VERN} AS nom, sum({EFFECTIFS[module]}) AS effectif
             FROM gn_monitoring.t_base_visits v
             JOIN gn_commons.t_modules m ON m.id_module = v.id_module AND m.module_code = %(module)s
             JOIN sz ON sz.id_base_site = v.id_base_site

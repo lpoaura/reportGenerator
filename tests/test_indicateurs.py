@@ -1,10 +1,12 @@
 """Tests du dossier Indicateurs de biodiversité (sans base ni QGIS : données factices)."""
 
 import dataclasses
+import re
 from datetime import date
 
 import pandas as pd
 import pytest
+from docx import Document
 
 from reportgenerator.analysis.common.filesystem import create_analysis_dirs
 from reportgenerator.analysis.indicateurs import cartes, chargement, communes, figures, textes
@@ -18,6 +20,7 @@ from reportgenerator.bricks import indicateurs as bricks_indicateurs
 from reportgenerator.bricks.indicateurs import cles_protocole
 from reportgenerator.core.context import ReportContext
 from reportgenerator.core.dossier import load_dossier
+from reportgenerator.core.pipeline import check_dossier, run_pipeline
 from reportgenerator.core.registry import get_brick
 from tests.indicateurs_factice import DEPARTEMENTS, ZONE_WKT, jeu_factice, rendu_factice
 
@@ -396,3 +399,36 @@ def test_couches_cartes_aire_sans_contour():
     j.aires.loc[0, "wkt"] = float("nan")             # site « sans aire » : pas de contour
     c = cartes.couches_cartes({"pop_amphibien": j}, {"pop_amphibien": 2025}, {"wkt": ZONE_WKT}, DEPARTEMENTS, [])
     assert "A1" not in {r["id_aire"] for r in c["ind_aires"]} and len(c["ind_aires"]) == 3
+
+
+# ------------------------------------------------------------------------------------------------- rendu complet
+def test_rendu_complet_donnees_factices(tmp_path, monkeypatch):
+    jeux = {c: jeu_factice(c) for c in PROTOCOLES}
+    monkeypatch.setattr(chargement, "charger_stoc_sites", lambda *a, **k: jeu_factice("stoc_sites"))
+    monkeypatch.setattr(bricks_indicateurs, "launch_qgis_render", rendu_factice)   # un PNG par mise en page
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, annee_2025", jeux)
+    sortie = tmp_path / "rapport.docx"
+    assert run_pipeline(ctx, output_file=sortie) == set()
+    d = Document(sortie)
+    texte = "\n".join(p.text for p in d.paragraphs)
+    cellules = "\n".join(c.text for t in d.tables for row in t.rows for c in row.cells)
+    assert "{{" not in texte and not re.search(r"\b(nan|None|NaN)\b", texte + cellules)
+    assert "3 sites ont été suivis" in texte and "2024-2025" in texte
+
+
+def test_dossier_indicateurs_pret():
+    assert check_dossier(load_dossier("indicateurs")).ok
+
+
+def test_couverture_compte_les_departements_des_aires(tmp_path, monkeypatch):
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, stom, annee_2025", {"stom": jeu_factice("stom")})
+    trois = DEPARTEMENTS + [{"code": "01", "nom": "Ain", "wkt": DEPARTEMENTS[0]["wkt"]}]
+    monkeypatch.setattr(IndicateursQueries, "departements", lambda self: trois)
+    ctx.results["ind_socle"] = get_brick("ind_socle").run(ctx)
+    assert "sur 2 départements" in get_brick("stom").run(ctx).texts["STOM_TEXTE_COUVERTURE"]
+
+
+def test_texte_couverture_un_seul_departement():
+    c, fid = {"aires": 3}, {"nouvelles": 0, "abandonnees": 0}
+    assert textes.texte_couverture("site", c, fid, True, 1).startswith("Les 3 sites suivis sont tous dans le même")
+    assert "sur 2 départements" in textes.texte_couverture("site", c, fid, True, 2)

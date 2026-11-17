@@ -80,7 +80,10 @@ def texte_couverture(aire, c: dict, fid: dict, par_departement: bool, nb_departe
     n = c.get("aires") or 0
     if not n:
         return ""
-    if par_departement:
+    if par_departement and nb_departements <= 1:
+        t = (f"Les {nombre(n)} {pluriel(aire, n)} {_suivi(aire, n)} sont tou{'tes' if feminin(aire) else 's'} dans le "
+             "même département (tableau ci-dessous).")
+    elif par_departement:
         t = (f"Les {nombre(n)} {pluriel(aire, n)} {_suivi(aire, n)} se répartissent sur {nb_departements} "
              "départements (tableau ci-dessous).")
     else:

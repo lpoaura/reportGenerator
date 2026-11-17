@@ -70,10 +70,17 @@ def jeu_factice(code: str = "stom") -> Jeu:
     return verifier(Jeu(code, aires, unites, passages, observateurs, observations))
 
 
-# PNG valide d'un pixel (rendu QGIS factice)
-PNG_1PX = bytes.fromhex(
-    "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
-    "1f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082")
+def _png(taille=(40, 40)) -> bytes:
+    from io import BytesIO
+
+    from PIL import Image
+    tampon = BytesIO()
+    Image.new("RGB", taille, "white").save(tampon, "PNG")
+    return tampon.getvalue()
+
+
+# PNG valide (rendu QGIS factice)
+PNG_1PX = _png()
 
 
 def rendu_factice(project_path, output_dir, config=None):
