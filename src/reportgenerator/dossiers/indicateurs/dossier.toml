@@ -12,7 +12,7 @@ qgis_project = "qgis/projet_indicateurs.qgs"
 indicateurs = []
 
 [analyses]
-required = ["ind_socle"]
+required = ["ind_socle", "ind_synthese"]
 optional = ["stoc", "shoc", "stom", "sterf", "pop_reptile", "pop_amphibien"]
 par_defaut = ["stoc", "shoc", "stom", "sterf", "pop_reptile", "pop_amphibien"]
 

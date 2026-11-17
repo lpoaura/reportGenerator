@@ -197,6 +197,73 @@ def _texte_historique(r, serie, debut, debut_obs) -> str:
     return t
 
 
+# ------------------------------------------------------------------------------------------------------ synthèse
+def _sections(ctx) -> list[tuple[str, dict]]:
+    """(code, data) des protocoles exécutés qui ont des aires dans la zone, dans l'ordre du rapport."""
+    return [(c, ctx.results[c].data) for c in PROTOCOLES if c in ctx.results and not ctx.results[c].data["vide"]]
+
+
+def _heures(c) -> str:
+    return f"{tx.nombre(round(c['heures']))} h" + (" (estimé)" if c["heures_estimees"] else "")
+
+
+@register_brick(
+    "ind_synthese",
+    requires=["ind_socle"],
+    provides=["TABLE_CHIFFRES_CLES", "TEXTE_CHIFFRES_CLES", "TEXTE_CONCLUSION", "BLOCS_ANNEXE_ESPECES",
+              "BLOCS_ANNEXE_CONTROLE"],
+    last=True,
+)
+def ind_synthese(ctx):
+    """Chiffres clés de tous les protocoles (page de garde), conclusion pré-rédigée, annexes."""
+    annee, sections = _socle(ctx)["annee"], _sections(ctx)
+    lignes, phrases, annexe_esp, controle = [], [], [], []
+    for code, d in sections:
+        r, c, c1 = d["regle"], d["chiffres"], d["precedent"]
+        lignes.append({"protocole": r["label"], "saison": d["libelle"], "aires": f"{tx.nombre(c['aires'])} "
+                       f"{tx.pluriel(r['aire'], c['aires'])}", "observateurs": tx.nombre(c["observateurs"]),
+                       "donnees": tx.nombre(c["donnees"]), "temps": _heures(c),
+                       "ecart": tx.ecart(c["aires"], c1["aires"] if c1 else None)})
+        phrases.append(f"{r['label']} ({d['libelle']}) : {tx.nombre(c['aires'])} {tx.pluriel(r['aire'], c['aires'])} "
+                       f"(écart avec la saison précédente : {tx.ecart(c['aires'], c1['aires'] if c1 else None)}), "
+                       f"{tx.nombre(c['observateurs'])} observateurs, {tx.nombre(c['donnees'])} données.")
+        especes = k.especes(d["jeu"], d["saison"], None)
+        annexe_esp += [("titre", 2, f"{r['label']} - {d['libelle']}"),
+                       ("tableau", [{**e, "freq_aires": _pct(e["freq_aires"]), "effectif": tx.nombre(e["effectif"])}
+                                    for e in especes],
+                        [("rang", "Rang"), ("nom", "Espèce"), ("freq_aires", f"% des {tx.pluriel(r['aire'])}"),
+                         ("effectif", "Effectif cumulé")])]
+        anomalies = [{**a, "date": a["date"].strftime("%d/%m/%Y") if a.get("date") else "", "nom": a.get("nom") or ""}
+                     for a in d["jeu"].anomalies if a.get("saison") in (None, d["saison"])]
+        if anomalies:
+            controle += [("titre", 2, r["label"]),
+                         ("tableau", anomalies, [("code", "Code"), ("libelle", "Anomalie"), ("aire", "Aire"),
+                                                 ("unite", "Unité"), ("date", "Date"), ("nom", "Observateur")])]
+    jeux = {code: d["jeu"] for code, d in sections}
+    multi = k.observateurs_multi_protocoles(jeux, {code: d["saison"] for code, d in sections})
+    total_donnees = sum(d["chiffres"]["donnees"] for _, d in sections)
+    total_heures = sum(d["chiffres"]["heures"] for _, d in sections)
+    texte = (f"En {annee}, {len(sections)} protocole{'s' if len(sections) > 1 else ''} de suivi "
+             f"{'ont' if len(sections) > 1 else 'a'} produit {tx.nombre(total_donnees)} données dans la zone, pour "
+             f"environ {tx.nombre(round(total_heures))} heures de travail (mesurées ou estimées). "
+             f"{tx.nombre(multi)} observateurs (comptes) ont participé à au moins deux protocoles."
+             if sections else f"Aucun protocole n'a d'aire suivie dans la zone en {annee}.")
+    if not controle:
+        controle = [("texte", "Aucune anomalie de saisie relevée.")]
+    return AnalysisResult(
+        texts={"TEXTE_CHIFFRES_CLES": texte, "TEXTE_CONCLUSION": " ".join(phrases) or texte},
+        tables={
+            "TABLE_CHIFFRES_CLES": tableau(lignes, [("protocole", "Protocole"), ("saison", "Saison"),
+                                                    ("aires", "Aires suivies"), ("observateurs", "Observateurs"),
+                                                    ("donnees", "Données"), ("temps", "Temps"),
+                                                    ("ecart", "Écart des aires")]),
+            "BLOCS_ANNEXE_ESPECES": blocs(annexe_esp),
+            "BLOCS_ANNEXE_CONTROLE": blocs([("a_rediger", "Annexe de contrôle : à supprimer avant envoi.")]
+                                           + controle),
+        },
+    )
+
+
 # ------------------------------------------------------------------------------ analyses propres à un protocole
 def _stoc(ctx, jeu, saison, r):
     s = _socle(ctx)

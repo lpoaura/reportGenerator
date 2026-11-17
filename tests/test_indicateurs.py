@@ -352,3 +352,15 @@ def test_briques_monitoring_blocs(tmp_path, monkeypatch):
                                  ("pop_reptile", "POPR", "État des aires"), ("pop_amphibien", "POPA", "Objectif")):
         blocs_ = get_brick(code).run(ctx).tables[f"{prefixe}_BLOCS_SPECIFIQUES"].data
         assert titre in [b[2] for b in blocs_ if b[0] == "titre"]
+
+
+# ------------------------------------------------------------------------------------------------------ synthèse
+def test_synthese_ignore_protocole_vide(tmp_path, monkeypatch):
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, annee_2025", {"stom": jeu_factice("stom")})
+    ctx.results["ind_socle"] = get_brick("ind_socle").run(ctx)
+    for code in ("stom", "sterf"):
+        ctx.results[code] = get_brick(code).run(ctx)
+    r = get_brick("ind_synthese").run(ctx)
+    lignes = r.tables["TABLE_CHIFFRES_CLES"].data
+    assert [ligne["protocole"] for ligne in lignes] == ["STOM"]
+    assert "nan" not in r.texts["TEXTE_CONCLUSION"] and "STOM" in r.texts["TEXTE_CONCLUSION"]
