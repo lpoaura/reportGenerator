@@ -209,7 +209,14 @@ def _shoc(ctx, jeu, saison, r):
     return sp.blocs_shoc(jeu, jeu_protocole(ctx, "stoc"), saison)   # STOC chargé même s'il n'est pas demandé
 
 
-SPECIFIQUES.update({"stoc": _stoc, "shoc": _shoc})
+SPECIFIQUES.update({
+    "stoc": _stoc,
+    "shoc": _shoc,
+    "stom": lambda ctx, jeu, saison, r: sp.blocs_stom(jeu, saison, r),
+    "sterf": lambda ctx, jeu, saison, r: sp.blocs_sterf(jeu, saison, r),
+    "pop_reptile": lambda ctx, jeu, saison, r: sp.blocs_pop(jeu, saison, r),
+    "pop_amphibien": lambda ctx, jeu, saison, r: sp.blocs_pop(jeu, saison, r),
+})
 
 
 def _brique(code: str):

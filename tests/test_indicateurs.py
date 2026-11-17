@@ -316,3 +316,39 @@ def test_briques_stoc_shoc_blocs(tmp_path, monkeypatch):
     assert titres == ["Passages réalisés", "STOC-sites", "Tendances MNHN"]   # 3 autres STOC-sites, aucun N2000
     blocs_shoc = get_brick("shoc").run(ctx).tables["SHOC_BLOCS_SPECIFIQUES"].data
     assert "3 carrés SHOC" in blocs_shoc[1][1]
+
+
+# ---------------------------------------------------------------------------- analyses propres (STOM, STERF, POP)
+def test_stom_liste():
+    liste = sp.liste_sites_stom(jeu_factice(), 2025)
+    assert liste[0] == {"date": "21/05/2025", "site": "A1", "departement": "Savoie",
+                        "observateurs": "Observateur 1, Observateur 2"}
+    assert len(liste) == 3
+
+
+def test_sterf():
+    j = jeu_factice()
+    assert sp.classer_sterf(j, 2025, 5) == {"A1": "Site type STERF", "A2": "Site type STERF", "A4": "STERF vrai"}
+    tot = sp.tableau_sterf(j, 2025, 5)[-1]
+    assert (tot["sterf_vrais"], tot["sites_type"], tot["transects"], tot["donnees"]) == (1, 2, 4, 24)
+    assert sp.unites_non_suivies(j, 2025) == 4                       # U4b à U4e
+    assert sp.tableau_zbiog(j, 2025, {})[0]["objectif"] == "à définir"
+
+
+def test_pop():
+    j = jeu_factice()
+    j.etats = pd.DataFrame({"id_aire": ["A1", "A2"], "saison": [2025, 2025], "etat": ["Complète", "Incomplète"]})
+    assert sp.etats_pop(j, 2025) == {"Complète": 1, "Incomplète": 1}
+    assert sp.avancement(j, 2025, {"objectif": 50, "objectif_sur": "aires"}) == (3, 50, 6)
+    assert sp.avancement(j, 2025, {"objectif": 500, "objectif_sur": "unites"}) == (8, 500, 2)
+
+
+def test_briques_monitoring_blocs(tmp_path, monkeypatch):
+    jeux = {c: jeu_factice(c) for c in ("stom", "sterf", "pop_reptile", "pop_amphibien")}
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, stom, sterf, pop_reptile, pop_amphibien, annee_2025", jeux)
+    ctx.results["ind_socle"] = get_brick("ind_socle").run(ctx)
+    for code, prefixe, titre in (("stom", "STOM", "Sites suivis"),
+                                 ("sterf", "STERF", "STERF vrais et sites type STERF"),
+                                 ("pop_reptile", "POPR", "État des aires"), ("pop_amphibien", "POPA", "Objectif")):
+        blocs_ = get_brick(code).run(ctx).tables[f"{prefixe}_BLOCS_SPECIFIQUES"].data
+        assert titre in [b[2] for b in blocs_ if b[0] == "titre"]
