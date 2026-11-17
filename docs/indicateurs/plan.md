@@ -28,7 +28,9 @@ Les exécutants lisent les deux.
   avec un `id_area` de `ref_geo.l_areas` : région AuRA `2191961`, Savoie `2236653`.
 - Branche `indicateurs` (créée depuis `eolien_vulnerabilite` : l'architecture multi-dossiers n'est pas dans `main`).
 - Toujours `poetry run`. Les scripts d'essai vont dans le scratchpad, jamais `python -`.
-- Ne pas lire le schéma `grafana` (pas de droit `USAGE`), ni `t_annuaire_*`, ni `parcelle_avec_exploitant`.
+- Le générateur ne lit pas le schéma `grafana` (lisible depuis le 17/11/2026, mais réservé au recoupement de la
+  validation). Ne jamais lire `t_annuaire_*` ni `parcelle_avec_exploitant`.
+- Cartes par **projet QGIS** (décision du 17/11/2026), symbologie modifiable dans QGIS par l'utilisateur.
 - **Jamais d'email dans le rapport.** Les noms d'observateurs n'apparaissent que dans la liste des sites STOM et dans
   l'annexe de contrôle.
 - Toute règle métier est écrite une fois : `analysis/indicateurs/selections.py` (règles), `dossier.toml` (seuils,
@@ -184,7 +186,7 @@ git commit -m "Dossiers : jetons de paramètres (annee_AAAA) et analyses optionn
   def numero_periode(d: date, periodes: list[list[str]]) -> int | None    # 1 = première période ; "MM-JJ"
   def dans_periode(d: date, periode: list[str]) -> bool
   def est_stoc_site_n2000(nom_site: str | None, motif: str) -> bool        # motif façon ILIKE : "STOC N2000%"
-  def completer_durees(passages: pd.DataFrame) -> pd.DataFrame
+  def completer_durees(passages: pd.DataFrame, duree_defaut_min: float | None = None) -> pd.DataFrame
   ```
 
 Règles à appliquer exactement :
@@ -196,8 +198,9 @@ Règles à appliquer exactement :
 - `saison(d, "hiver")` : année de janvier, soit `d.year + 1` si `d.month >= 7`, sinon `d.year`. `libelle_saison(2025,
   "hiver")` → `"2024-2025"`. Note pour la conception : le rapport 2025 montre l'hiver 2024-2025, la saison 2025 du
   modèle. C'est le sens de « rattaché à N-1 » du §5.2 : corriger la phrase du §5.2 dans la même tâche.
-- `completer_durees` : une durée manquante prend la moyenne des durées connues de la même saison et passe
-  `duree_estimee = True`. Si aucune durée n'est connue dans la saison, elle reste vide.
+- `completer_durees` : une durée manquante prend `duree_defaut_min` s'il est donné (STERF : 60 min par passage sur
+  un transect), sinon la moyenne des durées connues de la même saison, et passe `duree_estimee = True`. Sans défaut
+  et sans durée connue dans la saison, elle reste vide.
 
 - [ ] **Étape 1 : écrire les tests qui échouent**
 
@@ -252,6 +255,8 @@ def test_completer_durees():
     r = s.completer_durees(p)
     assert r["duree_min"].tolist()[:3] == [60, 30, 45] and r["duree_estimee"].tolist()[2] is True
     assert pd.isna(r["duree_min"].iloc[3])
+    r = s.completer_durees(p, duree_defaut_min=60)
+    assert r["duree_min"].tolist() == [60, 30, 60, 60] and r["duree_estimee"].tolist() == [False, False, True, True]
 
 
 def test_verifier_jeu():
@@ -282,12 +287,12 @@ Un seul jeu construit à la main, réutilisé par les tâches 5 à 12. Les valeu
 
 Contenu exact (saison civile, `observations` présentes pour 2024 et 2025) :
 
-| Aire | Département | Unités | Commune |
-|---|---|---|---|
-| A1 | Savoie | U1a, U1b | Chambéry |
-| A2 | Savoie | U2a | Albertville |
-| A3 | Isère | U3a | Grenoble |
-| A4 | Isère | U4a, U4b, U4c, U4d, U4e | Vienne |
+| Aire | Département | Zone biogéographique | Unités | Commune |
+|---|---|---|---|---|
+| A1 | Savoie | Zone alpine | U1a, U1b | Chambéry |
+| A2 | Savoie | Zone alpine | U2a | Albertville |
+| A3 | Isère | Zone alpine | U3a | Grenoble |
+| A4 | Isère | Plaine rhodanienne | U4a, U4b, U4c, U4d, U4e | Vienne |
 
 | Passage | Aire / unité | Date | Données | Durée (min) | Estimée | Observateurs |
 |---|---|---|---|---|---|---|
@@ -352,7 +357,7 @@ Règles :
   aucun observateur avant `debut_observateurs` (2015) ; un `passage_mnhn` hors de 1 à 3 donne une anomalie
   `passage_mnhn` ; les unités sont les `(id_aire, id_unite, nom_unite)` distincts des relevés ;
 - monitoring : `id_observateur = f"role:{id_role}"` ; les unités d'aire `sans_aire` donnent une anomalie
-  `site_sans_aire` ; `completer_durees` est appliquée ;
+  `site_sans_aire` ; `completer_durees(passages, regle.get("duree_defaut_min"))` est appliquée ;
 - `nom` des observateurs gardé (liste STOM, annexe de contrôle) ; l'email ne sort jamais de l'adaptateur.
 
 - [ ] **Étape 1 : écrire les tests qui échouent**
@@ -420,7 +425,7 @@ def test_jeu_monitoring_durees_et_sans_aire():
   def par_categorie(jeu, saison, temps: dict) -> list[dict]      # {categorie, aires, observateurs, donnees, heures}
   def statut_aires(jeu, saison) -> dict[id_aire, str]            # "suivie" | "nouvelle" | "non suivie"
   def completude(jeu, saison, regle) -> dict[id_aire, str]       # "complète" | "incomplète"
-  def couverture(jeu, saison, regle, par_departement: bool) -> list[dict]
+  def couverture(jeu, saison, regle, par: str) -> list[dict]     # par = "departement" | "zbiog" | "aire"
   ```
   `chiffres` renvoie `aires, unites, visites, releves, observateurs, donnees, especes, heures, heures_estimees`.
   Une **visite** est un couple `(id_aire, date)` distinct ; un **relevé** est une ligne de `passages`. `especes` vaut
@@ -434,9 +439,9 @@ def test_jeu_monitoring_durees_et_sans_aire():
   `completude` : avec `regle["periodes"]`, l'aire est complète si chaque période contient au moins une visite ;
   avec `regle["passages_par_unite"]` et `regle["periode_unite"]`, chaque unité visitée en N doit avoir ce nombre de
   dates dans la période ; si `jeu.etats` est fourni, l'état de la base est repris tel quel.
-  `couverture` : par département (`departement, aires, unites, visites, observateurs, donnees, nouvelles,
-  completes`) avec une ligne `total=True`, ou par aire (`aire, commune, departement, unites, visites,
-  observateurs, completude`).
+  `couverture` : par département ou par zone biogéographique (`<departement|zbiog>, aires, unites, visites,
+  observateurs, donnees, nouvelles, completes`) avec une ligne `total=True`, ou par aire (`aire, commune,
+  departement, zbiog, unites, visites, observateurs, completude`).
 
 - [ ] **Étape 1 : écrire les tests qui échouent** (jeu factice de la tâche 3)
 
@@ -475,8 +480,10 @@ def test_statut_completude_couverture():
     assert communes.statut_aires(j, 2025) == {"A1": "suivie", "A2": "suivie", "A4": "nouvelle", "A3": "non suivie"}
     assert communes.completude(j, 2025, {"periodes": [["05-01", "06-30"]]}) == {
         "A1": "complète", "A2": "complète", "A4": "incomplète"}
-    dep = communes.couverture(j, 2025, {"periodes": [["05-01", "06-30"]]}, par_departement=True)
+    dep = communes.couverture(j, 2025, {"periodes": [["05-01", "06-30"]]}, par="departement")
     assert [(r["departement"], r["aires"]) for r in dep] == [("Isère", 1), ("Savoie", 2), ("Total", 3)]
+    zb = communes.couverture(j, 2025, {"periodes": [["05-01", "06-30"]]}, par="zbiog")
+    assert [(r["zbiog"], r["aires"]) for r in zb] == [("Plaine rhodanienne", 1), ("Zone alpine", 2), ("Total", 3)]
 ```
 
 - [ ] **Étape 2 : lancer, échec attendu.**
@@ -579,11 +586,8 @@ Les identifiants O1, O2, O3 du jeu factice sont `role:1`, `role:2`, `role:3`.
   ```python
   def chart_aires(serie: list[dict], path: Path, label_aire: str) -> Path              # barres par saison
   def chart_observateurs(series_cat: list[dict], path: Path) -> Path                   # barres empilées par catégorie
-  def carte_aires(path: Path, zone_wkt: str, departements: list[dict], aires: pd.DataFrame,
-                  statuts: dict[str, str]) -> Path                                     # suivie / nouvelle / non suivie
   ```
-  Carte : contours des départements, emprise, aires colorées par statut, légende. Matplotlib et non QGIS : même choix
-  que le PLSOC, sans projet QGIS à maintenir pour six protocoles (choix du constructeur, §7 de la conception).
+  Les cartes passent par QGIS (tâche 13), pas par matplotlib.
 
 - [ ] **Étape 1 : écrire les tests qui échouent**
 
@@ -611,8 +615,6 @@ def test_figures(tmp_path):
     j = jeu_factice()
     assert figures.chart_aires(communes.serie(j, 2023, 2025, TEMPS_MESURE), tmp_path / "a.png", "site").exists()
     assert figures.chart_observateurs(communes.series_categories(j, 2023, 2025), tmp_path / "o.png").exists()
-    assert figures.carte_aires(tmp_path / "c.png", ZONE_WKT, DEPARTEMENTS, j.aires,
-                               communes.statut_aires(j, 2025)).exists()
 ```
 
 - [ ] **Étape 2 : lancer, échec attendu.**
@@ -640,17 +642,19 @@ def test_figures(tmp_path):
   def charger(code: str, q, regle: dict, saison: int, annees_especes: int) -> Jeu
   # bricks/indicateurs.py
   CLES = ("ANNEE_LIBELLE", "TEXTE_PARTICIPATION", "TABLE_CHIFFRES", "TABLE_CATEGORIES", "NOTE_CATEGORIES",
-          "TEXTE_COUVERTURE", "TABLE_COUVERTURE", "CARTE", "TEXTE_HISTORIQUE", "CHART_AIRES", "CHART_OBSERVATEURS",
-          "TABLE_HISTORIQUE", "TEXTE_FIDELISATION", "TEXTE_ESPECES", "TABLE_ESPECES", "TABLE_EVOLUTION_ESPECES",
-          "BLOCS_SPECIFIQUES")
+          "TEXTE_COUVERTURE", "TABLE_COUVERTURE", "TABLE_COUVERTURE_ZBIOG", "TEXTE_HISTORIQUE", "CHART_AIRES",
+          "CHART_OBSERVATEURS", "TABLE_HISTORIQUE", "TEXTE_FIDELISATION", "TEXTE_ESPECES", "TABLE_ESPECES",
+          "TABLE_EVOLUTION_ESPECES", "BLOCS_SPECIFIQUES")
+  # la carte {PREFIXE}_CARTE est une mise en page du projet QGIS, fournie par la brique ind_cartes (tâche 13)
   def cles_protocole(code: str) -> list[str]          # [f"{PREFIXES[code]}_{c}" for c in CLES]
   def jeu_protocole(ctx, code: str) -> Jeu            # ctx.cached(f"ind_jeu_{code}", ...)
   SPECIFIQUES: dict[str, Callable[[ctx, Jeu, int, dict], list[tuple]]]   # rempli aux tâches 10 et 11
   ```
   Brique `ind_socle` : `provides = ["AREA_NAME", "TITRE_RAPPORT", "ANNEE", "DATE_EXTRACTION", "TEXTE_ZONE"]` ;
-  `data = {"annee", "zone", "departements", "par_departement", "q"}` ; `annee = params["annee"] or
-  annee_par_defaut(date.today(), params["fin_saison"])`. `par_departement` est vrai si la zone touche au moins deux
-  départements.
+  `data = {"annee", "zone", "departements", "par_departement", "par_zbiog", "q"}` ; `annee = params["annee"] or
+  annee_par_defaut(date.today(), params["fin_saison"])`. `par_departement` (resp. `par_zbiog`) est vrai si la zone
+  touche au moins deux départements (resp. zones biogéographiques). Sans `par_zbiog`, `TABLE_COUVERTURE_ZBIOG` est
+  un texte vide.
   Briques `stoc`, `shoc`, `stom`, `sterf`, `pop_reptile`, `pop_amphibien` : déclarées en boucle sur `PROTOCOLES`,
   `requires=["ind_socle"]`, `provides=cles_protocole(code)`. `data = {"jeu", "saison", "chiffres", "precedent",
   "fidelisation", "especes", "vide"}`.
@@ -663,6 +667,7 @@ def test_figures(tmp_path):
 ```toml
 label = "Indicateurs de biodiversité - rapport d'exécution annuel"
 template = "template.docx"
+qgis_project = "qgis/projet_indicateurs.qgs"    # ajouté à la tâche 13
 
 [declencheurs]
 indicateurs = []
@@ -732,6 +737,7 @@ saison = "civile"
 debut_serie = 2024
 passages_par_unite = 4         # à confirmer avec le coordinateur STERF
 periode_unite = ["05-01", "08-31"]
+duree_defaut_min = 60          # passage sans heures de début et de fin : 1 h par transect (à confirmer)
 seuil_sterf_vrai = 5
 objectif = 100
 objectif_ideal = 150
@@ -830,7 +836,8 @@ remplacement du test s'applique.
 |---|---|---|
 | `zone()` | `wkt, surface_ha` | `ref_geo.l_areas` |
 | `departements()` | `code, nom, wkt` (simplifié 200 m) | type `DEP` intersectant la zone |
-| `localiser(centres: list[tuple[str, float, float]])` | `id_aire, commune, departement, zbiog` | `unnest` des centres ; types `COM`, `DEP`, `ZBIOG` contenant le point |
+| `localiser(centres: list[tuple[str, float, float]])` | `id_aire, commune, departement, zbiog` | `unnest` des centres ; types `COM` et `DEP` de `ref_geo.l_areas`, et `ref_geo.mv_aura_zb` (`area_name`) contenant le point |
+| `zones_biogeo()` | `nom, wkt` (simplifié 200 m) | `ref_geo.mv_aura_zb` intersectant la zone |
 | `aires_vigienature(protocoles, par_site: bool)` | `id_aire, nom_aire, wkt, x, y, nb_unites` | `pr_vigienature.t_releve` ; aire = `carre_numnat` (ou `site_name` si `par_site`) ; géométrie = `l_carre_suivi.geom` par `numnat = carre_numnat`, sinon enveloppe des points tamponnée de 200 m (`l_carre_suivi` ne couvre pas tous les carrés) ; centre = centroïde des points |
 | `releves_vigienature(protocoles, debut, par_site)` | colonnes de la tâche 4 | `t_releve` (`id`, `date_debut`, `observateur`, `point_num`, `passage_mnhn`), `nb_donnees` = nombre de `t_observation` du relevé ; unité = point (`geom_point`) ou transect SHOC (`geom_transect`, sinon `geom_point`) |
 | `observations_vigienature(protocoles, annee_min, par_site)` | `id_passage, cd_ref, nom, effectif` | `t_observation.taxon_id` → `cor_taxon_referentiels.id` → `cd_nom` → `taxonomie.taxref` (`cd_ref`, `nom_vern`) ; `effectif = nombre`. Vérifié : 174 410 sur 176 166 observations STOC 2025 retrouvent un `cd_ref` |
@@ -1038,7 +1045,96 @@ def test_synthese_ignore_protocole_vide(tmp_path, monkeypatch):
 
 ---
 
-### Tâche 13 : template Word
+### Tâche 13 : cartes QGIS
+
+Une mise en page QGIS par protocole (`STOC_CARTE`, `SHOC_CARTE`, `STOM_CARTE`, `STERF_CARTE`, `POPR_CARTE`,
+`POPA_CARTE`) : aires de la zone par statut en N (suivie, nouvelle, non suivie), départements et zones
+biogéographiques en fond. La symbologie se règle dans QGIS, sans toucher au code.
+
+**Fichiers :**
+- Créer : `src/reportgenerator/analysis/indicateurs/cartes.py`
+- Modifier : `src/reportgenerator/bricks/indicateurs.py` (brique `ind_cartes`)
+- Modifier : `src/reportgenerator/dossiers/indicateurs/dossier.toml` (`[params.qgis_render]`)
+- Créer : `outils/qgis/build_projet_indicateurs.py`
+- Créer : `src/reportgenerator/dossiers/indicateurs/qgis/projet_indicateurs.qgs` (+ `_attachments.zip` si QGIS en crée)
+- Tests : `tests/test_indicateurs.py`
+
+**Interfaces :**
+- Consomme : `communes.statut_aires`, `export_gpkg`, `copy_qgis_project` (`analysis/cartography/export.py`),
+  `launch_qgis_render` (`analysis/cartography/qgis_launcher.py`), `qgis_layout_names` (`bricks/common.py`).
+- Produit :
+  ```python
+  # cartes.py (pur, sans QGIS)
+  def couches_cartes(jeux: dict[str, Jeu], saisons: dict[str, int], zone: dict, departements: list[dict],
+                     zbiog: list[dict]) -> dict[str, list[dict]]
+  ```
+  Couches rendues (géométries shapely, Lambert 93) : `ind_zone` (`nom`), `ind_departements` (`nom`),
+  `ind_zbiog` (`nom`), `ind_aires` (`protocole`, `id_aire`, `nom_aire`, `statut`, `departement`, `zbiog`).
+  `ind_aires` contient les aires des protocoles exécutés et non vides. Les aires sans géométrie sont écartées.
+  Brique `ind_cartes` : `requires=["ind_socle"]`, `last=True`, `provides=lambda d: qgis_layout_names(d.qgis_project)`.
+  Elle exporte les couches dans `output_dirs["data"]`, copie le projet du dossier, lance le rendu avec
+  `params["qgis_render"]` plus `project_variables = {"annee": <libellé>, "zone": area_name}`, et rend une image par
+  PNG produit (`ImageBlock(png, params["map_layout"])`), comme la brique `cartography`. Si le projet du dossier
+  n'existe pas encore, elle exporte les couches, affiche un avertissement et ne rend rien (c'est ce qui permet de
+  construire le projet à partir d'un premier dry-run). Elle est ajoutée à `required` dans `dossier.toml`.
+
+Projet QGIS, construit par `outils/qgis/build_projet_indicateurs.py` (Python de QGIS, même méthode que
+`build_projet_n2000.py` : charte reprise du projet Natura 2000, couches pointant vers `./data/<couche>.gpkg`) :
+- groupe `Fond` : `ind_zone`, `ind_departements`, `ind_zbiog` (contours), fond de carte de la charte ;
+- un groupe par mise en page, du même nom (`STOC_CARTE`…), avec la couche `ind_aires` filtrée dans le projet
+  (`"protocole" = 'stoc'`) et une symbologie catégorisée sur `statut` ;
+- mises en page A4 : carte, titre « <protocole> : aires suivies en [% @annee %] », légende, échelle, sources.
+`[params.qgis_render]` : `visible_groups = ["Fond"]`, `extent_layer = "ind_zone"`, `extent_margin_ratio = 0.05`,
+`extent_offset_y_ratio = 0.0`, `dpi = 150`.
+
+- [ ] **Étape 1 : tests qui échouent**
+
+```python
+def test_couches_cartes():
+    c = cartes.couches_cartes({"stom": jeu_factice("stom")}, {"stom": 2025}, {"wkt": ZONE_WKT, "nom": "Test"},
+                              DEPARTEMENTS, [])
+    aires = {r["id_aire"]: r for r in c["ind_aires"]}
+    assert {k: r["statut"] for k, r in aires.items()} == {"A1": "suivie", "A2": "suivie", "A3": "non suivie",
+                                                         "A4": "nouvelle"}
+    assert all(r["protocole"] == "stom" and r["geom"] is not None for r in c["ind_aires"])
+    assert len(c["ind_departements"]) == 2 and c["ind_zbiog"] == []
+
+
+def test_brique_cartes_sans_qgis(tmp_path, monkeypatch):
+    projet = tmp_path / "p.qgs"
+    projet.write_text('<Layout name="STOM_CARTE"/><Layout name="STOC_CARTE"/>', encoding="utf-8")
+    def rendu(project_path, output_dir, config=None):
+        for nom in ("STOM_CARTE", "STOC_CARTE"):
+            (Path(output_dir) / f"{nom}.png").write_bytes(PNG_1PX)
+    monkeypatch.setattr(bricks_indicateurs, "launch_qgis_render", rendu)
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, stom, annee_2025", {"stom": jeu_factice("stom")})
+    ctx.dossier = dataclasses.replace(ctx.dossier, qgis_project=projet)
+    for nom in ("ind_socle", "stom"):
+        ctx.results[nom] = get_brick(nom).run(ctx)
+    r = get_brick("ind_cartes").run(ctx)
+    assert set(r.images) == {"STOM_CARTE", "STOC_CARTE"}
+    assert (ctx.output_dirs["data"] / "ind_aires.gpkg").exists()
+```
+
+`PNG_1PX` : constante de `tests/indicateurs_factice.py` (PNG valide d'un pixel). Le même module fournit
+`rendu_factice(project_path, output_dir, config=None)`, qui écrit `PNG_1PX` pour chaque `<Layout name="…">` du projet
+(test de rendu complet de la tâche 14).
+
+- [ ] **Étape 2 : lancer, échec attendu.**
+- [ ] **Étape 3 : implémenter `cartes.py` et la brique.** `bricks/indicateurs.py` importe `launch_qgis_render` au
+  niveau du module (pour le remplacement du test).
+- [ ] **Étape 4 : lancer, les tests passent.**
+- [ ] **Étape 5 : construire le projet** : dry-run de la région pour obtenir `data/` (commande de la tâche 15,
+  étape 2 ; le projet n'existe pas encore, seules les couches sont exportées), puis
+  `& "C:\Program Files\QGIS\3_40\bin\python-qgis-ltr.bat" outils/qgis/build_projet_indicateurs.py src/reportgenerator/dossiers/natura2000/qgis/projet_n2000.qgs <scratchpad>\projet_indicateurs`
+  et installation avec `poetry run python outils/qgis/integrer_projet.py <scratchpad>\projet_indicateurs\projet_indicateurs.qgs src/reportgenerator/dossiers/indicateurs/qgis/projet_indicateurs.qgs`.
+- [ ] **Étape 6 : contrôle des cartes** avec `outils/verif/` (montage des PNG) : six cartes, emprise de la zone,
+  légende lisible, aires filtrées par protocole. Ajouter le projet à `outils/README.md` (§2).
+- [ ] **Étape 7 : commit** : `git commit -m "Indicateurs : cartes QGIS par protocole"`.
+
+---
+
+### Tâche 14 : template Word
 
 **Fichiers :**
 - Créer : `outils/word/template_indicateurs.py`
@@ -1054,8 +1150,8 @@ de garde, charte, sommaire en champ TOC), vide le contenu et écrit le plan du �
 3. Une section par protocole, dans l'ordre de `PROTOCOLES`, entre `{{#code}}` et `{{/code}}`, écrite par une **même
    fonction** appelée six fois avec le préfixe et le texte fixe « Protocole » du rapport 2025. Sous-titres : Protocole,
    Participation et chiffres clés, Couverture, Historique et fidélisation, Espèces, Analyses propres au protocole,
-   Animation et perspectives (paragraphe surligné en jaune). Les 17 placeholders de `CLES`, chacun seul dans son
-   paragraphe pour les tableaux, images et blocs.
+   Animation et perspectives (paragraphe surligné en jaune). Les 17 placeholders de `CLES` et la carte
+   `{{<PREFIXE>_CARTE}}` (sous Couverture), chacun seul dans son paragraphe pour les tableaux, images et blocs.
 4. Conclusion : `{{TEXTE_CONCLUSION}}` puis un paragraphe jaune à rédiger.
 5. Annexes : `{{BLOCS_ANNEXE_ESPECES}}`, `{{BLOCS_ANNEXE_CONTROLE}}`.
 Les règles métier visibles du lecteur (catégories, temps mesurés ou estimés, STERF vrai, périodes de passage) sont
@@ -1068,6 +1164,7 @@ Les règles métier visibles du lecteur (catégories, temps mesurés ou estimés
 def test_rendu_complet_donnees_factices(tmp_path, monkeypatch):
     jeux = {c: jeu_factice(c) for c in PROTOCOLES}
     monkeypatch.setattr(chargement, "charger_stoc_sites", lambda *a, **k: jeu_factice("stoc_sites"))
+    monkeypatch.setattr(bricks_indicateurs, "launch_qgis_render", rendu_factice)   # un PNG par mise en page du projet
     ctx = _ctx(tmp_path, monkeypatch, "indicateurs, annee_2025", jeux)
     sortie = tmp_path / "rapport.docx"
     assert run_pipeline(ctx, output_file=sortie) == set()
@@ -1089,7 +1186,7 @@ def test_dossier_indicateurs_pret():
 
 ---
 
-### Tâche 14 : METHODO, documentation et validation sur la vraie base
+### Tâche 15 : METHODO, documentation et validation sur la vraie base
 
 **Fichiers :**
 - Créer : `src/reportgenerator/dossiers/indicateurs/METHODO.md`
@@ -1103,7 +1200,9 @@ def test_dossier_indicateurs_pret():
 - [ ] **Étape 2 : dry-run région, année 2025** (sortie hors dépôt, données sensibles) :
   `poetry run python outils/dryrun/dryrun_dossier.py "indicateurs, annee_2025" 2191961 0 AuRA_2025 <scratchpad>/aura_2025`
   Attendu : chiffres du tableau du §6, placeholders non remplis : aucun. Reporter les chiffres obtenus dans le §6 et
-  expliquer chaque écart.
+  expliquer chaque écart. Recouper aussi les modules monitoring avec `grafana.vm_synthese_par_annee` et
+  `grafana.vm_comparaison_annees` (lisibles depuis le 17/11/2026 ; à l'échelle de la région seulement, ces VM ne
+  filtrent pas par zone ; elles comptent des sites et non des aires, et classent les observateurs sur l'email seul).
 - [ ] **Étape 3 : dry-run Savoie** :
   `poetry run python outils/dryrun/dryrun_dossier.py "indicateurs, annee_2025" 2236653 0 Savoie_2025 <scratchpad>/savoie_2025`
   Attendu : tableaux par aire (un seul département), environ 25 carrés STOC et 6 SHOC (rapport 2025), sections sans

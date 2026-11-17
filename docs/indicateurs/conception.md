@@ -66,8 +66,10 @@ DREAL et la Région. Le tableau de bord Grafana existant n'est pas concerné.
   une fois (`selections.py` et `dossier.toml`), template modifié par script, `METHODO.md` à jour.
 - Le serveur Docker lance `generate` toutes les heures (code de `main`) : le déclencheur `indicateurs` n'est actif en
   production qu'après fusion dans `main`.
-- Le générateur **ne dépend pas du schéma `grafana`** : le droit `USAGE` sur le schéma manque (vérifié le 17/11/2026
-  malgré l'ouverture des droits sur les VM), et le compte du serveur Docker devrait l'avoir aussi (voir §5.4).
+- Le générateur **ne dépend pas du schéma `grafana`** (voir §5.4). Le droit `USAGE` a été ouvert le 17/11/2026 : les
+  VM servent au recoupement pendant la validation.
+- Le compte du serveur Docker doit pouvoir lire `pr_vigienature`, `src_vn_json.observers_json`,
+  `utilisateurs.t_roles`, `utilisateurs.bib_organismes`, `gn_monitoring` et `ref_geo.mv_aura_zb`.
 - Sortie Word uniquement (pas de PDF) : le document est une base de travail complétée par les coordinateurs.
 - Données personnelles : le rapport cite déjà nommément les observateurs STOM (liste des sites). Les noms
   n'apparaissent que là où le rapport actuel les montre. Jamais d'email dans le rapport.
@@ -134,7 +136,10 @@ Points de vigilance relevés pendant l'étude :
   existantes non suivies (POP : « transects existants / visités »).
 - Les durées viennent de `gn_monitoring.v_suivi_passage.duree_retenue_min` (POP : heures de début et de fin, sinon
   moyenne du site ou du module). Pour le STERF, la vue ne lit pas les heures, alors que `t_visit_complements` contient
-  `start_hour` et `end_hour` : l'adaptateur STERF les lit lui-même.
+  `start_hour` et `end_hour` : l'adaptateur STERF les lit lui-même. Un passage STERF sans heures compte **1 h par
+  transect** (paramètre `duree_defaut_min = 60`, valeur à confirmer, décision du 17/11/2026), marqué comme estimé.
+- Pas de table temporaire : les adaptateurs lisent la base, et le SQL met déjà les lignes en forme (décision du
+  17/11/2026).
 
 - STOC : `passage_mnhn` vaut 1 à 3 (quelques valeurs de 0 et de 4 à 13 depuis 2024, à traiter comme anomalies). Le
   passage de mars se reconnaît à sa date (mois de mars), pas à son numéro.
@@ -193,6 +198,10 @@ sa propre règle partout, et `METHODO.md` signale l'écart avec Grafana.
 - **Niveau de détail** : un cran en dessous de la zone. Si l'emprise touche au moins deux départements, les tableaux
   sont détaillés par département. Sinon, ils listent les aires (nom, commune, passages, observateurs selon le
   protocole).
+- **Zone biogéographique** (demande du 17/11/2026) : chaque aire reçoit aussi la zone biogéographique de son centroïde
+  (`ref_geo.mv_aura_zb`, 4 zones : Massif central, Plaine rhodanienne, Zone alpine, Zone méditerranéenne). Chaque
+  protocole a un tableau de couverture par zone biogéographique, comme celui par département, affiché si l'emprise
+  touche au moins deux zones. Pour le STERF, il porte aussi les objectifs par zone.
 
 ### 5.6 Année du rapport
 
@@ -341,11 +350,16 @@ En plus des étapes de `CLAUDE.md` :
 - Les graphiques (bibliothèque déjà utilisée dans le dépôt).
 - L'ordre de livraison. Proposition : socle commun + STOC, puis les modules monitoring, puis les analyses propres à
   chaque protocole.
-- Le projet QGIS (une mise en page par protocole, ou une mise en page commune filtrée).
+- Cartes : **projet QGIS obligatoire** (décision du 17/11/2026), pour que la symbologie se modifie directement dans
+  QGIS. Une mise en page par protocole (`STOC_CARTE`…), une couche GPKG commune des aires filtrée par protocole dans
+  le projet.
 
 ## 8. Questions ouvertes
 
 Les questions de la relecture ont reçu une réponse le 17/11/2026 (§5.3, §5.10, §5.11). Reste à confirmer pendant la
 construction, sans bloquer le plan :
 - le nombre de passages STERF attendus par transect (paramètre, 4 par défaut), avec le coordinateur STERF ;
-- les temps forfaitaires SHOC et STOM (paramètres), avec les coordinateurs.
+- les temps forfaitaires SHOC et STOM (paramètres), avec les coordinateurs ;
+- la durée par défaut d'un passage STERF sur un transect (1 h) ;
+- les objectifs STERF par zone biogéographique (figure 13 du rapport 2025, en image : valeurs à reporter dans
+  `dossier.toml`).
