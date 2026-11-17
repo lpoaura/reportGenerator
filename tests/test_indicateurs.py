@@ -6,7 +6,7 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from reportgenerator.analysis.indicateurs import communes
+from reportgenerator.analysis.indicateurs import communes, figures, textes
 from reportgenerator.analysis.indicateurs import selections as s
 from reportgenerator.analysis.indicateurs.adaptateurs import jeu_monitoring, jeu_vigienature
 from reportgenerator.analysis.indicateurs.modele import jeu_vide, verifier
@@ -192,3 +192,29 @@ def test_especes():
 def test_observateurs_multi_protocoles():
     j = jeu_factice()
     assert communes.observateurs_multi_protocoles({"a": j, "b": j}, {"a": 2025, "b": 2025}) == 3
+
+
+# --------------------------------------------------------------------------------------------- textes et figures
+def test_ecart():
+    assert textes.ecart(24, 18) == "+6 (+33 %)"
+    assert textes.ecart(3, 3) == "="
+    assert textes.ecart(18, 20) == "−2 (−10 %)"
+    assert textes.ecart(5, None) == "—"
+    assert textes.ecart(5, 0) == "+5"
+
+
+def test_nombre():
+    assert textes.nombre(81561) == "81\u202f561" and textes.nombre(10.5) == "10,5"
+
+
+def test_textes_sans_aire():
+    vide = {"aires": 0, "observateurs": 0, "donnees": 0, "heures": 0, "heures_estimees": False}
+    t = textes.texte_participation("STOM", "site", "2025", vide, None, "")
+    assert t == "Aucun site suivi en 2025 dans la zone."
+    assert textes.texte_participation("POP Reptile", "aire", "2025", vide, None, "").startswith("Aucune aire suivie")
+
+
+def test_figures(tmp_path):
+    j = jeu_factice()
+    assert figures.chart_aires(communes.serie(j, 2023, 2025, TEMPS_MESURE), tmp_path / "a.png", "site").exists()
+    assert figures.chart_observateurs(communes.series_categories(j, 2023, 2025), tmp_path / "o.png").exists()
