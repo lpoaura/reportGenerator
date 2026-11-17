@@ -83,6 +83,7 @@ saison = "civile"
 debut_serie = 2024
 passages_par_unite = 4          # à confirmer avec le coordinateur STERF
 periode_unite = ["05-01", "08-31"]
+heures_visite = true             # durée = heures de début et de fin de la visite (t_visit_complements)
 duree_defaut_min = 60           # passage sans heures de début et de fin : 1 h par transect (à confirmer)
 seuil_sterf_vrai = 5            # STERF vrai : site d'au moins 5 transects, suivi l'année du rapport
 objectif = 100

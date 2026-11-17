@@ -264,3 +264,17 @@ def test_dossier_indicateurs_declenchement():
     assert d.select_analyses("indicateurs")[0][-6:] == list(PROTOCOLES)
     assert d.select_analyses("indicateurs, stoc, annee_2024")[0] == list(d.required) + ["stoc"]
     assert d.params_for("indicateurs, annee_2024")["annee"] == 2024
+
+
+def test_queries_refuse_vue_inconnue():
+    q = IndicateursQueries("factice", 1)
+    with pytest.raises(ValueError):
+        q.etats_pop("v_autre; drop table x")
+    with pytest.raises(ValueError):
+        q.anomalies_pop("v_popreptiles_aire_annee", 2025)
+
+
+def test_jeu_borne_a_la_saison_du_rapport():
+    j = chargement.borner(jeu_factice(), annee_min=2025, saison=2024)
+    assert j.passages["saison"].max() == 2024 and "A4" not in set(j.aires["id_aire"])   # A4 : première visite en 2025
+    assert j.observations.empty and set(j.observateurs["id_passage"]) <= set(j.passages["id_passage"])
