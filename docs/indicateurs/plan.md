@@ -62,7 +62,7 @@ Cas que la conception implique sans qu'une tâche les teste naturellement. Chacu
 
 ---
 
-### Tâche 1 : jetons de paramètres et protocoles par défaut dans `list_analyse`
+### Task 1: jetons de paramètres et protocoles par défaut dans `list_analyse`
 
 Le dossier doit accepter `indicateurs` (tous les protocoles), `indicateurs, stoc, sterf` (deux protocoles) et
 `indicateurs, annee_2024` (année forcée) sans colonne nouvelle.
@@ -137,7 +137,7 @@ git commit -m "Dossiers : jetons de paramètres (annee_AAAA) et analyses optionn
 
 ---
 
-### Tâche 2 : modèle commun et règles métier
+### Task 2: modèle commun et règles métier
 
 **Fichiers :**
 - Créer : `src/reportgenerator/analysis/indicateurs/__init__.py` (vide)
@@ -274,7 +274,7 @@ def test_verifier_jeu():
 
 ---
 
-### Tâche 3 : jeu factice partagé par les tests
+### Task 3: jeu factice partagé par les tests
 
 Un seul jeu construit à la main, réutilisé par les tâches 5 à 12. Les valeurs attendues des tests en découlent.
 
@@ -321,7 +321,7 @@ P8 (1002, 4), (1003 Rouge-gorge familier, 1) ; P9 (1001, 2). `wkt` des aires : p
 
 ---
 
-### Tâche 4 : adaptateurs (lignes de la base → `Jeu`)
+### Task 4: adaptateurs (lignes de la base → `Jeu`)
 
 Fonctions pures : elles reçoivent les lignes des requêtes (listes de dicts) et rendent un `Jeu`. Le SQL vient à la
 tâche 9.
@@ -408,7 +408,7 @@ def test_jeu_monitoring_durees_et_sans_aire():
 
 ---
 
-### Tâche 5 : analyses communes (année N)
+### Task 5: analyses communes (année N)
 
 **Fichiers :**
 - Créer : `src/reportgenerator/analysis/indicateurs/communes.py`
@@ -494,7 +494,7 @@ def test_statut_completude_couverture():
 
 ---
 
-### Tâche 6 : historique, fidélisation et espèces
+### Task 6: historique, fidélisation et espèces
 
 **Fichiers :**
 - Modifier : `src/reportgenerator/analysis/indicateurs/communes.py`
@@ -561,7 +561,7 @@ Les identifiants O1, O2, O3 du jeu factice sont `role:1`, `role:2`, `role:3`.
 
 ---
 
-### Tâche 7 : textes, graphiques et carte
+### Task 7: textes, graphiques et carte
 
 **Fichiers :**
 - Créer : `src/reportgenerator/analysis/indicateurs/textes.py`
@@ -625,7 +625,7 @@ def test_figures(tmp_path):
 
 ---
 
-### Tâche 8 : manifeste, brique socle et briques de protocole
+### Task 8: manifeste, brique socle et briques de protocole
 
 **Fichiers :**
 - Créer : `src/reportgenerator/dossiers/indicateurs/dossier.toml`
@@ -820,7 +820,7 @@ remplacement du test s'applique.
 
 ---
 
-### Tâche 9 : requêtes en lecture seule et chargement
+### Task 9: requêtes en lecture seule et chargement
 
 **Fichiers :**
 - Créer : `src/reportgenerator/analysis/indicateurs/queries.py`
@@ -881,7 +881,7 @@ def test_queries_refuse_vue_inconnue():
 
 ---
 
-### Tâche 10 : analyses propres au STOC et au SHOC
+### Task 10: analyses propres au STOC et au SHOC
 
 **Fichiers :**
 - Créer : `src/reportgenerator/analysis/indicateurs/specifiques.py`
@@ -948,7 +948,7 @@ def test_stoc_sites_n2000():
 
 ---
 
-### Tâche 11 : analyses propres au STOM, au STERF et aux POP
+### Task 11: analyses propres au STOM, au STERF et aux POP
 
 **Fichiers :**
 - Modifier : `src/reportgenerator/analysis/indicateurs/specifiques.py`
@@ -1008,7 +1008,7 @@ def test_pop():
 
 ---
 
-### Tâche 12 : brique de synthèse (page de garde, conclusion, annexes)
+### Task 12: brique de synthèse (page de garde, conclusion, annexes)
 
 **Fichiers :**
 - Modifier : `src/reportgenerator/bricks/indicateurs.py`
@@ -1045,7 +1045,7 @@ def test_synthese_ignore_protocole_vide(tmp_path, monkeypatch):
 
 ---
 
-### Tâche 13 : cartes QGIS
+### Task 13: cartes QGIS
 
 Une mise en page QGIS par protocole (`STOC_CARTE`, `SHOC_CARTE`, `STOM_CARTE`, `STERF_CARTE`, `POPR_CARTE`,
 `POPA_CARTE`) : aires de la zone par statut en N (suivie, nouvelle, non suivie), départements et zones
@@ -1134,7 +1134,7 @@ def test_brique_cartes_sans_qgis(tmp_path, monkeypatch):
 
 ---
 
-### Tâche 14 : template Word
+### Task 14: template Word
 
 **Fichiers :**
 - Créer : `outils/word/template_indicateurs.py`
@@ -1186,7 +1186,7 @@ def test_dossier_indicateurs_pret():
 
 ---
 
-### Tâche 15 : METHODO, documentation et validation sur la vraie base
+### Task 15: METHODO, documentation et validation sur la vraie base
 
 **Fichiers :**
 - Créer : `src/reportgenerator/dossiers/indicateurs/METHODO.md`
