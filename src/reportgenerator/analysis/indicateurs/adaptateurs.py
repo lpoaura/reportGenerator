@@ -42,7 +42,8 @@ def _passages(lignes, regle) -> pd.DataFrame:
         if c not in p.columns:
             p[c] = None if c == "duree_min" else False
     p["duree_estimee"] = p["duree_estimee"].fillna(False).astype(bool)
-    return p[p["saison"] >= int(regle["debut_serie"])].reset_index(drop=True)
+    p = p[p["saison"] >= int(regle["debut_serie"])].sort_values(["date", "id_passage"], kind="stable")
+    return p.reset_index(drop=True)   # ordre chronologique : annexe de contrôle déterministe
 
 
 def _observations(lignes, ids) -> pd.DataFrame:
@@ -50,9 +51,10 @@ def _observations(lignes, ids) -> pd.DataFrame:
     return df[df["id_passage"].isin(ids)].reset_index(drop=True)
 
 
-def _avec_saison(anomalie: dict) -> dict:
+def _avec_saison(anomalie: dict, mode: str) -> dict:
+    """Saison de l'anomalie, selon la règle du protocole (SHOC : décembre compte pour l'année suivante)."""
     d = anomalie.get("date")
-    return {"nom": None, **anomalie, "saison": d.year if d is not None else None}
+    return {"nom": None, **anomalie, "saison": saison(d, mode) if d is not None and not pd.isna(d) else None}
 
 
 def jeu_vigienature(code, aires, releves, observations, observateurs, localisation, regle) -> Jeu:
@@ -77,16 +79,17 @@ def jeu_vigienature(code, aires, releves, observations, observateurs, localisati
             continue
         lignes_obs.append({"id_passage": r.id_passage, "id_observateur": f"ff:{r.observateur}",
                            "nom": (o or {}).get("nom"), "organisme": None, "categorie": "Non renseigné"})
-        if r.observateur not in inconnus:
-            inconnus.add(r.observateur)
+        if (r.observateur, r.saison) not in inconnus:   # une ligne par observateur et par saison (annexe de N)
+            inconnus.add((r.observateur, r.saison))
             anomalies.append(_avec_saison({
                 "code": "observateur_inconnu", "libelle": "Observateur Faune-France sans compte GeoNature",
-                "aire": noms_aires.get(r.id_aire), "unite": r.nom_unite, "date": r.date, "nom": (o or {}).get("nom")}))
+                "aire": noms_aires.get(r.id_aire), "unite": r.nom_unite, "date": r.date, "nom": (o or {}).get("nom")},
+                regle["saison"]))
     for r in p.itertuples():
         if r.passage_mnhn is not None and not pd.isna(r.passage_mnhn) and int(r.passage_mnhn) not in (1, 2, 3):
             anomalies.append(_avec_saison({
                 "code": "passage_mnhn", "libelle": f"Numéro de passage MNHN {int(r.passage_mnhn)} (attendu : 1 à 3)",
-                "aire": noms_aires.get(r.id_aire), "unite": r.nom_unite, "date": r.date}))
+                "aire": noms_aires.get(r.id_aire), "unite": r.nom_unite, "date": r.date}, regle["saison"]))
     unites = _table("unites", p[["id_unite", "id_aire", "nom_unite"]].drop_duplicates().to_dict("records"))
     jeu = Jeu(code, _aires(aires, localisation), unites, p[COLONNES["passages"]], _table("observateurs", lignes_obs),
               _observations(observations, set(p["id_passage"])), anomalies=anomalies)
@@ -111,9 +114,9 @@ def jeu_monitoring(code, aires, unites, passages, observateurs, observations, lo
     u["id_aire"] = u["id_aire"].astype(str)
     u["id_unite"] = u["id_unite"].astype(str)
     liste = [_avec_saison({"code": "site_sans_aire", "libelle": "Site rattaché à aucune aire (groupe de sites)",
-                           "aire": None, "unite": r.nom_unite, "date": None})
+                           "aire": None, "unite": r.nom_unite, "date": None}, regle["saison"])
              for r in u[u["id_aire"] == "sans_aire"].itertuples()]
-    liste += [_avec_saison(dict(a)) for a in anomalies]
+    liste += [_avec_saison(dict(a), regle["saison"]) for a in anomalies]
     e = _table("etats", etats) if etats else None
     if e is not None:
         e["id_aire"] = e["id_aire"].astype(str)

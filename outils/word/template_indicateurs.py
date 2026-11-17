@@ -224,5 +224,9 @@ X("BLOCS_ANNEXE_ESPECES")
 H(2, "Contrôle des saisies")
 X("BLOCS_ANNEXE_CONTROLE")
 
+# propriétés du document (héritées du template source) : aucun nom de personne dans les rapports générés
+doc.core_properties.author = "LPO Auvergne-Rhône-Alpes"
+doc.core_properties.last_modified_by = "LPO Auvergne-Rhône-Alpes"
+doc.core_properties.title = "Indicateurs de biodiversité en Auvergne-Rhône-Alpes"
 doc.save(dst)
 print("Template écrit :", dst)

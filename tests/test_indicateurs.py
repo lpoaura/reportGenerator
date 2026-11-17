@@ -432,3 +432,50 @@ def test_texte_couverture_un_seul_departement():
     c, fid = {"aires": 3}, {"nouvelles": 0, "abandonnees": 0}
     assert textes.texte_couverture("site", c, fid, True, 1).startswith("Les 3 sites suivis sont tous dans le même")
     assert "sur 2 départements" in textes.texte_couverture("site", c, fid, True, 2)
+
+
+# ------------------------------------------------------------------------------ relecture finale (cas dégradés)
+def test_completude_saison_vide_ne_plante_pas():
+    regle = {"passages_par_unite": 4, "periode_unite": ["05-01", "08-31"]}
+    assert communes.completude(jeu_factice("sterf"), 2026, regle) == {}
+
+
+def test_rendu_annee_sans_passage_tous_protocoles(tmp_path, monkeypatch):
+    jeux = {c: jeu_factice(c) for c in PROTOCOLES}
+    monkeypatch.setattr(chargement, "charger_stoc_sites", lambda *a, **k: jeu_factice("stoc_sites"))
+    monkeypatch.setattr(bricks_indicateurs, "launch_qgis_render", rendu_factice)
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, annee_2026", jeux)
+    sortie = tmp_path / "rapport_2026.docx"
+    assert run_pipeline(ctx, output_file=sortie) == set()
+    d = Document(sortie)
+    texte = "\n".join(p.text for p in d.paragraphs) + "\n".join(
+        c.text for t in d.tables for row in t.rows for c in row.cells)
+    assert not re.search(r"\b(nan|None|NaN)\b", texte)
+
+
+def test_blocs_shoc_sans_carre_en_n():
+    assert sp.blocs_shoc(jeu_factice("shoc"), jeu_factice("stoc"), 2026) == []
+
+
+def test_table_zbiog_colonnes_par_zone_pour_un_departement(tmp_path, monkeypatch):
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, stom, annee_2025", {"stom": jeu_factice("stom")})
+    monkeypatch.setattr(IndicateursQueries, "departements", lambda self: DEPARTEMENTS[:1])
+    deux_zones = [{"nom": "Zone alpine", "wkt": ZONE_WKT}, {"nom": "Plaine rhodanienne", "wkt": ZONE_WKT}]
+    monkeypatch.setattr(IndicateursQueries, "zones_biogeo", lambda self: deux_zones)
+    ctx.results["ind_socle"] = get_brick("ind_socle").run(ctx)
+    colonnes = [c for c, _ in get_brick("stom").run(ctx).tables["STOM_TABLE_COUVERTURE_ZBIOG"].options["colonnes"]]
+    assert colonnes[:2] == ["zbiog", "aires"] and "commune" not in colonnes
+
+
+def test_anomalies_observateur_inconnu_par_saison():
+    aires = [{"id_aire": "C1", "nom_aire": "Carré 1", "wkt": None, "x": 0, "y": 0, "nb_unites": 1}]
+    releves = [{"id_passage": i, "id_aire": "C1", "id_unite": "C1/1", "nom_unite": "1", "date": d,
+                "observateur": "99", "nb_donnees": 1, "passage_mnhn": 1}
+               for i, d in ((1, date(2023, 12, 10)), (2, date(2024, 12, 10)))]
+    j = jeu_vigienature("shoc", aires, releves, [], [], [], REGLE_V)
+    assert sorted(a["saison"] for a in j.anomalies if a["code"] == "observateur_inconnu") == [2024, 2025]
+
+
+def test_template_sans_nom_de_collegue_dans_les_proprietes():
+    props = Document(load_dossier("indicateurs").template).core_properties
+    assert props.author == "LPO Auvergne-Rhône-Alpes" and props.last_modified_by == "LPO Auvergne-Rhône-Alpes"

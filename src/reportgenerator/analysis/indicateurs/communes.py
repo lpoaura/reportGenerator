@@ -159,7 +159,7 @@ def completude(jeu, saison, regle) -> dict:
             out[a] = "complète" if couvertes >= set(range(1, len(regle["periodes"]) + 1)) else "incomplète"
     elif regle.get("passages_par_unite"):
         periode, n = regle.get("periode_unite", ["01-01", "12-31"]), int(regle["passages_par_unite"])
-        dans = p[[dans_periode(d, periode) for d in p["date"]]]
+        dans = p[p["date"].map(lambda d: dans_periode(d, periode)).astype(bool)]   # masque, même si p est vide
         dates = dans.groupby("id_unite")["date"].nunique()
         for a in aires:
             unites = p[p["id_aire"] == a]["id_unite"].unique()

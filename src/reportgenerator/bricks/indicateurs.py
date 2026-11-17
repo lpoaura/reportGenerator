@@ -135,10 +135,11 @@ def section_protocole(ctx, code: str) -> AnalysisResult:
     # tableaux
     par = "departement" if s["par_departement"] else "aire"
     couv = k.couverture(jeu, saison, r, par)
-    cols_couv = ([("departement", "Département"), ("aires", tx.pluriel(aire).capitalize()),
-                  ("unites", tx.pluriel(r["unite"]).capitalize()), ("visites", "Visites"),
-                  ("observateurs", "Observateurs"), ("donnees", "Données"), ("nouvelles", "Nouveaux"),
-                  ("completes", "Complets")] if par == "departement" else
+    # colonnes d'un tableau par groupe (département ou zone biogéographique), après la colonne du groupe
+    cols_groupe = [("aires", tx.pluriel(aire).capitalize()), ("unites", tx.pluriel(r["unite"]).capitalize()),
+                   ("visites", "Visites"), ("observateurs", "Observateurs"), ("donnees", "Données"),
+                   ("nouvelles", "Nouveaux"), ("completes", "Complets")]
+    cols_couv = ([("departement", "Département")] + cols_groupe if par == "departement" else
                  [("aire", aire.capitalize()), ("commune", "Commune"), ("unites", tx.pluriel(r["unite"]).capitalize()),
                   ("visites", "Visites"), ("observateurs", "Observateurs"), ("completude", "Passages")])
     tables = {
@@ -180,7 +181,7 @@ def section_protocole(ctx, code: str) -> AnalysisResult:
     }
     if s["par_zbiog"]:
         tables[f"{P}_TABLE_COUVERTURE_ZBIOG"] = tableau(k.couverture(jeu, saison, r, "zbiog"), [
-            ("zbiog", "Zone biogéographique")] + cols_couv[1:6])
+            ("zbiog", "Zone biogéographique")] + cols_groupe[:5])
     else:
         texts[f"{P}_TABLE_COUVERTURE_ZBIOG"] = ""
     print(f"[indicateurs] {code} {libelle} : {c['aires']} {tx.pluriel(aire)}, {c['observateurs']} observateurs, "

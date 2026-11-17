@@ -105,7 +105,7 @@ def blocs_stoc(eps, sites, saison, regle) -> list[tuple]:
 
 # --------------------------------------------------------------------------------------------------------- SHOC
 def blocs_shoc(shoc, stoc, saison) -> list[tuple]:
-    if stoc is None or stoc.passages.empty:
+    if stoc is None or stoc.passages.empty or not aires_suivies(shoc, saison):
         return []
     n, pct = part_aires_communes(shoc, stoc, saison, saison)
     return [("titre", TITRE, "Carrés également suivis en STOC-EPS"),
