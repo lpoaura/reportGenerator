@@ -144,8 +144,9 @@ Points de vigilance relevés pendant l'étude :
 - STOC : `passage_mnhn` vaut 1 à 3 (quelques valeurs de 0 et de 4 à 13 depuis 2024, à traiter comme anomalies). Le
   passage de mars se reconnaît à sa date (mois de mars), pas à son numéro.
 
-**Saison** : année civile, sauf SHOC (hiver de décembre N-1 à janvier N, rattaché à **N-1** pour coller aux rapports :
-« saison 2024-2025 » = hiver 2024 dans le rapport 2025).
+**Saison** : année civile, sauf SHOC : l'hiver de décembre N-1 à janvier N est la **saison N** (année du mois de
+janvier ; un relevé de juillet à décembre compte pour l'année suivante), affichée « N-1-N ». Le rapport 2025 montre donc
+la saison « 2024-2025 », comme les rapports existants (validé le 17/11/2026).
 
 ### 5.3 Catégorie des observateurs
 
