@@ -1,6 +1,7 @@
 # Dossier « Indicateurs de biodiversité » : document de conception
 
-Version du 17/11/2026, avant planification. Rien n'est codé.
+Version du 17/11/2026. Mise en œuvre : `src/reportgenerator/dossiers/indicateurs/` (règles à jour dans son
+`METHODO.md`), plan `docs/indicateurs/plan.md`.
 
 Références :
 - rapports d'exécution 2023, 2024, 2025 (Word, hors dépôt) : `C:\Users\afourneyron\Desktop\projet enquête protocoler` ;
@@ -339,6 +340,9 @@ En plus des étapes de `CLAUDE.md` :
   | POP Reptile : transects suivis | 29 (6 passages) | 118 transects visités, 36 aires (référence : la vue) |
   | POP Amphibien : aires (sites) enregistrées | 23 (120) | 24 (118) |
   | POP Amphibien : sites suivis | 42 (3 passages) | 50 sites visités, 8 aires |
+
+  Chiffres obtenus par le générateur le 17/11/2026 et explication des écarts : `METHODO.md` du dossier, §6 (STOC
+  2001-2025 : 654 carrés en base, le « 680 » du tableau ci-dessus incluait les carrés de 2026).
 
 - **Dry-run sur un département** (Savoie : 25 carrés STOC, 6 SHOC en 2025 d'après le rapport) pour vérifier le
   détail par aire et le masquage des sections vides.

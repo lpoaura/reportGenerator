@@ -14,6 +14,7 @@ Plusieurs **types de rapport** coexistent. Chacun a son modèle Word, son projet
 | `eolien` | `analyse_eolien` | synthèse oiseaux + chiroptères pour un projet éolien ([fiche](src/reportgenerator/dossiers/eolien/METHODO.md)) |
 | `natura2000` | `n2000` | synthèse faune d'un site Natura 2000 : espèces N2000, chiroptères, atlas par espèce ([fiche](src/reportgenerator/dossiers/natura2000/METHODO.md)) |
 | `plsoc` | `plsoc` | rapport annuel du suivi de l'Œdicnème criard (PLSOC) sur l'emprise dessinée, données du schéma `pr_oedic_news` (pas de VM de synthèse) ([fiche](src/reportgenerator/dossiers/plsoc/METHODO.md)) |
+| `indicateurs` | `indicateurs` ; jetons `stoc`, `shoc`, `stom`, `sterf`, `pop_reptile`, `pop_amphibien` pour limiter les protocoles, `annee_AAAA` pour l'année | rapport d'exécution annuel « Indicateurs de biodiversité » (STOC, SHOC, STOM, STERF, POP) : modèle commun aire > unité > passage, mêmes analyses pour chaque protocole, données `pr_vigienature` et `gn_monitoring` (pas de VM de synthèse) ([fiche](src/reportgenerator/dossiers/indicateurs/METHODO.md)) |
 
 ---
 
@@ -263,6 +264,12 @@ def dortoirs(ctx):
 - `requires` : briques à exécuter avant, ajoutées automatiquement au plan.
 - `last=True` : brique exécutée après toutes les autres. C'est le cas de `cartography`, qui a besoin des couches produites par les autres briques.
 - **Regrouper une option** : une brique vide qui `requires` les briques d'une partie (ex. `chiropteres`) sert d'interrupteur. On la met dans `optional`, un déclencheur l'active (`[declencheurs] analyse_x = ["chiropteres"]`), et elle délimite la section `{{#chiropteres}}` du template.
+- **Options par défaut** : `[analyses] par_defaut = [...]` liste les briques optionnelles lancées quand `list_analyse`
+  n'en demande aucune (dossier `indicateurs` : tous les protocoles avec `indicateurs` seul, un seul avec
+  `indicateurs, stoc`).
+- **Jetons de paramètres** : une valeur `<paramètre>_<entier>` de `list_analyse` remplace un paramètre entier du
+  `dossier.toml` (ex. `annee_2024` remplace `annee`) ; elle n'est pas signalée comme analyse inconnue
+  (`Dossier.params_for`).
 - `provides` : clés fournies, utilisées seulement par `check`. Pour `cartography`, elles sont lues dans le projet QGIS.
 - `ctx.params` : paramètres du `dossier.toml`. `ctx.cached(clé, fonction)` évite de relancer une même requête dans plusieurs briques.
 - Pour qu'elle soit chargée, une nouvelle brique doit être importée dans `bricks/__init__.py`.
