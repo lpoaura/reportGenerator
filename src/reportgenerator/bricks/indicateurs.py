@@ -12,6 +12,7 @@ from reportgenerator.analysis.common.models import AnalysisResult, ImageBlock, T
 from reportgenerator.analysis.indicateurs import chargement
 from reportgenerator.analysis.indicateurs import communes as k
 from reportgenerator.analysis.indicateurs import figures as fig
+from reportgenerator.analysis.indicateurs import specifiques as sp
 from reportgenerator.analysis.indicateurs import textes as tx
 from reportgenerator.analysis.indicateurs.modele import Jeu
 from reportgenerator.analysis.indicateurs.queries import IndicateursQueries
@@ -194,6 +195,21 @@ def _texte_historique(r, serie, debut, debut_obs) -> str:
     if debut_obs > debut:
         t += f" Les observateurs ne sont comptés qu'à partir de {debut_obs} (champ peu fiable auparavant)."
     return t
+
+
+# ------------------------------------------------------------------------------ analyses propres à un protocole
+def _stoc(ctx, jeu, saison, r):
+    s = _socle(ctx)
+    sites = ctx.cached("ind_jeu_stoc_sites", lambda: chargement.charger_stoc_sites(
+        s["q"], r, saison, int(ctx.params.get("annees_especes", 5))))
+    return sp.blocs_stoc(jeu, sites, saison, r)
+
+
+def _shoc(ctx, jeu, saison, r):
+    return sp.blocs_shoc(jeu, jeu_protocole(ctx, "stoc"), saison)   # STOC chargé même s'il n'est pas demandé
+
+
+SPECIFIQUES.update({"stoc": _stoc, "shoc": _shoc})
 
 
 def _brique(code: str):

@@ -9,6 +9,7 @@ import pytest
 from reportgenerator.analysis.common.filesystem import create_analysis_dirs
 from reportgenerator.analysis.indicateurs import chargement, communes, figures, textes
 from reportgenerator.analysis.indicateurs import selections as s
+from reportgenerator.analysis.indicateurs import specifiques as sp
 from reportgenerator.analysis.indicateurs.adaptateurs import jeu_monitoring, jeu_vigienature
 from reportgenerator.analysis.indicateurs.modele import jeu_vide, verifier
 from reportgenerator.analysis.indicateurs.queries import IndicateursQueries
@@ -278,3 +279,40 @@ def test_jeu_borne_a_la_saison_du_rapport():
     j = chargement.borner(jeu_factice(), annee_min=2025, saison=2024)
     assert j.passages["saison"].max() == 2024 and "A4" not in set(j.aires["id_aire"])   # A4 : première visite en 2025
     assert j.observations.empty and set(j.observateurs["id_passage"]) <= set(j.passages["id_passage"])
+
+
+# ------------------------------------------------------------------------------------- analyses propres (STOC)
+REGLE_P = {"periodes": [["05-01", "05-31"], ["06-01", "06-30"]], "periode_optionnelle": ["07-01", "07-31"],
+           "libelle_optionnelle": "juillet"}
+
+
+def test_passages_par_aire():
+    # A1 (21/05) et A2 (11/06) : une période chacune ; A4 (01/07) : seulement la période optionnelle
+    assert sp.passages_par_aire(jeu_factice(), 2025, REGLE_P) == {"1 passage": 2, "juillet seul": 1}
+
+
+def test_part_organisme_et_aires_communes():
+    j = jeu_factice()
+    assert sp.part_organisme(j, 2025, "CEN Savoie") == (1, 33)
+    assert sp.part_aires_communes(j, j, 2025, 2025) == (3, 100)
+
+
+def test_stoc_sites_n2000():
+    sites = jeu_factice()
+    sites.aires["nom_aire"] = ["STOC N2000 A", "STOC N2000 B", "Autre", "STOC N2000 D"]
+    regle_sites = {"motif_n2000": "STOC N2000%", "nb_especes_rang": 2, "debut_n2000": 2024}
+    r = sp.stoc_sites_n2000(sites, jeu_factice(), 2025, regle_sites)
+    assert (r["sites_suivis"], r["sites_total"], r["taxons_cumul"]) == (3, 3, 3)
+    assert [x["nom"] for x in r["rangs"]] == ["Merle noir", "Pinson des arbres"]
+    assert sp.autres_stoc_sites(sites, 2024, "STOC N2000%") == 1
+
+
+def test_briques_stoc_shoc_blocs(tmp_path, monkeypatch):
+    jeux = {"stoc": jeu_factice("stoc"), "shoc": jeu_factice("shoc")}
+    monkeypatch.setattr(chargement, "charger_stoc_sites", lambda *a, **k: jeu_factice("stoc_sites"))
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, stoc, shoc, annee_2025", jeux)
+    ctx.results["ind_socle"] = get_brick("ind_socle").run(ctx)
+    titres = [b[2] for b in get_brick("stoc").run(ctx).tables["STOC_BLOCS_SPECIFIQUES"].data if b[0] == "titre"]
+    assert titres == ["Passages réalisés", "STOC-sites", "Tendances MNHN"]   # 3 autres STOC-sites, aucun N2000
+    blocs_shoc = get_brick("shoc").run(ctx).tables["SHOC_BLOCS_SPECIFIQUES"].data
+    assert "3 carrés SHOC" in blocs_shoc[1][1]
