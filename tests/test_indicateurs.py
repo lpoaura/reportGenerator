@@ -6,11 +6,18 @@ from datetime import date
 import pandas as pd
 import pytest
 
-from reportgenerator.analysis.indicateurs import communes, figures, textes
+from reportgenerator.analysis.common.filesystem import create_analysis_dirs
+from reportgenerator.analysis.indicateurs import chargement, communes, figures, textes
 from reportgenerator.analysis.indicateurs import selections as s
 from reportgenerator.analysis.indicateurs.adaptateurs import jeu_monitoring, jeu_vigienature
 from reportgenerator.analysis.indicateurs.modele import jeu_vide, verifier
-from tests.indicateurs_factice import jeu_factice
+from reportgenerator.analysis.indicateurs.queries import IndicateursQueries
+from reportgenerator.analysis.indicateurs.selections import PROTOCOLES
+from reportgenerator.bricks.indicateurs import cles_protocole
+from reportgenerator.core.context import ReportContext
+from reportgenerator.core.dossier import load_dossier
+from reportgenerator.core.registry import get_brick
+from tests.indicateurs_factice import DEPARTEMENTS, ZONE_WKT, jeu_factice
 
 
 # ------------------------------------------------------------------------------------------------- règles métier
@@ -218,3 +225,42 @@ def test_figures(tmp_path):
     j = jeu_factice()
     assert figures.chart_aires(communes.serie(j, 2023, 2025, TEMPS_MESURE), tmp_path / "a.png", "site").exists()
     assert figures.chart_observateurs(communes.series_categories(j, 2023, 2025), tmp_path / "o.png").exists()
+
+
+# ------------------------------------------------------------------------------------------ briques et dossier
+def _ctx(tmp_path, monkeypatch, list_analyse, jeux):
+    monkeypatch.setattr(chargement, "charger", lambda code, *a, **k: jeux.get(code, jeu_vide(code)))
+    monkeypatch.setattr(IndicateursQueries, "zone", lambda self: {"wkt": ZONE_WKT, "surface_ha": 600000})
+    monkeypatch.setattr(IndicateursQueries, "departements", lambda self: DEPARTEMENTS)
+    monkeypatch.setattr(IndicateursQueries, "zones_biogeo", lambda self: [])
+    d = load_dossier("indicateurs")
+    enabled, _ = d.select_analyses(list_analyse)
+    return ReportContext(service_name="factice", id_area=1, area_name="Test", referee="t", buffer=0, dossier=d,
+                         enabled=enabled, output_dirs=create_analysis_dirs(tmp_path / "sortie"), queries=None,
+                         params=d.params_for(list_analyse))
+
+
+def test_section_masquee_sans_aire(tmp_path, monkeypatch):
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, annee_2025", {"stom": jeu_factice("stom")})
+    ctx.results["ind_socle"] = get_brick("ind_socle").run(ctx)
+    r = get_brick("sterf").run(ctx)
+    assert r.meta == {"sans_section": True} and set(r.texts) == set(cles_protocole("sterf"))
+    r = get_brick("stom").run(ctx)
+    assert not (r.meta or {}).get("sans_section")
+    assert "3 sites" in r.texts["STOM_TEXTE_PARTICIPATION"]
+    assert set(r.texts) | set(r.tables) | set(r.images) == set(cles_protocole("stom"))
+
+
+def test_annee_sans_passage_texte_explicite(tmp_path, monkeypatch):
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, annee_2026", {"stom": jeu_factice("stom")})
+    ctx.results["ind_socle"] = get_brick("ind_socle").run(ctx)
+    r = get_brick("stom").run(ctx)
+    texte = " ".join(str(v) for v in r.texts.values())
+    assert "Aucun site suivi en 2026" in texte and "nan" not in texte
+
+
+def test_dossier_indicateurs_declenchement():
+    d = load_dossier("indicateurs")
+    assert d.select_analyses("indicateurs")[0][-6:] == list(PROTOCOLES)
+    assert d.select_analyses("indicateurs, stoc, annee_2024")[0] == list(d.required) + ["stoc"]
+    assert d.params_for("indicateurs, annee_2024")["annee"] == 2024

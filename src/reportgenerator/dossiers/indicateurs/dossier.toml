@@ -1,0 +1,119 @@
+# Rapport d'exécution annuel « Indicateurs de biodiversité en Auvergne-Rhône-Alpes » (DREAL, Région) :
+# STOC, SHOC, STOM, STERF, POP Reptile, POP Amphibien. Conception : docs/indicateurs/conception.md ; règles et
+# process : METHODO.md (à mettre à jour si une règle change). Lecture seule de la base (pr_vigienature, gn_monitoring).
+
+label = "Indicateurs de biodiversité - rapport d'exécution annuel"
+template = "template.docx"
+qgis_project = "qgis/projet_indicateurs.qgs"
+
+# list_analyse : « indicateurs » = tous les protocoles ; « indicateurs, stoc, sterf » = ces protocoles seulement ;
+# « annee_2024 » force l'année du rapport (sinon dernière saison terminée).
+[declencheurs]
+indicateurs = []
+
+[analyses]
+required = ["ind_socle"]
+optional = ["stoc", "shoc", "stom", "sterf", "pop_reptile", "pop_amphibien"]
+par_defaut = ["stoc", "shoc", "stom", "sterf", "pop_reptile", "pop_amphibien"]
+
+[params]
+titre = "Indicateurs de biodiversité en Auvergne-Rhône-Alpes"
+annee = 0                  # 0 = dernière saison terminée ; jeton « annee_2024 » dans list_analyse pour forcer
+fin_saison = "10-01"       # une saison est terminée à partir du 1er octobre
+annees_tableau = 5         # tableau des chiffres clés : N-4 à N
+annees_especes = 5         # observations lues : N-4 à N (espèces, évolution des fréquences)
+nb_especes = 20            # espèces du tableau de la section (toutes en annexe)
+nb_especes_evolution = 10
+map_layout = "normal"
+
+# ---------------------------------------------------------------------------------------------------- protocoles
+# saison : « civile » ou « hiver » (SHOC : déc. N-1 + janv. N = saison N, affichée « N-1-N »)
+# periodes : périodes de passage attendues (« MM-JJ »), une visite au moins dans chacune = aire complète
+# temps : terrain_h = forfait (h) ou « mesure » (heures des passages) ; unite_terrain / unite_complement = « aire »
+#         ou « visite » (aire × date) ; complement_h = préparation, trajet, saisie (forfait). Valeurs à ajuster par
+#         les coordinateurs.
+
+[params.protocoles.stoc]
+label = "STOC-EPS"
+source = "vigienature"
+nom_protocole = ["STOC_EPS"]
+aire = "carré"
+unite = "point"
+saison = "civile"
+debut_serie = 2001
+debut_observateurs = 2015       # champ observateur peu fiable avant 2015
+periodes = [["04-01", "05-08"], ["05-09", "06-15"]]
+periode_optionnelle = ["03-01", "03-31"]
+libelle_optionnelle = "mars"
+note_statut = true
+temps = { terrain_h = 10.5, unite_terrain = "aire", complement_h = 0, unite_complement = "aire" }
+sites = { nom_protocole = ["STOC_SITES", "STOC_ONF", "STOC_SITES_RNF"], motif_n2000 = "STOC N2000%", debut_n2000 = 2021, nb_especes_rang = 40 }
+
+[params.protocoles.shoc]
+label = "SHOC"
+source = "vigienature"
+nom_protocole = ["SHOC"]
+aire = "carré"
+unite = "transect"
+saison = "hiver"
+debut_serie = 2015
+debut_observateurs = 2015
+periodes = [["12-01", "12-31"], ["01-01", "01-31"]]
+note_statut = true
+temps = { terrain_h = 2, unite_terrain = "visite", complement_h = 1, unite_complement = "aire" }
+
+[params.protocoles.stom]
+label = "STOM"
+source = "monitoring"
+module = "stom"
+aire = "site"
+unite = "point d'écoute"
+saison = "civile"
+debut_serie = 2019
+periodes = [["05-10", "07-15"]]
+temps = { terrain_h = 5, unite_terrain = "aire", complement_h = 1, unite_complement = "aire" }
+
+[params.protocoles.sterf]
+label = "STERF"
+source = "monitoring"
+module = "sterf_ebms"
+aire = "site"
+unite = "transect"
+saison = "civile"
+debut_serie = 2024
+passages_par_unite = 4          # à confirmer avec le coordinateur STERF
+periode_unite = ["05-01", "08-31"]
+duree_defaut_min = 60           # passage sans heures de début et de fin : 1 h par transect (à confirmer)
+seuil_sterf_vrai = 5            # STERF vrai : site d'au moins 5 transects, suivi l'année du rapport
+objectif = 100
+objectif_ideal = 150
+objectifs_zbiog = {}            # objectifs par zone biogéographique (figure 13 du rapport 2025) : à renseigner
+temps = { terrain_h = "mesure", unite_terrain = "visite", complement_h = 0, unite_complement = "visite" }
+
+[params.protocoles.pop_reptile]
+label = "POP Reptile"
+source = "monitoring"
+module = "POPReptile"
+aire = "aire"
+unite = "transect"
+saison = "civile"
+debut_serie = 2022
+vue_etats = "v_popreptiles_aire_annee"
+vue_anomalies = "v_popreptiles_anomalies"
+objectif = 50
+objectif_sur = "aires"          # 50 mailles 5 × 5 km
+temps = { terrain_h = "mesure", unite_terrain = "visite", complement_h = 0, unite_complement = "visite" }
+
+[params.protocoles.pop_amphibien]
+label = "POP Amphibien"
+source = "monitoring"
+module = "POPAmphibien"
+aire = "aire"
+unite = "site (mare)"
+saison = "civile"
+debut_serie = 2022
+vue_etats = "v_popamphibien_aire_annee"
+vue_anomalies = "v_popamphibien_anomalies"
+objectif = 500
+objectif_sur = "unites"         # 500 mares
+temps = { terrain_h = "mesure", unite_terrain = "visite", complement_h = 0, unite_complement = "visite" }

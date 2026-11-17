@@ -10,5 +10,5 @@ fonction avec @register_brick, et l'importer ci-dessous.
 """
 
 from reportgenerator.bricks import (  # noqa: F401
-    chiropteres, common, connaissance, eolien, generique, geometries, n2000,
+    chiropteres, common, connaissance, eolien, generique, geometries, indicateurs, n2000,
     plsoc)
