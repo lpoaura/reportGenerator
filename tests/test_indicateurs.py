@@ -6,6 +6,7 @@ from datetime import date
 import pandas as pd
 import pytest
 
+from reportgenerator.analysis.indicateurs import communes
 from reportgenerator.analysis.indicateurs import selections as s
 from reportgenerator.analysis.indicateurs.adaptateurs import jeu_monitoring, jeu_vigienature
 from reportgenerator.analysis.indicateurs.modele import jeu_vide, verifier
@@ -120,3 +121,44 @@ def test_jeu_monitoring_durees_et_sans_aire():
 def test_adaptateurs_sans_ligne():
     assert jeu_vigienature("stoc", [], [], [], [], [], REGLE_V).passages.empty
     assert jeu_monitoring("stom", [], [], [], [], [], [], {"saison": "civile", "debut_serie": 2019}).aires.empty
+
+
+# ------------------------------------------------------------------------------------------ analyses communes (N)
+TEMPS_MESURE = {"terrain_h": "mesure", "unite_terrain": "visite", "complement_h": 0, "unite_complement": "aire"}
+
+
+def test_chiffres_2025():
+    c = communes.chiffres(jeu_factice(), 2025, TEMPS_MESURE)
+    assert (c["aires"], c["unites"], c["visites"], c["releves"]) == (3, 4, 3, 4)
+    assert (c["observateurs"], c["donnees"], c["especes"]) == (3, 24, 3)
+    assert c["heures"] == 3.0 and c["heures_estimees"] is True       # P9 complété à 45 min, P7 estimé
+
+
+def test_categories_somme_egale_total():
+    j = jeu_factice()
+    assert communes.categorie_aires(j, 2025) == {"A1": "Bénévole", "A2": "Organisme tiers", "A4": "Non renseigné"}
+    assert communes.categorie_passages(j)["P6"] == "Salarié LPO"
+    lignes = {r["categorie"]: r for r in communes.par_categorie(j, 2025, TEMPS_MESURE)}
+    assert sum(r["aires"] for r in lignes.values()) == 3
+    assert sum(r["donnees"] for r in lignes.values()) == 24
+    assert lignes["Salarié LPO"]["donnees"] == 12 and lignes["Non renseigné"]["donnees"] == 2
+
+
+def test_temps_forfaitaires():
+    j = jeu_factice()
+    par_aire = {"terrain_h": 5, "unite_terrain": "aire", "complement_h": 1, "unite_complement": "aire"}
+    par_visite = {"terrain_h": 2, "unite_terrain": "visite", "complement_h": 0, "unite_complement": "aire"}
+    assert communes.temps_heures(j, 2025, par_aire)["heures"] == 18
+    assert communes.temps_heures(j, 2025, par_visite) == {"heures": 6, "estime": True,
+        "par_categorie": {"Salarié LPO": 2, "Organisme tiers": 2, "Non renseigné": 2}}
+
+
+def test_statut_completude_couverture():
+    j = jeu_factice()
+    assert communes.statut_aires(j, 2025) == {"A1": "suivie", "A2": "suivie", "A4": "nouvelle", "A3": "non suivie"}
+    assert communes.completude(j, 2025, {"periodes": [["05-01", "06-30"]]}) == {
+        "A1": "complète", "A2": "complète", "A4": "incomplète"}
+    dep = communes.couverture(j, 2025, {"periodes": [["05-01", "06-30"]]}, par="departement")
+    assert [(r["departement"], r["aires"]) for r in dep] == [("Isère", 1), ("Savoie", 2), ("Total", 3)]
+    zb = communes.couverture(j, 2025, {"periodes": [["05-01", "06-30"]]}, par="zbiog")
+    assert [(r["zbiog"], r["aires"]) for r in zb] == [("Plaine rhodanienne", 1), ("Zone alpine", 2), ("Total", 3)]
