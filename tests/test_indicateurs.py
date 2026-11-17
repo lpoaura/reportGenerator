@@ -8,6 +8,7 @@ import pytest
 
 from reportgenerator.analysis.indicateurs import selections as s
 from reportgenerator.analysis.indicateurs.modele import jeu_vide, verifier
+from tests.indicateurs_factice import jeu_factice
 
 
 # ------------------------------------------------------------------------------------------------- règles métier
@@ -69,3 +70,8 @@ def test_verifier_jeu():
     assert verifier(jeu_vide("stoc")).code == "stoc"
     with pytest.raises(ValueError):
         verifier(dataclasses.replace(jeu_vide("stoc"), aires=pd.DataFrame({"id_aire": []})))
+
+
+def test_jeu_factice_valide():
+    j = jeu_factice()
+    assert verifier(j) is j and len(j.passages) == 9 and len(j.unites) == 9
