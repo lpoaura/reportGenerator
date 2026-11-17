@@ -121,7 +121,7 @@ Cartes : projet QGIS `qgis/projet_indicateurs.qgs` (une mise en page par protoco
 | STOC-sites Natura 2000 | 25 | 25 | — |
 | STOM : sites | 29 | 30 | saisie tardive |
 | STERF : transects / observateurs / données | 248 / 22 / 5 462 | 248 / 21 / 5 469 | — |
-| STERF : sites | 46 (21 + 25) | 49 | règle STERF vrai appliquée en base |
+| STERF : STERF vrais + sites type | 21 + 25 = 46 | 28 + 21 = 49 | à confirmer : le générateur compte les transects existants du site (≥ 5) ; le rapport comptait peut-être les transects parcourus |
 | POP Reptile : aires / transects suivis | 29 transects | 36 / 118 | la référence est la vue (= vue) |
 | POP Amphibien : aires / sites suivis | 42 sites | 8 / 50 | la référence est la vue (= vue) |
 | Savoie : carrés STOC / SHOC | 25 / 6 | 25 / 6 | — |
