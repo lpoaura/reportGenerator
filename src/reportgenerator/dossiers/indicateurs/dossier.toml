@@ -29,7 +29,7 @@ map_layout = "normal"
 # Rendu QGIS : une mise en page par protocole (STOC_CARTE…), emprise = zone du rapport
 [params.qgis_render]
 visible_groups = ["Fond"]
-extent_layer = "ind_zone"
+extent_layer = "Zone du rapport"      # nom de la couche dans le projet (table ind_zone)
 extent_margin_ratio = 0.05
 extent_offset_y_ratio = 0.0
 dpi = 150

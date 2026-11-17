@@ -119,6 +119,25 @@ Le projet source n'est pas modifié. Le lanceur `.bat` de QGIS ne supporte pas l
 dans un dossier sans espace, puis copier le `.qgz`. La connexion passe par le service `gnlpoaura` : aucun identifiant n'est
 enregistré dans le projet.
 
+**Projet du dossier Indicateurs de biodiversité** : `build_projet_indicateurs.py` part du projet Natura 2000 (charte,
+fond FDC, mise en page modèle `Carte01_localisation`) et crée une mise en page par protocole (`STOC_CARTE`,
+`SHOC_CARTE`, `STOM_CARTE`, `STERF_CARTE`, `POPR_CARTE`, `POPA_CARTE`) : couche `ind_aires` filtrée par protocole et
+colorée par statut en N (suivie, nouvelle, non suivie ; un point au centre de chaque aire), fond `ind_zone`,
+`ind_departements`, `ind_zbiog`. Titres : variables `@annee_<PRÉFIXE>` et `@sources` fournies par la brique
+`ind_cartes`. Une fois installé, le projet se retouche directement dans QGIS (symbologie, mise en page).
+
+```powershell
+# 1. couches ind_* : dry-run du dossier (le projet absent, la brique exporte seulement les couches)
+$env:DRYRUN_TEMPLATE="src\reportgenerator\dossiers\plsoc\template.docx"   # tant que le template n'existe pas
+poetry run python outils/dryrun/dryrun_dossier.py "indicateurs, annee_2025" 2191961 0 AuRA_2025 C:\temp\aura_2025
+# 2. construction (dossier de travail contenant data\ = C:\temp\aura_2025\data)
+& "C:\Program Files\QGIS\3_40\bin\python-qgis-ltr.bat" outils/qgis/build_projet_indicateurs.py `
+    src/reportgenerator/dossiers/natura2000/qgis/projet_n2000.qgs C:\temp\projet_indicateurs
+# 3. installation
+poetry run python outils/qgis/integrer_projet.py C:\temp\projet_indicateurs\projet_indicateurs.qgs `
+    src/reportgenerator/dossiers/indicateurs/qgis/projet_indicateurs.qgs
+```
+
 ## 3. Templates Word (`word/`)
 
 Le texte de la section « État des connaissances par maille » est écrit **une seule fois**, dans

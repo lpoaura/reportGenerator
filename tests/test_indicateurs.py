@@ -389,3 +389,10 @@ def test_brique_cartes_sans_qgis(tmp_path, monkeypatch):
     r = get_brick("ind_cartes").run(ctx)
     assert set(r.images) == {"STOM_CARTE", "STOC_CARTE"}
     assert (ctx.output_dirs["data"] / "ind_aires.gpkg").exists()
+
+
+def test_couches_cartes_aire_sans_contour():
+    j = jeu_factice("pop_amphibien")
+    j.aires.loc[0, "wkt"] = float("nan")             # site « sans aire » : pas de contour
+    c = cartes.couches_cartes({"pop_amphibien": j}, {"pop_amphibien": 2025}, {"wkt": ZONE_WKT}, DEPARTEMENTS, [])
+    assert "A1" not in {r["id_aire"] for r in c["ind_aires"]} and len(c["ind_aires"]) == 3

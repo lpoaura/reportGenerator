@@ -173,8 +173,9 @@ class IndicateursQueries:
     def aires_monitoring(self, module: str) -> list[dict]:
         return self._fetch(f"""WITH {SITES_MON}
             SELECT sz.id_aire, coalesce(min(sg.sites_group_name), 'Sans aire') AS nom_aire,
-                   ST_AsText(coalesce(min(sg.geom_local::text)::geometry,
-                                      ST_Buffer(ST_ConvexHull(ST_Collect(sz.geom_local)), 100))) AS wkt,
+                   CASE WHEN sz.id_aire <> 'sans_aire'   -- pas de contour pour les sites sans aire (dispersés)
+                        THEN ST_AsText(coalesce(min(sg.geom_local::text)::geometry,
+                                                ST_Buffer(ST_ConvexHull(ST_Collect(sz.geom_local)), 100))) END AS wkt,
                    ST_X(ST_Centroid(ST_Collect(sz.geom_local))) AS x,
                    ST_Y(ST_Centroid(ST_Collect(sz.geom_local))) AS y,
                    count(DISTINCT sz.id_base_site) AS nb_unites

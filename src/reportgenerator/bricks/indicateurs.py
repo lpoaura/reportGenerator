@@ -286,8 +286,11 @@ def ind_cartes(ctx):
         return AnalysisResult()
     copie = ctx.output_dirs["root"] / f"projet_{ctx.area_name}.qgs"
     copy_qgis_project(template_path=projet, output_path=copie)
-    libelles = ", ".join(sorted({d["libelle"] for _, d in sections})) or str(s["annee"])
-    config = {**ctx.params.get("qgis_render", {}), "project_variables": {"annee": libelles, "zone": ctx.area_name}}
+    # titres des cartes : @annee_<PREFIXE> (« 2024-2025 » pour le SHOC), @zone ; texte « Sources » : @sources
+    variables = {f"annee_{PREFIXES[c]}": libelle_saison(s["annee"], regle(ctx, c)["saison"]) for c in PROTOCOLES}
+    variables.update({"zone": ctx.area_name,
+                      "sources": "Faune-France (STOC, SHOC) et GeoNature (STOM, STERF, POP), LPO Auvergne-Rhône-Alpes"})
+    config = {**ctx.params.get("qgis_render", {}), "project_variables": variables}
     launch_qgis_render(project_path=copie, output_dir=ctx.output_dirs["maps"], config=config)
     layout = ctx.params.get("map_layout", "normal")
     return AnalysisResult(images={png.stem: ImageBlock(png, layout)

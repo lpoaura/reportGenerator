@@ -10,7 +10,8 @@ from reportgenerator.analysis.indicateurs.communes import statut_aires
 
 
 def _geom(texte):
-    return wkt.loads(texte) if texte else None
+    """WKT -> géométrie ; None ou NaN (aire sans contour : sites « sans aire ») -> None."""
+    return wkt.loads(texte) if isinstance(texte, str) and texte else None
 
 
 def couches_cartes(jeux: dict, saisons: dict, zone: dict, departements: list[dict], zbiog: list[dict]) -> dict:
@@ -20,7 +21,7 @@ def couches_cartes(jeux: dict, saisons: dict, zone: dict, departements: list[dic
     for code, jeu in jeux.items():
         statuts = statut_aires(jeu, saisons[code])
         for a in jeu.aires.itertuples():
-            if not a.wkt:
+            if _geom(a.wkt) is None:
                 continue
             aires.append({"protocole": code, "id_aire": a.id_aire, "nom_aire": a.nom_aire,
                           "statut": statuts.get(a.id_aire, "non suivie"), "departement": a.departement,
