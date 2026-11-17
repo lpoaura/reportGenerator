@@ -24,11 +24,11 @@ from reportgenerator.analysis.plsoc.word import inserer_blocs, inserer_tableau
 from reportgenerator.bricks.common import qgis_layout_names
 from reportgenerator.core.registry import register_brick
 
-CLES = ("ANNEE_LIBELLE", "TEXTE_PARTICIPATION", "TABLE_CHIFFRES", "TABLE_CATEGORIES", "NOTE_CATEGORIES",
-        "TEXTE_COUVERTURE", "TABLE_COUVERTURE", "TABLE_COUVERTURE_ZBIOG", "TEXTE_HISTORIQUE", "CHART_AIRES",
-        "CHART_OBSERVATEURS", "TABLE_HISTORIQUE", "TEXTE_FIDELISATION", "TEXTE_ESPECES", "TABLE_ESPECES",
-        "TABLE_EVOLUTION_ESPECES", "BLOCS_SPECIFIQUES")
-# la carte {PREFIXE}_CARTE est une mise en page du projet QGIS (brique ind_cartes)
+CLES = ("ANNEE_LIBELLE", "TEXTE_PARTICIPATION", "CHART_CHIFFRES", "CHART_CATEGORIES", "NOTE_CATEGORIES",
+        "TEXTE_COUVERTURE", "BLOCS_COUVERTURE", "TEXTE_HISTORIQUE", "CHART_HISTORIQUE", "CHART_OBSERVATEURS",
+        "TEXTE_FIDELISATION", "TEXTE_ESPECES", "CHART_ESPECES", "CHART_EVOLUTION_ESPECES", "BLOCS_SPECIFIQUES")
+# les cartes {PREFIXE}_CARTE, _CARTE_CATEGORIES, _CARTE_ABANDONS sont des mises en page du projet QGIS (ind_cartes) ;
+# les tableaux détaillés de chaque protocole vont en annexe (data["annexe"], repris par ind_synthese)
 
 # analyses propres à un protocole : code -> fonction(ctx, jeu, saison, regle) -> blocs (inserer_blocs)
 SPECIFIQUES: dict[str, Callable] = {}
@@ -91,22 +91,31 @@ def _pct(v) -> str:
     return "—" if v is None else f"{v} %"
 
 
-def _table_chiffres(r, c, c1):
-    def ligne(lib, cle, fmt=tx.nombre):
-        n1 = c1[cle] if c1 else None
-        return {"indicateur": lib, "n1": fmt(n1) if c1 else "—", "n": fmt(c[cle]), "ecart": tx.ecart(c[cle], n1)}
-
+def _indicateurs(r, c):
+    """(libellé, clé) des chiffres clés d'un protocole, dans l'ordre des tuiles et du tableau d'annexe."""
     aire, unite = r["aire"], r["unite"]
     return [
-        ligne(f"{tx.pluriel(aire)} {'suivies' if tx.feminin(aire) else 'suivis'}".capitalize(), "aires"),
-        ligne(f"{tx.pluriel(unite)} {'visitées' if tx.feminin(unite) else 'visités'}".capitalize(), "unites"),
-        ligne("Visites (aire × date)", "visites"),
-        ligne("Observateurs", "observateurs"),
-        ligne("Données", "donnees"),
-        ligne("Espèces", "especes"),
-        ligne("Temps (h)" + (" estimé" if c["heures_estimees"] else ""), "heures", lambda h: tx.nombre(
-            None if h is None else round(h))),
+        (f"{tx.pluriel(aire)} {'suivies' if tx.feminin(aire) else 'suivis'}".capitalize(), "aires"),
+        (f"{tx.pluriel(unite)} {'visitées' if tx.feminin(unite) else 'visités'}".capitalize(), "unites"),
+        ("Observateurs", "observateurs"),
+        ("Données", "donnees"),
+        ("Espèces", "especes"),
+        ("Temps (h)" + (", estimé" if c["heures_estimees"] else ""), "heures"),
     ]
+
+
+def _fmt(cle):
+    return (lambda h: tx.nombre(None if h is None else round(h))) if cle == "heures" else tx.nombre
+
+
+def _table_chiffres(r, c, c1):
+    return [{"indicateur": lib, "n1": _fmt(cle)(c1[cle]) if c1 else "—", "n": _fmt(cle)(c[cle]),
+             "ecart": tx.ecart(c[cle], c1[cle] if c1 else None)}
+            for lib, cle in _indicateurs(r, c) + [("Visites (aire × date)", "visites")]]
+
+
+def _annexe(titre, lignes, colonnes) -> list[tuple]:
+    return [("titre", 3, titre), ("tableau", lignes, colonnes)]
 
 
 def section_protocole(ctx, code: str) -> AnalysisResult:
@@ -129,43 +138,82 @@ def section_protocole(ctx, code: str) -> AnalysisResult:
     esp = k.especes(jeu, saison, int(p.get("nb_especes", 20)))
     evo = k.evolution_especes(jeu, saison, int(p.get("nb_especes_evolution", 10)), int(p.get("annees_especes", 5)))
     out = ctx.output_dirs["dataviz"]
-    chart_aires = fig.chart_aires(serie, out / f"{code}_aires.png", aire)
-    chart_obs = fig.chart_observateurs(series_cat, out / f"{code}_observateurs.png")
+    lib_saison = lambda a: libelle_saison(a, r["saison"])  # noqa: E731
+    aires_lib, unites_lib = tx.pluriel(aire).capitalize(), tx.pluriel(r["unite"]).capitalize()
+    suivis = "suivies" if tx.feminin(aire) else "suivis"
+    categories = k.par_categorie(jeu, saison, temps)
 
-    # tableaux
+    def valeur(chiffres, cle):   # heures arrondies : l'écart affiché porte sur les valeurs affichées
+        v = chiffres[cle] if chiffres else None
+        return round(v) if cle == "heures" and v is not None else v
+
+    images = {
+        f"{P}_CHART_CHIFFRES": fig.chart_chiffres(
+            [(lib, valeur(c, cle), valeur(c1, cle)) for lib, cle in _indicateurs(r, c)],
+            out / f"{code}_chiffres.png", libelle, lib_saison(saison - 1)),
+        f"{P}_CHART_CATEGORIES": fig.chart_categories(categories, out / f"{code}_categories.png", tx.pluriel(aire)),
+        f"{P}_CHART_HISTORIQUE": fig.chart_historique(serie, out / f"{code}_historique.png",
+                                                      {"aires": f"{aires_lib} {suivis}", "saison": lib_saison},
+                                                      debut_obs),
+        f"{P}_CHART_OBSERVATEURS": fig.chart_observateurs(series_cat, out / f"{code}_observateurs.png"),
+        f"{P}_CHART_ESPECES": fig.chart_especes(esp, out / f"{code}_especes.png", aire),
+        f"{P}_CHART_EVOLUTION_ESPECES": fig.chart_evolution(evo, out / f"{code}_evolution.png", lib_saison),
+    }
+
+    # couverture : graphique par département (ou liste des aires si la zone n'a qu'un département) et par zone
+    # biogéographique ; les tableaux détaillés vont en annexe
     par = "departement" if s["par_departement"] else "aire"
     couv = k.couverture(jeu, saison, r, par)
-    # colonnes d'un tableau par groupe (département ou zone biogéographique), après la colonne du groupe
-    cols_groupe = [("aires", tx.pluriel(aire).capitalize()), ("unites", tx.pluriel(r["unite"]).capitalize()),
-                   ("visites", "Visites"), ("observateurs", "Observateurs"), ("donnees", "Données"),
-                   ("nouvelles", "Nouveaux"), ("completes", "Complets")]
-    cols_couv = ([("departement", "Département")] + cols_groupe if par == "departement" else
-                 [("aire", aire.capitalize()), ("commune", "Commune"), ("unites", tx.pluriel(r["unite"]).capitalize()),
-                  ("visites", "Visites"), ("observateurs", "Observateurs"), ("completude", "Passages")])
+    cols_groupe = [("aires", aires_lib), ("unites", unites_lib), ("visites", "Visites"),
+                   ("observateurs", "Observateurs"), ("donnees", "Données"), ("nouvelles", "Nouveaux"),
+                   ("completes", "Complets")]
+    series = [("anciennes", f"Déjà {suivis} avant {libelle}", fig.BLEU),
+              ("nouvelles", f"{suivis.capitalize()} pour la première fois", fig.ORANGE)]
+    annexe = _annexe("Chiffres clés", _table_chiffres(r, c, c1), [
+        ("indicateur", "Indicateur"), ("n1", "Saison précédente"), ("n", libelle), ("ecart", "Écart")])
+    annexe += _annexe("Répartition par catégorie d'observateurs",
+                      [{**x, "heures": tx.nombre(round(x["heures"]))} for x in categories],
+                      [("categorie", "Catégorie"), ("aires", aires_lib), ("observateurs", "Observateurs"),
+                       ("donnees", "Données"), ("heures", "Temps (h)")])
+    if par == "departement":
+        lignes = [{**x, "anciennes": x["aires"] - x["nouvelles"]} for x in couv]
+        couverture = [("image", fig.chart_groupes(lignes, "departement", out / f"{code}_departements.png", series,
+                                                  f"{aires_lib} {suivis}")),
+                      ("legende", f"Figure : {tx.pluriel(aire)} {suivis} en {libelle} par département "
+                                  "(détail en annexe).")]
+        annexe += _annexe("Couverture par département", couv, [("departement", "Département")] + cols_groupe)
+    else:
+        couverture = [("tableau", couv, [("aire", aire.capitalize()), ("commune", "Commune"), ("unites", unites_lib),
+                                         ("visites", "Visites"), ("observateurs", "Observateurs"),
+                                         ("completude", "Passages")]),
+                      ("legende", f"Tableau : {tx.pluriel(aire)} {suivis} en {libelle}.")]
+    if s["par_zbiog"]:
+        zones = k.couverture(jeu, saison, r, "zbiog")
+        lignes = [{**x, "anciennes": x["aires"] - x["nouvelles"]} for x in zones]
+        couverture += [("image", fig.chart_groupes(lignes, "zbiog", out / f"{code}_zbiog.png", series,
+                                                   f"{aires_lib} {suivis}")),
+                       ("legende", f"Figure : {tx.pluriel(aire)} {suivis} en {libelle} par zone biogéographique.")]
+        annexe += _annexe("Couverture par zone biogéographique", zones,
+                          [("zbiog", "Zone biogéographique")] + cols_groupe)
+    annexe += _annexe("Chiffres des dernières saisons", [
+        {"saison": lib_saison(x["saison"]), "aires": x["aires"], "unites": x["unites"],
+         "observateurs": x["observateurs"] if x["saison"] >= debut_obs else "—", "donnees": tx.nombre(x["donnees"]),
+         "heures": tx.nombre(round(x["heures"]))} for x in serie[-int(p.get("annees_tableau", 5)):]],
+        [("saison", "Saison"), ("aires", aires_lib), ("unites", unites_lib), ("observateurs", "Observateurs"),
+         ("donnees", "Données"), ("heures", "Temps (h)")])
+    if evo:
+        annexe += _annexe("Évolution de la fréquence des espèces",
+                          [{cle: (_pct(v) if cle != "nom" else v) for cle, v in e.items()} for e in evo],
+                          [("nom", "Espèce")] + [(a, lib_saison(a)) for a in evo[0] if a != "nom"])
+
+    # analyses propres : graphiques dans la section, tableaux (blocs « annexe ») en annexe
+    propres = SPECIFIQUES[code](ctx, jeu, saison, r) if code in SPECIFIQUES else []
+    for b in propres:
+        if b[0] == "annexe":
+            annexe += _annexe(b[1], b[2], b[3])
     tables = {
-        f"{P}_TABLE_CHIFFRES": tableau(_table_chiffres(r, c, c1), [
-            ("indicateur", "Indicateur"), ("n1", "Saison précédente"), ("n", libelle), ("ecart", "Écart")]),
-        f"{P}_TABLE_CATEGORIES": tableau([{**x, "heures": tx.nombre(round(x["heures"]))}
-                                          for x in k.par_categorie(jeu, saison, temps)], [
-            ("categorie", "Catégorie"), ("aires", tx.pluriel(aire).capitalize()), ("observateurs", "Observateurs"),
-            ("donnees", "Données"), ("heures", "Temps (h)")]),
-        f"{P}_TABLE_COUVERTURE": tableau(couv, cols_couv),
-        f"{P}_TABLE_HISTORIQUE": tableau([
-            {"saison": libelle_saison(x["saison"], r["saison"]), "aires": x["aires"], "unites": x["unites"],
-             "observateurs": x["observateurs"] if x["saison"] >= debut_obs else "—", "donnees": tx.nombre(x["donnees"]),
-             "heures": tx.nombre(round(x["heures"]))}
-            for x in serie[-int(p.get("annees_tableau", 5)):]], [
-            ("saison", "Saison"), ("aires", tx.pluriel(aire).capitalize()),
-            ("unites", tx.pluriel(r["unite"]).capitalize()), ("observateurs", "Observateurs"),
-            ("donnees", "Données"), ("heures", "Temps (h)")]),
-        f"{P}_TABLE_ESPECES": tableau([{**e, "freq_aires": _pct(e["freq_aires"]), "freq_unites": _pct(
-            e["freq_unites"]), "effectif": tx.nombre(e["effectif"])} for e in esp], [
-            ("rang", "Rang"), ("nom", "Espèce"), ("freq_aires", f"% des {tx.pluriel(aire)}"),
-            ("freq_unites", f"% des {tx.pluriel(r['unite'])}"), ("effectif", "Effectif cumulé")]),
-        f"{P}_TABLE_EVOLUTION_ESPECES": tableau(
-            [{cle: (_pct(v) if cle != "nom" else v) for cle, v in e.items()} for e in evo],
-            [("nom", "Espèce")] + [(a, libelle_saison(a, r["saison"])) for a in (evo[0] if evo else {}) if a != "nom"]),
-        f"{P}_BLOCS_SPECIFIQUES": blocs(SPECIFIQUES[code](ctx, jeu, saison, r) if code in SPECIFIQUES else []),
+        f"{P}_BLOCS_COUVERTURE": blocs(couverture),
+        f"{P}_BLOCS_SPECIFIQUES": blocs([b for b in propres if b[0] != "annexe"]),
     }
     texts = {
         f"{P}_ANNEE_LIBELLE": libelle,
@@ -179,18 +227,12 @@ def section_protocole(ctx, code: str) -> AnalysisResult:
         f"{P}_TEXTE_FIDELISATION": tx.texte_fidelisation(aire, fid) if c["aires"] else "",
         f"{P}_TEXTE_ESPECES": tx.texte_especes(c, esp, aire) if c["aires"] else "",
     }
-    if s["par_zbiog"]:
-        tables[f"{P}_TABLE_COUVERTURE_ZBIOG"] = tableau(k.couverture(jeu, saison, r, "zbiog"), [
-            ("zbiog", "Zone biogéographique")] + cols_groupe[:5])
-    else:
-        texts[f"{P}_TABLE_COUVERTURE_ZBIOG"] = ""
     print(f"[indicateurs] {code} {libelle} : {c['aires']} {tx.pluriel(aire)}, {c['observateurs']} observateurs, "
           f"{c['donnees']} données")
     return AnalysisResult(
         data={"jeu": jeu, "saison": saison, "libelle": libelle, "chiffres": c, "precedent": c1, "fidelisation": fid,
-              "especes": esp, "vide": False, "regle": r},
-        texts=texts, tables=tables,
-        images={f"{P}_CHART_AIRES": ImageBlock(chart_aires), f"{P}_CHART_OBSERVATEURS": ImageBlock(chart_obs)},
+              "especes": esp, "vide": False, "regle": r, "annexe": annexe},
+        texts=texts, tables=tables, images={cle: ImageBlock(chemin) for cle, chemin in images.items()},
     )
 
 
@@ -217,7 +259,7 @@ def _heures(c) -> str:
 @register_brick(
     "ind_synthese",
     requires=["ind_socle"],
-    provides=["TABLE_CHIFFRES_CLES", "TEXTE_CHIFFRES_CLES", "TEXTE_CONCLUSION", "BLOCS_ANNEXE_ESPECES",
+    provides=["TABLE_CHIFFRES_CLES", "TEXTE_CHIFFRES_CLES", "TEXTE_CONCLUSION", "BLOCS_ANNEXE_TABLEAUX",
               "BLOCS_ANNEXE_CONTROLE"],
     last=True,
 )
@@ -235,11 +277,12 @@ def ind_synthese(ctx):
                        f"(écart avec la saison précédente : {tx.ecart(c['aires'], c1['aires'] if c1 else None)}), "
                        f"{tx.nombre(c['observateurs'])} observateurs, {tx.nombre(c['donnees'])} données.")
         especes = k.especes(d["jeu"], d["saison"], None)
-        annexe_esp += [("titre", 2, f"{r['label']} - {d['libelle']}"),
-                       ("tableau", [{**e, "freq_aires": _pct(e["freq_aires"]), "effectif": tx.nombre(e["effectif"])}
-                                    for e in especes],
-                        [("rang", "Rang"), ("nom", "Espèce"), ("freq_aires", f"% des {tx.pluriel(r['aire'])}"),
-                         ("effectif", "Effectif cumulé")])]
+        annexe_esp += [("titre", 2, f"{r['label']} - {d['libelle']}"), *d["annexe"],
+                       *_annexe("Espèces notées", [
+                           {**e, "freq_aires": _pct(e["freq_aires"]), "freq_unites": _pct(e["freq_unites"]),
+                            "effectif": tx.nombre(e["effectif"])} for e in especes],
+                           [("rang", "Rang"), ("nom", "Espèce"), ("freq_aires", f"% des {tx.pluriel(r['aire'])}"),
+                            ("freq_unites", f"% des {tx.pluriel(r['unite'])}"), ("effectif", "Effectif cumulé")])]
         anomalies = [{**a, "date": a["date"].strftime("%d/%m/%Y") if a.get("date") else "", "nom": a.get("nom") or ""}
                      for a in d["jeu"].anomalies if a.get("saison") in (None, d["saison"])]
         if anomalies:
@@ -264,7 +307,7 @@ def ind_synthese(ctx):
                                                     ("aires", "Aires suivies"), ("observateurs", "Observateurs"),
                                                     ("donnees", "Données"), ("temps", "Temps"),
                                                     ("ecart", "Écart des aires")]),
-            "BLOCS_ANNEXE_ESPECES": blocs(annexe_esp),
+            "BLOCS_ANNEXE_TABLEAUX": blocs(annexe_esp),
             "BLOCS_ANNEXE_CONTROLE": blocs([("a_rediger", "Annexe de contrôle : à supprimer avant envoi.")]
                                            + controle),
         },
@@ -291,6 +334,8 @@ def ind_cartes(ctx):
     copy_qgis_project(template_path=projet, output_path=copie)
     # titres des cartes : @annee_<PREFIXE> (« 2024-2025 » pour le SHOC), @zone ; texte « Sources » : @sources
     variables = {f"annee_{PREFIXES[c]}": libelle_saison(s["annee"], regle(ctx, c)["saison"]) for c in PROTOCOLES}
+    variables.update({f"annee_prec_{PREFIXES[c]}": libelle_saison(s["annee"] - 1, regle(ctx, c)["saison"])
+                      for c in PROTOCOLES})
     variables.update({"zone": ctx.area_name,
                       "sources": "Faune-France (STOC, SHOC) et GeoNature (STOM, STERF, POP), LPO Auvergne-Rhône-Alpes"})
     config = {**ctx.params.get("qgis_render", {}), "project_variables": variables}
@@ -305,7 +350,7 @@ def _stoc(ctx, jeu, saison, r):
     s = _socle(ctx)
     sites = ctx.cached("ind_jeu_stoc_sites", lambda: chargement.charger_stoc_sites(
         s["q"], r, saison, int(ctx.params.get("annees_especes", 5))))
-    return sp.blocs_stoc(jeu, sites, saison, r)
+    return sp.blocs_stoc(jeu, sites, saison, r, sortie=ctx.output_dirs["dataviz"])
 
 
 def _shoc(ctx, jeu, saison, r):
@@ -316,9 +361,9 @@ SPECIFIQUES.update({
     "stoc": _stoc,
     "shoc": _shoc,
     "stom": lambda ctx, jeu, saison, r: sp.blocs_stom(jeu, saison, r),
-    "sterf": lambda ctx, jeu, saison, r: sp.blocs_sterf(jeu, saison, r),
-    "pop_reptile": lambda ctx, jeu, saison, r: sp.blocs_pop(jeu, saison, r),
-    "pop_amphibien": lambda ctx, jeu, saison, r: sp.blocs_pop(jeu, saison, r),
+    "sterf": lambda ctx, jeu, saison, r: sp.blocs_sterf(jeu, saison, r, sortie=ctx.output_dirs["dataviz"]),
+    "pop_reptile": lambda ctx, jeu, saison, r: sp.blocs_pop(jeu, saison, r, sortie=ctx.output_dirs["dataviz"]),
+    "pop_amphibien": lambda ctx, jeu, saison, r: sp.blocs_pop(jeu, saison, r, sortie=ctx.output_dirs["dataviz"]),
 })
 
 

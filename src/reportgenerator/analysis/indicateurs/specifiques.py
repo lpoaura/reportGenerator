@@ -1,13 +1,27 @@
 """Analyses propres à un protocole (conception §5.8), en fonctions pures sur le modèle commun. Chaque protocole a une
 fonction blocs_<protocole> qui rend une suite de blocs pour inserer_blocs (analysis/plsoc/word.py) :
-("titre", niveau, texte) | ("texte", texte) | ("a_rediger", texte) | ("tableau", lignes, colonnes)."""
+("titre", niveau, texte) | ("texte", texte) | ("a_rediger", texte) | ("tableau", lignes, colonnes)
+| ("image", chemin) | ("legende", texte) | ("annexe", titre, lignes, colonnes).
 
+Avec un dossier `sortie`, les tableaux sont remplacés par des graphiques dans la section et repris en annexe (bloc
+« annexe », extrait par la brique) ; sans `sortie` (tests), les tableaux restent dans la section."""
+
+from pathlib import Path
+
+from reportgenerator.analysis.indicateurs import figures as fig
 from reportgenerator.analysis.indicateurs.communes import (aires_suivies, completude, observateurs_de, pourcent,
                                                            releves, statut_aires)
 from reportgenerator.analysis.indicateurs.selections import dans_periode, est_stoc_site_n2000, numero_periode
 from reportgenerator.analysis.indicateurs.textes import nombre, pluriel
 
 TITRE = 3   # niveau des titres des analyses propres (sous « Analyses propres au protocole »)
+
+
+def _visuel(lignes, colonnes, sortie: Path | None, nom: str, dessin, legende: str, titre_annexe: str) -> list:
+    """Tableau dans la section (sans sortie), ou graphique + légende dans la section et tableau en annexe."""
+    if sortie is None:
+        return [("tableau", lignes, colonnes)]
+    return [("image", dessin(sortie / f"{nom}.png")), ("legende", legende), ("annexe", titre_annexe, lignes, colonnes)]
 
 
 # ---------------------------------------------------------------------------------------------------- communs
@@ -57,7 +71,8 @@ def stoc_sites_n2000(sites, eps, saison, regle_sites) -> dict:
     eff_sites = _effectifs(sites, p["id_passage"])
     pe = eps.passages[eps.passages["saison"].between(debut, saison)]
     rang_eps = {cd: i for i, (cd, _) in enumerate(_effectifs(eps, pe["id_passage"]), 1)}
-    rangs = [{"rang_sites": i, "nom": nom, "effectif": nombre(int(e)), "rang_eps": rang_eps.get(cd, "—")}
+    rangs = [{"rang_sites": i, "nom": nom, "effectif": nombre(int(e)), "effectif_n": int(e),
+              "rang_eps": rang_eps.get(cd, "—")}
              for i, ((cd, nom), e) in enumerate(list(eff_sites.items())[:int(regle_sites.get("nb_especes_rang", 40))],
                                                 1)]
     return {"sites_suivis": len(aires_suivies(sites, saison) & n2000), "sites_total": int(p["id_aire"].nunique()),
@@ -71,12 +86,16 @@ def autres_stoc_sites(sites, saison, motif) -> int:
     return sum(1 for a in aires_suivies(sites, saison) if not est_stoc_site_n2000(noms.get(a), motif))
 
 
-def blocs_stoc(eps, sites, saison, regle) -> list[tuple]:
+def blocs_stoc(eps, sites, saison, regle, sortie: Path | None = None) -> list[tuple]:
+    passages = passages_par_aire(eps, saison, regle)
     b = [("titre", TITRE, "Passages réalisés"),
          ("texte", "Carrés suivis selon le nombre de périodes de passage couvertes (1er avril - 8 mai, 9 mai - "
                    "15 juin ; le passage de mars est facultatif)."),
-         ("tableau", [{"passages": k, "aires": v} for k, v in passages_par_aire(eps, saison, regle).items()],
-          [("passages", "Passages"), ("aires", "Carrés")])]
+         *_visuel([{"passages": k, "aires": v} for k, v in passages.items()], [("passages", "Passages"),
+                                                                               ("aires", "Carrés")],
+                  sortie, "stoc_passages", lambda p: fig.chart_barres(passages, p, "Carrés"),
+                  f"Figure : carrés STOC-EPS selon le nombre de passages réalisés en {saison}.",
+                  "Passages réalisés")]
     n_ofb, pct_ofb = part_organisme(eps, saison, "OFB")
     if n_ofb:
         b.append(("texte", f"{nombre(n_ofb)} observateurs de l'OFB ont participé en {saison} ({pct_ofb} % des "
@@ -91,9 +110,14 @@ def blocs_stoc(eps, sites, saison, regle) -> list[tuple]:
                             f"Depuis {r['debut']}, {nombre(r['sites_total'])} sites ont produit "
                             f"{nombre(r['donnees_cumul'])} données pour {nombre(r['taxons_cumul'])} taxons. Rang des "
                             "espèces sur ces sites (effectif cumulé) comparé à leur rang en STOC-EPS sur les mêmes "
-                            "saisons :"),
-                  ("tableau", r["rangs"], [("rang_sites", "Rang STOC-sites"), ("nom", "Espèce"),
-                                           ("effectif", "Effectif cumulé"), ("rang_eps", "Rang STOC-EPS")])]
+                            "saisons :")]
+            premieres = {f"{x['nom']} (rang STOC-EPS : {x['rang_eps']})": x["effectif_n"] for x in r["rangs"][:20]}
+            b += _visuel(r["rangs"], [("rang_sites", "Rang STOC-sites"), ("nom", "Espèce"),
+                                      ("effectif", "Effectif cumulé"), ("rang_eps", "Rang STOC-EPS")],
+                         sortie, "stoc_sites_rangs",
+                         lambda p: fig.chart_barres(premieres, p, f"Effectif cumulé depuis {r['debut']}"),
+                         "Figure : 20 premières espèces des STOC-sites Natura 2000 (effectif cumulé) et leur rang en "
+                         "STOC-EPS (tableau complet en annexe).", "STOC-sites Natura 2000 : rang des espèces")
         if autres:
             b.append(("texte", f"{nombre(autres)} autres STOC-sites ont été suivis en {saison} (sites hors Natura "
                                "2000, ONF, réserves naturelles)."))
@@ -203,24 +227,38 @@ def avancement(jeu, saison, regle) -> tuple[int, int, int]:
     return fait, objectif, pourcent(fait, objectif)
 
 
-def blocs_sterf(jeu, saison, regle) -> list[tuple]:
+def blocs_sterf(jeu, saison, regle, sortie: Path | None = None) -> list[tuple]:
     seuil = int(regle.get("seuil_sterf_vrai", 5))
     classes = classer_sterf(jeu, saison, seuil)
     vrais = sum(1 for c in classes.values() if c == "STERF vrai")
     fait, objectif, pct = avancement(jeu, saison, regle)
+    par_dep = tableau_sterf(jeu, saison, seuil)
+    zones = tableau_zbiog(jeu, saison, regle.get("objectifs_zbiog") or {})
     return [("titre", TITRE, "STERF vrais et sites type STERF"),
             ("texte", f"En {saison}, {nombre(vrais)} sites respectent le protocole national (STERF vrais : au moins "
                       f"{seuil} transects, suivis cette année) et {nombre(len(classes) - vrais)} sont des sites type "
                       f"STERF. {nombre(unites_non_suivies(jeu, saison))} transects des sites suivis n'ont pas été "
                       "parcourus cette année."),
-            ("tableau", tableau_sterf(jeu, saison, seuil),
-             [("departement", "Département"), ("observateurs", "Observateurs"), ("sterf_vrais", "STERF vrais"),
-              ("sites_type", "Sites type STERF"), ("transects", "Transects"), ("donnees", "Données")]),
+            *_visuel(par_dep, [("departement", "Département"), ("observateurs", "Observateurs"),
+                               ("sterf_vrais", "STERF vrais"), ("sites_type", "Sites type STERF"),
+                               ("transects", "Transects"), ("donnees", "Données")],
+                     sortie, "sterf_vrais_departements",
+                     lambda p: fig.chart_groupes(par_dep, "departement", p, [
+                         ("sterf_vrais", "STERF vrais", fig.BLEU), ("sites_type", "Sites type STERF", fig.ORANGE)],
+                         "Sites suivis"),
+                     f"Figure : STERF vrais et sites type STERF suivis en {saison}, par département.",
+                     "STERF vrais et sites type STERF par département"),
             ("titre", TITRE, "Objectifs de déploiement"),
             ("texte", f"{nombre(fait)} sites suivis pour un objectif de {nombre(objectif)} ({pct} %), "
                       f"{nombre(regle.get('objectif_ideal'))} idéalement."),
-            ("tableau", tableau_zbiog(jeu, saison, regle.get("objectifs_zbiog") or {}),
-             [("zone", "Zone biogéographique"), ("sites", "Sites suivis"), ("objectif", "Objectif")])]
+            *(_visuel(zones, [("zone", "Zone biogéographique"), ("sites", "Sites suivis"), ("objectif", "Objectif")],
+                      sortie, "sterf_objectifs", lambda p: fig.chart_objectifs(zones, p, "Sites suivis"),
+                      f"Figure : sites STERF suivis en {saison} par zone biogéographique et objectif de la zone "
+                      "(trait noir, quand il est défini).", "Sites STERF par zone biogéographique et objectifs")
+              # sans objectif chiffré, le graphique répéterait celui de la couverture par zone biogéographique
+              if sortie is None or any(isinstance(z["objectif"], (int, float)) for z in zones) else
+              [("texte", "Objectifs par zone biogéographique : à renseigner (paramètre objectifs_zbiog du "
+                         "dossier.toml) ; répartition des sites par zone : voir la couverture.")])]
 
 
 # ---------------------------------------------------------------------------------------------------------- POP
@@ -242,16 +280,27 @@ def tableau_pop(jeu, saison, regle) -> list[dict]:
     return _par_groupe(jeu, saison, "departement", ligne)
 
 
-def blocs_pop(jeu, saison, regle) -> list[tuple]:
+def blocs_pop(jeu, saison, regle, sortie: Path | None = None) -> list[tuple]:
     unite = regle.get("unite", "site")
     fait, objectif, pct = avancement(jeu, saison, regle)
     sur = pluriel(unite) if regle.get("objectif_sur") == "unites" else "aires"
+    etats = etats_pop(jeu, saison)
+    par_dep = [{**r, "autres": r["aires"] - r["completes"]} for r in tableau_pop(jeu, saison, regle)]
+    code = regle.get("module", "pop")   # nom des fichiers des graphiques
     return [("titre", TITRE, "État des aires"),
-            ("tableau", [{"etat": k, "aires": v} for k, v in etats_pop(jeu, saison).items()],
-             [("etat", "État de l'aire"), ("aires", "Aires")]),
+            *_visuel([{"etat": k, "aires": v} for k, v in etats.items()], [("etat", "État de l'aire"),
+                                                                           ("aires", "Aires")],
+                     sortie, f"{code}_etats", lambda p: fig.chart_barres(etats, p, "Aires"),
+                     f"Figure : aires selon leur état en {saison} (règles de la base POP).", "État des aires"),
             ("titre", TITRE, "Suivi par département"),
-            ("tableau", tableau_pop(jeu, saison, regle),
-             [("departement", "Département"), ("aires", "Aires suivies"), ("unites", f"{pluriel(unite)} visités"),
-              ("completes", "Suivis complets"), ("nouvelles", "Nouvelles aires")]),
+            *_visuel(par_dep, [("departement", "Département"), ("aires", "Aires suivies"),
+                               ("unites", f"{pluriel(unite)} visités"), ("completes", "Suivis complets"),
+                               ("nouvelles", "Nouvelles aires")],
+                     sortie, f"{code}_departements",
+                     lambda p: fig.chart_groupes(par_dep, "departement", p, [
+                         ("completes", "Suivi complet", fig.BLEU), ("autres", "Suivi incomplet", fig.BLEU_CLAIR)],
+                         "Aires suivies"),
+                     f"Figure : aires suivies en {saison} par département, selon que le suivi est complet ou non.",
+                     "Aires suivies par département"),
             ("titre", TITRE, "Objectif"),
             ("texte", f"{nombre(fait)} {sur} pour un objectif de {nombre(objectif)} ({pct} %).")]

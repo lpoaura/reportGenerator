@@ -34,17 +34,23 @@ DATA = work / "data"
 ROOT = P.layerTreeRoot()
 MODELE = "Carte01_localisation"
 
-# (code, préfixe, titre, libellé des aires dans la légende) ; titre complété par @annee_<préfixe> (variable de projet
-# fournie par la brique ind_cartes : « 2025 », ou « 2024-2025 » pour le SHOC)
-PROTOCOLES = [("stoc", "STOC", "STOC-EPS : carrés suivis", "Carrés"),
-              ("shoc", "SHOC", "SHOC : carrés suivis", "Carrés"),
-              ("stom", "STOM", "STOM : sites suivis", "Sites"),
-              ("sterf", "STERF", "STERF : sites suivis", "Sites"),
-              ("pop_reptile", "POPR", "POP Reptile : aires suivies", "Aires"),
-              ("pop_amphibien", "POPA", "POP Amphibien : aires suivies", "Aires")]
-STATUTS = [("suivie", "Suivi(e) cette année", "#0088cc"),
-           ("nouvelle", "Suivi(e) pour la première fois", "#eb5f1a"),
-           ("non suivie", "Non suivi(e) cette année", "#b0b0b0")]
+# (code, préfixe, protocole, aires, « suivis » accordé) ; titres complétés par @annee_<préfixe> et
+# @annee_prec_<préfixe> (variables de projet fournies par la brique ind_cartes : « 2025 », « 2024-2025 » pour le SHOC)
+PROTOCOLES = [("stoc", "STOC", "STOC-EPS", "carrés", "suivis"),
+              ("shoc", "SHOC", "SHOC", "carrés", "suivis"),
+              ("stom", "STOM", "STOM", "sites", "suivis"),
+              ("sterf", "STERF", "STERF", "sites", "suivis"),
+              ("pop_reptile", "POPR", "POP Reptile", "aires", "suivies"),
+              ("pop_amphibien", "POPA", "POP Amphibien", "aires", "suivies")]
+# palette des graphiques du rapport (analysis/indicateurs/figures.py)
+BLEU, ORANGE, VERT_EAU, GRIS, ROUGE, BLEU_PALE = "#2a78d6", "#eb6834", "#1baf7a", "#a6a6a6", "#e34948", "#b7d3f6"
+STATUTS = [("suivie", "Suivi(e) cette année", BLEU),
+           ("nouvelle", "Suivi(e) pour la première fois", ORANGE),
+           ("non suivie", "Non suivi(e) cette année", GRIS)]
+CATEGORIES = [("Salarié LPO", "Salarié LPO", BLEU), ("Organisme tiers", "Organisme tiers", ORANGE),
+              ("Bénévole", "Bénévole", VERT_EAU), ("Non renseigné", "Non renseigné", GRIS)]
+RECONDUCTION = [("abandon", "Suivi(e) la saison précédente, pas cette année", ROUGE),
+                ("suivie", "Suivi(e) cette année", BLEU_PALE)]
 
 
 def remplissage(couleur, contour="35,35,35,255", largeur="0.15"):
@@ -101,13 +107,15 @@ zbiog = couche("ind_zbiog", "Zones biogéographiques")
 zbiog.setRenderer(QgsSingleSymbolRenderer(contour("#007e85", "0.5", "dash")))
 groupe("Fond", [zone, deps, zbiog], visible=True)
 
-# ================================================================= une mise en page par protocole
+# ================================================================= trois mises en page par protocole
 modele = manager.layoutByName(MODELE)
-for code, prefixe, titre, legende in PROTOCOLES:
-    nom = f"{prefixe}_CARTE"
-    aires = couche("ind_aires", "Aires", subset=f"\"protocole\" = '{code}'")
-    aires.setRenderer(QgsCategorizedSymbolRenderer("statut", [
-        QgsRendererCategory(v, remplissage(c), lab) for v, lab, c in STATUTS]))
+
+
+def carte(nom, champ, categories, subset, titre, legende):
+    """Groupe + mise en page `nom` (clone du modèle) : couche ind_aires filtrée et catégorisée sur `champ`."""
+    aires = couche("ind_aires", "Aires", subset=subset)
+    aires.setRenderer(QgsCategorizedSymbolRenderer(champ, [
+        QgsRendererCategory(v, remplissage(c), lab) for v, lab, c in categories]))
     groupe(nom, [aires])
     lay = modele.clone()
     lay.setName(nom)
@@ -130,14 +138,26 @@ for code, prefixe, titre, legende in PROTOCOLES:
     principale.updateLegend()
     for it in lay.items():
         if isinstance(it, QgsLayoutItemLabel) and it.id() == "Titre":
-            it.setText(f"{titre} en [% @annee_{prefixe} %]")
+            it.setText(titre)
         if isinstance(it, QgsLayoutItemMap):
             it.setKeepLayerSet(False)
             it.setFollowVisibilityPreset(False)
 
+
+for code, prefixe, protocole, aires_, suivis in PROTOCOLES:
+    du_protocole = f"\"protocole\" = '{code}'"
+    annee, prec = f"[% @annee_{prefixe} %]", f"[% @annee_prec_{prefixe} %]"
+    carte(f"{prefixe}_CARTE", "statut", STATUTS, du_protocole,
+          f"{protocole} : {aires_} {suivis} en {annee}", aires_.capitalize())
+    carte(f"{prefixe}_CARTE_CATEGORIES", "categorie", CATEGORIES, f"{du_protocole} AND \"categorie\" IS NOT NULL",
+          f"{protocole} : observateurs\ndes {aires_} {suivis} en {annee}", "Catégorie de l'observateur principal")
+    carte(f"{prefixe}_CARTE_ABANDONS", "reconduction", RECONDUCTION,
+          f"{du_protocole} AND \"reconduction\" IS NOT NULL",
+          f"{protocole} : {aires_} à reprendre\n({suivis} en {prec}, pas en {annee})", aires_.capitalize())
+
 # suppression des autres mises en page (modèle compris)
 for lay in list(manager.layouts()):
-    if not lay.name().endswith("_CARTE"):
+    if "_CARTE" not in lay.name():
         manager.removeLayout(lay)
 
 # ordre de rendu = ordre de l'arbre (groupes au-dessus du fond de carte)

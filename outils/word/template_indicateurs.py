@@ -11,6 +11,7 @@ jaune. Le template source n'est pas modifié.
 import sys
 
 from docx import Document
+from docx.enum.section import WD_ORIENT, WD_SECTION
 from docx.enum.text import WD_COLOR_INDEX
 from docx.oxml.ns import qn
 
@@ -179,35 +180,39 @@ for code, prefixe, titre, suivis, textes, regles in PROTOCOLES:
     for t in textes:
         P(t)
     P(regles)
+    n = f"{{{{{prefixe}_ANNEE_LIBELLE}}}}"
     H(2, "Participation et chiffres clés")
     X(f"{prefixe}_TEXTE_PARTICIPATION")
-    X(f"{prefixe}_TABLE_CHIFFRES")
-    L(f"Tableau : chiffres clés de la saison {{{{{prefixe}_ANNEE_LIBELLE}}}} et écart avec la saison précédente.")
-    X(f"{prefixe}_TABLE_CATEGORIES")
-    L(f"Tableau : répartition par catégorie d'observateurs, saison {{{{{prefixe}_ANNEE_LIBELLE}}}}.")
+    X(f"{prefixe}_CHART_CHIFFRES")
+    L(f"Figure : chiffres clés de la saison {n} et écart avec la saison précédente (tableau en annexe).")
+    X(f"{prefixe}_CHART_CATEGORIES")
+    L(f"Figure : part de chaque catégorie d'observateurs dans les {aires}, les observateurs, les données et le temps, "
+      f"saison {n}.")
     X(f"{prefixe}_NOTE_CATEGORIES")
+    X(f"{prefixe}_CARTE_CATEGORIES")
+    L(f"Carte : {suivis} en {n} selon la catégorie de leur observateur principal.")
     H(2, "Couverture")
     X(f"{prefixe}_TEXTE_COUVERTURE")
-    X(f"{prefixe}_TABLE_COUVERTURE")
-    L(f"Tableau : {suivis} en {{{{{prefixe}_ANNEE_LIBELLE}}}} (par département si la zone en compte plusieurs).")
-    X(f"{prefixe}_TABLE_COUVERTURE_ZBIOG")
+    X(f"{prefixe}_BLOCS_COUVERTURE")
     X(f"{prefixe}_CARTE")
-    L(f"Carte : {aires} de la zone selon leur suivi en {{{{{prefixe}_ANNEE_LIBELLE}}}}.")
+    L(f"Carte : {aires} de la zone selon leur suivi en {n} (y compris pour la première fois).")
     H(2, "Historique et fidélisation")
     X(f"{prefixe}_TEXTE_HISTORIQUE")
-    X(f"{prefixe}_CHART_AIRES")
-    L(f"Figure : nombre de {suivis} par saison depuis le début du suivi.")
+    X(f"{prefixe}_CHART_HISTORIQUE")
+    L("Figure : évolution des chiffres clés depuis le début du suivi (saison du rapport en bleu soutenu).")
     X(f"{prefixe}_CHART_OBSERVATEURS")
     L("Figure : observateurs par catégorie et par saison.")
-    X(f"{prefixe}_TABLE_HISTORIQUE")
-    L("Tableau : chiffres clés des dernières saisons.")
     X(f"{prefixe}_TEXTE_FIDELISATION")
+    X(f"{prefixe}_CARTE_ABANDONS")
+    L(f"Carte : {suivis} la saison précédente mais pas en {n} (à reprendre : abandon, ou nouvel observateur à "
+      "trouver).")
     H(2, "Espèces")
     X(f"{prefixe}_TEXTE_ESPECES")
-    X(f"{prefixe}_TABLE_ESPECES")
-    L(f"Tableau : espèces les plus fréquentes en {{{{{prefixe}_ANNEE_LIBELLE}}}} (liste complète en annexe).")
-    X(f"{prefixe}_TABLE_EVOLUTION_ESPECES")
-    L(f"Tableau : part des {aires} où l'espèce est notée, sur les dernières saisons (indicateur descriptif).")
+    X(f"{prefixe}_CHART_ESPECES")
+    L(f"Figure : espèces les plus fréquentes en {n} (liste complète en annexe).")
+    X(f"{prefixe}_CHART_EVOLUTION_ESPECES")
+    L(f"Figure : part des {aires} où l'espèce est notée, sur les dernières saisons (indicateur descriptif ; couleur "
+      "du plus clair, fréquence la plus faible du tableau, au plus foncé).")
     H(2, "Analyses propres au protocole")
     X(f"{prefixe}_BLOCS_SPECIFIQUES")
     H(2, "Animation et perspectives")
@@ -218,9 +223,18 @@ H(1, "Conclusion et perspectives")
 X("TEXTE_CONCLUSION")
 A("Conclusion et perspectives à rédiger.")
 
+# annexes en A4 paysage (tableaux détaillés larges) ; le reste du rapport est en A4 portrait
+# A4 portrait : dimensions de la page de garde (le corps du template PLSOC est en 297 × 210 mm, marqué portrait)
+largeur, hauteur = doc.sections[0].page_width, doc.sections[0].page_height
+annexes = doc.add_section(WD_SECTION.NEW_PAGE)
+for s in doc.sections[1:-1]:   # sections du rapport : A4 portrait
+    s.orientation, s.page_width, s.page_height = WD_ORIENT.PORTRAIT, largeur, hauteur
+annexes.orientation = WD_ORIENT.LANDSCAPE
+annexes.page_width, annexes.page_height = hauteur, largeur
 H(1, "Annexes")
-H(2, "Espèces notées par protocole")
-X("BLOCS_ANNEXE_ESPECES")
+H(2, "Tableaux détaillés par protocole")
+P("Chiffres des graphiques du rapport, par protocole, et liste complète des espèces notées.")
+X("BLOCS_ANNEXE_TABLEAUX")
 H(2, "Contrôle des saisies")
 X("BLOCS_ANNEXE_CONTROLE")
 

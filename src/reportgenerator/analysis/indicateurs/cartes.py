@@ -6,7 +6,7 @@ Les filtres par protocole et la symbologie sont dans le projet QGIS, modifiable 
 
 from shapely import wkt
 
-from reportgenerator.analysis.indicateurs.communes import statut_aires
+from reportgenerator.analysis.indicateurs.communes import aires_suivies, categorie_aires, statut_aires
 
 
 def _geom(texte):
@@ -15,17 +15,22 @@ def _geom(texte):
 
 
 def couches_cartes(jeux: dict, saisons: dict, zone: dict, departements: list[dict], zbiog: list[dict]) -> dict:
-    """ind_zone, ind_departements, ind_zbiog (contours) et ind_aires (protocole, statut en N : suivie, nouvelle,
-    non suivie)."""
+    """ind_zone, ind_departements, ind_zbiog (contours) et ind_aires (protocole ; statut en N : suivie, nouvelle,
+    non suivie ; catégorie de l'aire en N ; reconduction : suivie en N, ou abandon = suivie en N-1 seulement)."""
     aires = []
     for code, jeu in jeux.items():
-        statuts = statut_aires(jeu, saisons[code])
+        n = saisons[code]
+        statuts, categories = statut_aires(jeu, n), categorie_aires(jeu, n)
+        suivies_n, suivies_n1 = aires_suivies(jeu, n), aires_suivies(jeu, n - 1)
         for a in jeu.aires.itertuples():
             if _geom(a.wkt) is None:
                 continue
+            # reconduction : « suivie » en N, « abandon » si suivie en N-1 mais pas en N (aire à reprendre)
+            reconduction = "suivie" if a.id_aire in suivies_n else "abandon" if a.id_aire in suivies_n1 else None
             aires.append({"protocole": code, "id_aire": a.id_aire, "nom_aire": a.nom_aire,
-                          "statut": statuts.get(a.id_aire, "non suivie"), "departement": a.departement,
-                          "zbiog": a.zbiog, "geom": _geom(a.wkt)})
+                          "statut": statuts.get(a.id_aire, "non suivie"), "categorie": categories.get(a.id_aire),
+                          "reconduction": reconduction, "departement": a.departement, "zbiog": a.zbiog,
+                          "geom": _geom(a.wkt)})
     return {
         "ind_zone": [{"nom": zone.get("nom", ""), "geom": _geom(zone["wkt"])}],
         "ind_departements": [{"nom": d["nom"], "geom": _geom(d["wkt"])} for d in departements],

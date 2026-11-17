@@ -101,13 +101,26 @@ valeur par défaut du protocole.
 ## 5. Contenu du rapport
 
 Page de garde et chiffres clés (tous protocoles) ; contexte ; une section par protocole, toujours dans le même ordre et
-avec le même plan (protocole, participation et chiffres clés, couverture et carte, historique et fidélisation, espèces,
-analyses propres, animation à rédiger) ; conclusion ; annexes (espèces par protocole, contrôle des saisies). Une
-section est masquée si le protocole n'est pas demandé ou s'il n'a aucune aire dans la zone.
+avec le même plan (protocole, participation et chiffres clés, couverture, historique et fidélisation, espèces, analyses
+propres, animation à rédiger) ; conclusion ; annexes. Une section est masquée si le protocole n'est pas demandé ou s'il
+n'a aucune aire dans la zone.
 
-Cartes : projet QGIS `qgis/projet_indicateurs.qgs` (une mise en page par protocole), construit par
-`outils/qgis/build_projet_indicateurs.py` et modifiable directement dans QGIS (symbologie, mise en page). Template :
-`outils/word/template_indicateurs.py` (textes fixes repris du rapport 2025, à relire).
+- **Graphiques plutôt que tableaux** (retour du 17/11/2026) : tuiles des chiffres clés avec l'écart à la saison
+  précédente, parts des catégories d'observateurs (barres 100 %), aires par département et par zone biogéographique
+  (déjà suivies / suivies pour la première fois), historique en petits multiples (aires, observateurs, données, temps),
+  espèces les plus fréquentes, évolution des fréquences en carte de chaleur (couleur relative à l'étendue des
+  valeurs), analyses propres (passages STOC, STERF vrais, états et suivis POP). Les tableaux détaillés de chaque
+  graphique sont repris en annexe. Une zone d'un seul département garde la liste de ses aires en tableau.
+- **Couleurs** : catégories d'observateurs dans un ordre fixe (salarié LPO bleu, organisme tiers orange, bénévole vert
+  d'eau, non renseigné gris), identiques dans les graphiques et les cartes ; une seule teinte (bleu) pour les
+  grandeurs, la saison du rapport en bleu soutenu.
+- **Mise en page** : A4 portrait ; annexes (tableaux larges) en A4 paysage.
+- **Cartes** (projet QGIS `qgis/projet_indicateurs.qgs`, trois mises en page par protocole) : aires selon leur suivi en
+  N (`_CARTE`), aires suivies en N selon la catégorie de leur observateur principal (`_CARTE_CATEGORIES`), aires
+  suivies en N-1 mais pas en N, à reprendre (`_CARTE_ABANDONS`). Construit par `outils/qgis/build_projet_indicateurs.py`,
+  modifiable directement dans QGIS (symbologie, mise en page).
+
+Template : `outils/word/template_indicateurs.py` (textes fixes repris du rapport 2025, à relire).
 
 ## 6. Recoupements (dry-run région, saison 2025, base au 17/11/2026)
 

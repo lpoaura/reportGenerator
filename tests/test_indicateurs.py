@@ -228,8 +228,32 @@ def test_textes_sans_aire():
 
 def test_figures(tmp_path):
     j = jeu_factice()
-    assert figures.chart_aires(communes.serie(j, 2023, 2025, TEMPS_MESURE), tmp_path / "a.png", "site").exists()
-    assert figures.chart_observateurs(communes.series_categories(j, 2023, 2025), tmp_path / "o.png").exists()
+    c, c1 = communes.chiffres(j, 2025, TEMPS_MESURE), communes.chiffres(j, 2024, TEMPS_MESURE)
+    tuiles = [("Sites suivis", c["aires"], c1["aires"]), ("Données", c["donnees"], None)]
+    libelles = {"aires": "Sites", "saison": str}
+    dep = communes.couverture(j, 2025, {}, par="departement")
+    graphiques = [
+        figures.chart_chiffres(tuiles, tmp_path / "c.png", "2025", "2024"),
+        figures.chart_categories(communes.par_categorie(j, 2025, TEMPS_MESURE), tmp_path / "k.png", "sites"),
+        figures.chart_groupes(dep, "departement", tmp_path / "g.png",
+                              [("aires", "Suivis", figures.BLEU), ("nouvelles", "Nouveaux", figures.ORANGE)], "Sites"),
+        figures.chart_barres({"1 passage": 2, "2 passages": 1}, tmp_path / "b.png", "Carrés"),
+        figures.chart_objectifs([{"zone": "Zone alpine", "sites": 2, "objectif": 10},
+                                 {"zone": "Plaine", "sites": 1, "objectif": "à définir"}], tmp_path / "z.png", "Sites"),
+        figures.chart_historique(communes.serie(j, 2023, 2025, TEMPS_MESURE), tmp_path / "h.png", libelles, 2023),
+        figures.chart_observateurs(communes.series_categories(j, 2023, 2025), tmp_path / "o.png"),
+        figures.chart_especes(communes.especes(j, 2025, 20), tmp_path / "e.png", "site"),
+        figures.chart_evolution(communes.evolution_especes(j, 2025, 3, 3), tmp_path / "v.png", str),
+    ]
+    assert all(g.exists() and g.stat().st_size > 1000 for g in graphiques)
+    vides = [
+        figures.chart_categories([], tmp_path / "k0.png", "sites"),
+        figures.chart_especes([], tmp_path / "e0.png", "site"),
+        figures.chart_evolution([], tmp_path / "v0.png", str),
+        figures.chart_historique([], tmp_path / "h0.png", libelles, 2023),
+        figures.chart_groupes([], "departement", tmp_path / "g0.png", [("aires", "x", "#000")], "x"),
+    ]
+    assert all(g.exists() for g in vides)
 
 
 # ------------------------------------------------------------------------------------------ briques et dossier
@@ -463,7 +487,12 @@ def test_table_zbiog_colonnes_par_zone_pour_un_departement(tmp_path, monkeypatch
     deux_zones = [{"nom": "Zone alpine", "wkt": ZONE_WKT}, {"nom": "Plaine rhodanienne", "wkt": ZONE_WKT}]
     monkeypatch.setattr(IndicateursQueries, "zones_biogeo", lambda self: deux_zones)
     ctx.results["ind_socle"] = get_brick("ind_socle").run(ctx)
-    colonnes = [c for c, _ in get_brick("stom").run(ctx).tables["STOM_TABLE_COUVERTURE_ZBIOG"].options["colonnes"]]
+    r = get_brick("stom").run(ctx)
+    couverture = r.tables["STOM_BLOCS_COUVERTURE"].data
+    assert [b[0] for b in couverture] == ["tableau", "legende", "image", "legende"]   # liste des aires + graphique
+    annexe = r.data["annexe"]
+    i = annexe.index(("titre", 3, "Couverture par zone biogéographique"))
+    colonnes = [c for c, _ in annexe[i + 1][2]]
     assert colonnes[:2] == ["zbiog", "aires"] and "commune" not in colonnes
 
 
@@ -479,3 +508,25 @@ def test_anomalies_observateur_inconnu_par_saison():
 def test_template_sans_nom_de_collegue_dans_les_proprietes():
     props = Document(load_dossier("indicateurs").template).core_properties
     assert props.author == "LPO Auvergne-Rhône-Alpes" and props.last_modified_by == "LPO Auvergne-Rhône-Alpes"
+
+
+def test_couches_cartes_categories_et_reconduction():
+    c = cartes.couches_cartes({"stom": jeu_factice("stom")}, {"stom": 2025}, {"wkt": ZONE_WKT}, DEPARTEMENTS, [])
+    aires = {r["id_aire"]: r for r in c["ind_aires"]}
+    categories = {"A1": "Bénévole", "A2": "Organisme tiers", "A3": None, "A4": "Non renseigné"}
+    assert {a: r["categorie"] for a, r in aires.items()} == categories
+    # A3 : suivie en 2024, pas en 2025 (à reprendre) ; A1, A2, A4 : suivies en 2025
+    reconduction = {"A1": "suivie", "A2": "suivie", "A3": "abandon", "A4": "suivie"}
+    assert {a: r["reconduction"] for a, r in aires.items()} == reconduction
+
+
+def test_analyses_propres_en_graphiques(tmp_path):
+    j = jeu_factice("sterf")
+    regle = {"seuil_sterf_vrai": 5, "objectif": 100, "objectifs_zbiog": {"Zone alpine": 10}}
+    b = sp.blocs_sterf(j, 2025, regle, sortie=tmp_path)
+    genres = [x[0] for x in b]
+    assert "tableau" not in genres and genres.count("image") == 2 and genres.count("annexe") == 2
+    assert all(x[1].exists() for x in b if x[0] == "image")
+    # sans objectif chiffré : pas de graphique des objectifs (il répéterait la couverture par zone)
+    b = sp.blocs_sterf(j, 2025, {**regle, "objectifs_zbiog": {}}, sortie=tmp_path)
+    assert [x[0] for x in b].count("image") == 1
