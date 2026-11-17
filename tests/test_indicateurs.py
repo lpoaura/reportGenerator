@@ -7,18 +7,19 @@ import pandas as pd
 import pytest
 
 from reportgenerator.analysis.common.filesystem import create_analysis_dirs
-from reportgenerator.analysis.indicateurs import chargement, communes, figures, textes
+from reportgenerator.analysis.indicateurs import cartes, chargement, communes, figures, textes
 from reportgenerator.analysis.indicateurs import selections as s
 from reportgenerator.analysis.indicateurs import specifiques as sp
 from reportgenerator.analysis.indicateurs.adaptateurs import jeu_monitoring, jeu_vigienature
 from reportgenerator.analysis.indicateurs.modele import jeu_vide, verifier
 from reportgenerator.analysis.indicateurs.queries import IndicateursQueries
 from reportgenerator.analysis.indicateurs.selections import PROTOCOLES
+from reportgenerator.bricks import indicateurs as bricks_indicateurs
 from reportgenerator.bricks.indicateurs import cles_protocole
 from reportgenerator.core.context import ReportContext
 from reportgenerator.core.dossier import load_dossier
 from reportgenerator.core.registry import get_brick
-from tests.indicateurs_factice import DEPARTEMENTS, ZONE_WKT, jeu_factice
+from tests.indicateurs_factice import DEPARTEMENTS, ZONE_WKT, jeu_factice, rendu_factice
 
 
 # ------------------------------------------------------------------------------------------------- règles métier
@@ -364,3 +365,27 @@ def test_synthese_ignore_protocole_vide(tmp_path, monkeypatch):
     lignes = r.tables["TABLE_CHIFFRES_CLES"].data
     assert [ligne["protocole"] for ligne in lignes] == ["STOM"]
     assert "nan" not in r.texts["TEXTE_CONCLUSION"] and "STOM" in r.texts["TEXTE_CONCLUSION"]
+
+
+# ---------------------------------------------------------------------------------------------------------- cartes
+def test_couches_cartes():
+    c = cartes.couches_cartes({"stom": jeu_factice("stom")}, {"stom": 2025}, {"wkt": ZONE_WKT, "nom": "Test"},
+                              DEPARTEMENTS, [])
+    aires = {r["id_aire"]: r for r in c["ind_aires"]}
+    attendu = {"A1": "suivie", "A2": "suivie", "A3": "non suivie", "A4": "nouvelle"}
+    assert {a: r["statut"] for a, r in aires.items()} == attendu
+    assert all(r["protocole"] == "stom" and r["geom"] is not None for r in c["ind_aires"])
+    assert len(c["ind_departements"]) == 2 and c["ind_zbiog"] == []
+
+
+def test_brique_cartes_sans_qgis(tmp_path, monkeypatch):
+    projet = tmp_path / "p.qgs"
+    projet.write_text('<Layout name="STOM_CARTE"/><Layout name="STOC_CARTE"/>', encoding="utf-8")
+    monkeypatch.setattr(bricks_indicateurs, "launch_qgis_render", rendu_factice)
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, stom, annee_2025", {"stom": jeu_factice("stom")})
+    ctx.dossier = dataclasses.replace(ctx.dossier, qgis_project=projet)
+    for nom in ("ind_socle", "stom"):
+        ctx.results[nom] = get_brick(nom).run(ctx)
+    r = get_brick("ind_cartes").run(ctx)
+    assert set(r.images) == {"STOM_CARTE", "STOC_CARTE"}
+    assert (ctx.output_dirs["data"] / "ind_aires.gpkg").exists()

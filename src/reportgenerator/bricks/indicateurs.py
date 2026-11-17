@@ -6,10 +6,13 @@ charge son jeu (modèle commun) et remplit sa section {{#code}} … {{/code}} av
 """
 
 from datetime import date
+from pathlib import Path
 from typing import Callable
 
+from reportgenerator.analysis.cartography.export import copy_qgis_project, export_gpkg
+from reportgenerator.analysis.cartography.qgis_launcher import launch_qgis_render
 from reportgenerator.analysis.common.models import AnalysisResult, ImageBlock, TableBlock
-from reportgenerator.analysis.indicateurs import chargement
+from reportgenerator.analysis.indicateurs import cartes, chargement
 from reportgenerator.analysis.indicateurs import communes as k
 from reportgenerator.analysis.indicateurs import figures as fig
 from reportgenerator.analysis.indicateurs import specifiques as sp
@@ -18,6 +21,7 @@ from reportgenerator.analysis.indicateurs.modele import Jeu
 from reportgenerator.analysis.indicateurs.queries import IndicateursQueries
 from reportgenerator.analysis.indicateurs.selections import PREFIXES, PROTOCOLES, annee_par_defaut, libelle_saison
 from reportgenerator.analysis.plsoc.word import inserer_blocs, inserer_tableau
+from reportgenerator.bricks.common import qgis_layout_names
 from reportgenerator.core.registry import register_brick
 
 CLES = ("ANNEE_LIBELLE", "TEXTE_PARTICIPATION", "TABLE_CHIFFRES", "TABLE_CATEGORIES", "NOTE_CATEGORIES",
@@ -262,6 +266,32 @@ def ind_synthese(ctx):
                                            + controle),
         },
     )
+
+
+# -------------------------------------------------------------------------------------------------------- cartes
+@register_brick("ind_cartes", requires=["ind_socle"], provides=lambda d: qgis_layout_names(d.qgis_project),
+                last=True)
+def ind_cartes(ctx):
+    """Cartes QGIS : couches GPKG (aires par statut, départements, zones biogéographiques) puis une image par mise en
+    page du projet du dossier ({PREFIXE}_CARTE)."""
+    s, data_dir = _socle(ctx), ctx.output_dirs["data"]
+    sections = _sections(ctx)
+    couches = cartes.couches_cartes({c: d["jeu"] for c, d in sections}, {c: d["saison"] for c, d in sections},
+                                    {**s["zone"], "nom": ctx.area_name}, s["departements"], s["zbiog"])
+    for nom, lignes in couches.items():
+        export_gpkg(lignes, data_dir, layer_name=nom, geom_col="geom", crs="EPSG:2154")
+    projet = ctx.dossier.qgis_project
+    if not projet or not Path(projet).exists():
+        print(f"[AVERTISSEMENT] Projet QGIS absent ({projet}) : couches exportées dans {data_dir}, pas de carte")
+        return AnalysisResult()
+    copie = ctx.output_dirs["root"] / f"projet_{ctx.area_name}.qgs"
+    copy_qgis_project(template_path=projet, output_path=copie)
+    libelles = ", ".join(sorted({d["libelle"] for _, d in sections})) or str(s["annee"])
+    config = {**ctx.params.get("qgis_render", {}), "project_variables": {"annee": libelles, "zone": ctx.area_name}}
+    launch_qgis_render(project_path=copie, output_dir=ctx.output_dirs["maps"], config=config)
+    layout = ctx.params.get("map_layout", "normal")
+    return AnalysisResult(images={png.stem: ImageBlock(png, layout)
+                                  for png in sorted(ctx.output_dirs["maps"].glob("*.png"))})
 
 
 # ------------------------------------------------------------------------------ analyses propres à un protocole

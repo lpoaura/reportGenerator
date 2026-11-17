@@ -12,7 +12,7 @@ qgis_project = "qgis/projet_indicateurs.qgs"
 indicateurs = []
 
 [analyses]
-required = ["ind_socle", "ind_synthese"]
+required = ["ind_socle", "ind_synthese", "ind_cartes"]
 optional = ["stoc", "shoc", "stom", "sterf", "pop_reptile", "pop_amphibien"]
 par_defaut = ["stoc", "shoc", "stom", "sterf", "pop_reptile", "pop_amphibien"]
 
@@ -25,6 +25,14 @@ annees_especes = 5         # observations lues : N-4 à N (espèces, évolution 
 nb_especes = 20            # espèces du tableau de la section (toutes en annexe)
 nb_especes_evolution = 10
 map_layout = "normal"
+
+# Rendu QGIS : une mise en page par protocole (STOC_CARTE…), emprise = zone du rapport
+[params.qgis_render]
+visible_groups = ["Fond"]
+extent_layer = "ind_zone"
+extent_margin_ratio = 0.05
+extent_offset_y_ratio = 0.0
+dpi = 150
 
 # ---------------------------------------------------------------------------------------------------- protocoles
 # saison : « civile » ou « hiver » (SHOC : déc. N-1 + janv. N = saison N, affichée « N-1-N »)
