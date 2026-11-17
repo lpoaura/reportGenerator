@@ -65,7 +65,7 @@ def run_single_report(
         enabled=enabled,
         output_dirs=output_dirs,
         queries=synthese_queries,
-        params=dict(dossier.params),
+        params=dossier.params_for(list_analyse),
     )
 
     try:

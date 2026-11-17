@@ -146,7 +146,8 @@ output_dirs = create_analysis_dirs(out)
 sq = q.SyntheseQueries(service_name=SERVICE, id_area=id_area, buffer=buffer)
 ctx = ReportContext(service_name=SERVICE, id_area=id_area, area_name=area_name, referee="dry-run", buffer=buffer,
                     dossier=dossier, enabled=enabled, output_dirs=output_dirs, queries=sq,
-                    params=dict(dossier.params))
+                    # jetons de list_analyse (ex. annee_2024), puis DRYRUN_PARAMS, prioritaire
+                    params={**dossier.params_for(list_analyse), **json.loads(os.getenv("DRYRUN_PARAMS") or "{}")})
 unresolved = run_pipeline(ctx, output_file=out / f"{area_name}.docx")
 print("[dry-run] placeholders non remplis :", sorted(unresolved) if unresolved else "aucun")
 conn.close()

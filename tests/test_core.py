@@ -195,3 +195,34 @@ def test_template_absent_signale_avant_les_briques(tmp_path):
                         enabled=["socle_data"], output_dirs={}, queries=None, params={})
     with pytest.raises(FileNotFoundError, match="Template Word absent"):
         run_pipeline(ctx, tmp_path / "rapport.docx")   # socle_data aurait échoué (queries=None) s'il avait tourné
+
+
+# ------------------------------------------------------------------ jetons de list_analyse (paramètres, défauts)
+def _dossier(**kw):
+    from pathlib import Path
+
+    from reportgenerator.core.dossier import Dossier
+    return Dossier(name="t", label="t", path=Path("."), template=Path("t.docx"), qgis_project=None,
+                   required=("socle",), optional=("a", "b"), params={"annee": 0, "seuil": 5, "actif": True},
+                   trigger_analyses={"declencheur": []}, **kw)
+
+
+def test_jeton_remplace_un_parametre_entier():
+    d = _dossier()
+    assert d.params_for("declencheur, annee_2024")["annee"] == 2024
+    assert d.params_for("declencheur")["annee"] == 0
+    assert d.params_for("declencheur, actif_0")["actif"] is True      # booléen : pas de remplacement
+    assert d.params_for("declencheur, inconnu_3") == d.params           # clé absente : ignoré
+    assert d.params["annee"] == 0                                       # les paramètres du dossier ne changent pas
+
+
+def test_jeton_de_parametre_non_signale_comme_ignore():
+    enabled, ignored = _dossier().select_analyses("declencheur, annee_2024, a")
+    assert enabled == ["socle", "a"] and ignored == []
+
+
+def test_optionnelles_par_defaut_si_aucune_demandee():
+    d = _dossier(default_optional=("a", "b"))
+    assert d.select_analyses("declencheur")[0] == ["socle", "a", "b"]
+    assert d.select_analyses("declencheur, b")[0] == ["socle", "b"]
+    assert _dossier().select_analyses("declencheur")[0] == ["socle"]
