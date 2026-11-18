@@ -47,6 +47,7 @@ appels = {
 for module in ("stom", "sterf_ebms", "POPReptile", "POPAmphibien"):
     appels[f"aires_monitoring {module}"] = lambda m=module: q.aires_monitoring(m)
     appels[f"unites_monitoring {module}"] = lambda m=module: q.unites_monitoring(m)
+    appels[f"createurs_aires_monitoring {module}"] = lambda m=module: q.createurs_aires_monitoring(m)
     appels[f"passages_monitoring {module}"] = lambda m=module: q.passages_monitoring(m, 2019, m == "sterf_ebms")
     appels[f"observateurs_monitoring {module}"] = lambda m=module: q.observateurs_monitoring(m)
     appels[f"observations_monitoring {module}"] = lambda m=module: q.observations_monitoring(m, 2021)

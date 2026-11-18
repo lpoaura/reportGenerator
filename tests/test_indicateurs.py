@@ -348,6 +348,24 @@ def test_anciennete_engagement_travail():
     assert t["heures"] == communes.temps_heures(j, 2025, TEMPS_MESURE)["par_categorie"].get("Bénévole", 0)
 
 
+def test_aires_jamais_visitees():
+    """Aires de la zone sans aucune visite, par catégorie du créateur et année de création ; créateur inconnu ou
+    absent : « Non renseigné » ; aires visitées ignorées ; aucun email dans le résultat."""
+    j = jeu_factice()
+    nouvelles = pd.DataFrame([{**j.aires.iloc[0].to_dict(), "id_aire": a, "nom_aire": a} for a in ("A5", "A6", "A7")])
+    j.aires = pd.concat([j.aires, nouvelles], ignore_index=True)
+    createurs = [
+        {"id_aire": "A1", "annee_creation": 2019, "organisme": None, "email": "a@exemple.fr", "connu": True},
+        {"id_aire": "A5", "annee_creation": 2021, "organisme": None, "email": "b@exemple.fr", "connu": True},
+        {"id_aire": "A6", "annee_creation": 2022, "organisme": None, "email": None, "connu": False},
+    ]
+    assert participants.aires_jamais_visitees(j, createurs) == [
+        {"categorie": "Bénévole", "annee_creation": 2021, "aires": 1},
+        {"categorie": "Non renseigné", "annee_creation": 2022, "aires": 1},
+        {"categorie": "Non renseigné", "annee_creation": None, "aires": 1},
+    ]
+
+
 # ------------------------------------------------------------------------------------------ briques et dossier
 def _ctx(tmp_path, monkeypatch, list_analyse, jeux):
     monkeypatch.setattr(chargement, "charger", lambda code, *a, **k: jeux.get(code, jeu_vide(code)))

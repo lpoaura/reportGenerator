@@ -7,6 +7,7 @@ from collections import Counter
 
 from reportgenerator.analysis.indicateurs.communes import (aires_suivies, categorie_aires, categorie_passages,
                                                            observateurs_de, pourcent, releves, temps_heures)
+from reportgenerator.analysis.indicateurs.selections import categorie_observateur
 
 STATUTS = ("fidèle", "revenant", "nouveau", "parti")            # ordre des graphiques et tableaux
 TRANCHES_ANCIENNETE = (("1 saison", 1, 1), ("2 à 4 saisons", 2, 4), ("5 à 9 saisons", 5, 9),
@@ -112,3 +113,21 @@ def travail(jeu, saison, categorie, temps: dict) -> dict:
             "aires": aires, "part_aires": pourcent(aires, len(aires_suivies(jeu, saison))),
             "releves": len(sel), "donnees": int(sel["nb_donnees"].fillna(0).sum()),
             "heures": t["par_categorie"].get(categorie, 0), "heures_estimees": t["estime"]}
+
+
+# ---------------------------------------------------------------------------------------- aires jamais visitées
+def aires_jamais_visitees(jeu, createurs: list[dict]) -> list[dict]:
+    """Aires de la zone sans aucune visite jusqu'à N (modules GeoNature), par catégorie du créateur du site le plus
+    ancien de l'aire et année de création. Créateur inconnu : « Non renseigné ». Ni nom ni email en sortie."""
+    visitees = set(jeu.passages["id_aire"])
+    par_aire = {c["id_aire"]: c for c in createurs}
+    compte = Counter()
+    for a in jeu.aires["id_aire"]:
+        if a in visitees:
+            continue
+        c = par_aire.get(a)
+        cat = categorie_observateur(c["organisme"], c["email"], bool(c["connu"]))[0] if c else "Non renseigné"
+        annee = c.get("annee_creation") if c else None
+        compte[(cat, None if annee is None else int(annee))] += 1
+    lignes = [{"categorie": cat, "annee_creation": annee, "aires": n} for (cat, annee), n in compte.items()]
+    return sorted(lignes, key=lambda x: (x["annee_creation"] is None, x["annee_creation"] or 0, x["categorie"]))

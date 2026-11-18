@@ -185,6 +185,19 @@ class IndicateursQueries:
             FROM sz LEFT JOIN gn_monitoring.t_sites_groups sg ON sg.id_sites_group::text = sz.id_aire
             GROUP BY sz.id_aire""", module=module)
 
+    def createurs_aires_monitoring(self, module: str) -> list[dict]:
+        """Créateur (id_inventor) et année de création du site le plus ancien de chaque aire du module. Organisme et
+        email servent seulement à la catégorie (jamais affichés)."""
+        return self._fetch(f"""WITH {SITES_MON},
+            premier AS (SELECT DISTINCT ON (sz.id_aire) sz.id_aire, s.meta_create_date, s.id_inventor
+                        FROM sz JOIN gn_monitoring.t_base_sites s ON s.id_base_site = sz.id_base_site
+                        ORDER BY sz.id_aire, s.meta_create_date NULLS LAST, s.id_base_site)
+            SELECT p.id_aire, extract(year FROM p.meta_create_date)::int AS annee_creation,
+                   bo.nom_organisme AS organisme, tr.email, tr.id_role IS NOT NULL AS connu
+            FROM premier p
+            LEFT JOIN utilisateurs.t_roles tr ON tr.id_role = p.id_inventor
+            LEFT JOIN utilisateurs.bib_organismes bo ON bo.id_organisme = tr.id_organisme""", module=module)
+
     def unites_monitoring(self, module: str) -> list[dict]:
         return self._fetch(f"""WITH {SITES_MON}
             SELECT sz.id_base_site::text AS id_unite, sz.id_aire, sz.base_site_name AS nom_unite FROM sz""",
