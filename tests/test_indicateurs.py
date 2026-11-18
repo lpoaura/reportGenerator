@@ -348,6 +348,21 @@ def test_anciennete_engagement_travail():
     assert t["heures"] == communes.temps_heures(j, 2025, TEMPS_MESURE)["par_categorie"].get("Bénévole", 0)
 
 
+def test_reseau_benevoles():
+    """Réseau entre protocoles : comptes role: seulement (b2, b3 du STOM ignorés), chacun à la saison du protocole."""
+    sterf = jeu_factice("sterf")
+    role7 = {"id_passage": "P4", "id_observateur": "role:7", "nom": "x", "organisme": None, "categorie": "Bénévole"}
+    sterf.observateurs = pd.concat([sterf.observateurs, pd.DataFrame([role7])], ignore_index=True)
+    jeux = {"stom": _avec_benevoles("stom"), "sterf": sterf}
+    saisons = {"stom": 2025, "sterf": 2025}
+    assert participants.reseau(jeux, saisons, "Bénévole") == {
+        "participants": 1, "multi": 1, "combinaisons": [(("stom", "sterf"), 1)]}
+    assert participants.serie_reseau(jeux, 2023, 2025, "Bénévole") == [
+        {"saison": 2023, "participants": 1}, {"saison": 2024, "participants": 2}, {"saison": 2025, "participants": 1}]
+    assert participants.reseau_par_departement(jeux, saisons, "Bénévole") == [
+        {"departement": "Savoie", "participants": 1}]
+
+
 def test_aires_jamais_visitees():
     """Aires de la zone sans aucune visite, par catégorie du créateur et année de création ; créateur inconnu ou
     absent : « Non renseigné » ; aires visitées ignorées ; aucun email dans le résultat."""

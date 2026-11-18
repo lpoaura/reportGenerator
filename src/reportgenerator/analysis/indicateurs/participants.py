@@ -7,7 +7,7 @@ from collections import Counter
 
 from reportgenerator.analysis.indicateurs.communes import (aires_suivies, categorie_aires, categorie_passages,
                                                            observateurs_de, pourcent, releves, temps_heures)
-from reportgenerator.analysis.indicateurs.selections import categorie_observateur
+from reportgenerator.analysis.indicateurs.selections import PROTOCOLES, categorie_observateur
 
 STATUTS = ("fidèle", "revenant", "nouveau", "parti")            # ordre des graphiques et tableaux
 TRANCHES_ANCIENNETE = (("1 saison", 1, 1), ("2 à 4 saisons", 2, 4), ("5 à 9 saisons", 5, 9),
@@ -131,3 +131,48 @@ def aires_jamais_visitees(jeu, createurs: list[dict]) -> list[dict]:
         compte[(cat, None if annee is None else int(annee))] += 1
     lignes = [{"categorie": cat, "annee_creation": annee, "aires": n} for (cat, annee), n in compte.items()]
     return sorted(lignes, key=lambda x: (x["annee_creation"] is None, x["annee_creation"] or 0, x["categorie"]))
+
+
+# ------------------------------------------------------------------------------------------ réseau entre protocoles
+def _comptes(ids) -> set:
+    """Comptes GeoNature seulement (role:) : seuls à pouvoir être reconnus d'un protocole à l'autre."""
+    return {o for o in ids if str(o).startswith("role:")}
+
+
+def _ordre(code):
+    return PROTOCOLES.index(code) if code in PROTOCOLES else len(PROTOCOLES)
+
+
+def reseau(jeux: dict, saisons: dict, categorie) -> dict:
+    """Participants distincts tous protocoles (chacun à sa saison), participants à au moins deux protocoles et
+    combinaisons de protocoles de ces derniers (n décroissant)."""
+    par_compte: dict[str, list] = {}
+    for code in sorted(jeux, key=_ordre):
+        for o in _comptes(participants(jeux[code], saisons[code], categorie)):
+            par_compte.setdefault(o, []).append(code)
+    combinaisons = Counter(tuple(c) for c in par_compte.values() if len(c) >= 2)
+    return {"participants": len(par_compte), "multi": sum(combinaisons.values()),
+            "combinaisons": sorted(combinaisons.items(), key=lambda x: (-x[1], [_ordre(c) for c in x[0]]))}
+
+
+def serie_reseau(jeux: dict, debut, saison, categorie) -> list[dict]:
+    """Participants distincts tous protocoles par saison (même numéro de saison pour chaque protocole ; SHOC :
+    saison d'hiver se terminant en janvier de l'année)."""
+    lignes = []
+    for s in range(debut, saison + 1):
+        comptes = set().union(*(_comptes(participants(j, s, categorie)) for j in jeux.values()))
+        lignes.append({"saison": s, "participants": len(comptes)})
+    return lignes
+
+
+def reseau_par_departement(jeux: dict, saisons: dict, categorie) -> list[dict]:
+    """Participants distincts tous protocoles par département des aires suivies (un compte peut compter dans
+    plusieurs départements)."""
+    par_dep: dict[str, set] = {}
+    for code, j in jeux.items():
+        for o, deps in _departements(j, saisons[code], categorie).items():
+            if str(o).startswith("role:"):
+                for d in deps:
+                    par_dep.setdefault(d, set()).add(o)
+    lignes = [{"departement": d, "participants": len(o)} for d, o in par_dep.items()]
+    return sorted(lignes, key=lambda x: (-x["participants"], x["departement"]))
