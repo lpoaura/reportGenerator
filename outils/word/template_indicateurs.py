@@ -55,6 +55,19 @@ for table in doc.tables:
                 p.runs[0].text = nouveau
                 p.runs[0].font.highlight_color = WD_COLOR_INDEX.YELLOW
 
+# mise en page relue le 18/11/2026 : interligne 1,15 partout (styles et paragraphes qui le fixent), sommaire sur
+# deux niveaux (titres 1 et 2)
+for st in doc.styles:
+    pf = getattr(st, "paragraph_format", None)
+    if pf is not None and isinstance(pf.line_spacing, float):   # interligne multiple (pas une hauteur fixe)
+        pf.line_spacing = 1.15
+for p in doc.paragraphs:
+    if isinstance(p.paragraph_format.line_spacing, float):
+        p.paragraph_format.line_spacing = 1.15
+for t in body.iter(qn("w:instrText")):
+    if t.text and "TOC" in t.text:
+        t.text = t.text.replace('\\o "1-3"', '\\o "1-2"')
+
 
 # ----------------------------------------------------------------------------------------------------- écriture
 def style(*noms):
@@ -62,8 +75,16 @@ def style(*noms):
     return next(n for n in noms if n in existants)
 
 
+TITRES_1 = ("Heading 1", "Titre 1")
+
+
 def H(niveau, t):
-    doc.add_paragraph(t, style=style(f"Heading {niveau}", f"Titre {niveau}"))
+    """Titre ; saut de page avant chaque titre 1 et chaque titre 2, sauf le titre 2 qui suit directement un titre 1
+    (mise en page relue le 18/11/2026)."""
+    precedent = doc.paragraphs[-1].style.name if doc.paragraphs else ""
+    p = doc.add_paragraph(t, style=style(f"Heading {niveau}", f"Titre {niveau}"))
+    if niveau == 1 or (niveau == 2 and precedent not in TITRES_1):
+        p.paragraph_format.page_break_before = True
 
 
 def P(t, jaune=False):

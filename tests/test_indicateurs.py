@@ -7,6 +7,7 @@ from datetime import date
 import pandas as pd
 import pytest
 from docx import Document
+from docx.oxml.ns import qn
 
 from reportgenerator.analysis.common.filesystem import create_analysis_dirs
 from reportgenerator.analysis.indicateurs import cartes, chargement, communes, figures, participants, textes
@@ -760,6 +761,36 @@ def test_anomalies_observateur_inconnu_par_saison():
 def test_template_sans_nom_de_collegue_dans_les_proprietes():
     props = Document(load_dossier("indicateurs").template).core_properties
     assert props.author == "LPO Auvergne-Rhône-Alpes" and props.last_modified_by == "LPO Auvergne-Rhône-Alpes"
+
+
+def test_template_mise_en_page_relue():
+    """Mise en page de la relecture du 18/11/2026 : interligne 1,15, saut de page avant chaque titre 1 et chaque
+    titre 2 (sauf celui qui suit directement un titre 1), sommaire sur deux niveaux, cartes en pleine page."""
+    from reportgenerator.core.renderer import LAYOUTS
+    d = load_dossier("indicateurs")
+    doc = Document(d.template)
+    assert doc.styles["Normal"].paragraph_format.line_spacing == pytest.approx(1.15)
+    instr = [t.text for t in doc.element.body.iter(qn("w:instrText")) if "TOC" in (t.text or "")]
+    assert instr and all('\\o "1-2"' in t for t in instr)
+    precedent = None
+    for p in doc.paragraphs:
+        nom = p.style.name
+        if nom in ("Heading 1", "Titre 1"):
+            assert p.paragraph_format.page_break_before, p.text
+        elif nom in ("Heading 2", "Titre 2"):
+            assert bool(p.paragraph_format.page_break_before) == (precedent not in ("Heading 1", "Titre 1")), p.text
+        if p.text.strip() and not p.text.startswith("{{#") and not p.text.startswith("{{/"):
+            precedent = nom
+    assert d.params["map_layout"] == "pleine_page"
+    assert LAYOUTS["pleine_page"]["height"] > LAYOUTS["page_legende"]["height"]
+
+
+def test_graphique_especes_compact(tmp_path):
+    """20 espèces : le graphique tient avec sa légende et la carte de chaleur sur une page (hauteur ≤ 0,7 × largeur)."""
+    from PIL import Image
+    especes = [{"nom": f"Espèce {i}", "freq_aires": 90 - 3 * i, "effectif": 1000 - 10 * i} for i in range(20)]
+    with Image.open(figures.chart_especes(especes, tmp_path / "e.png", "carré")) as im:
+        assert im.size[1] / im.size[0] <= 0.7
 
 
 def test_couches_cartes_categories_et_reconduction():

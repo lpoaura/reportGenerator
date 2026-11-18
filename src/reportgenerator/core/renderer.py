@@ -32,6 +32,8 @@ LAYOUTS = {
     "page": {"width": Mm(170), "height": Mm(225), "full_page": False, "fit": True},
     # idem, un peu plus petite : la légende (« Figure n : … ») tient sur la même page que la carte
     "page_legende": {"width": Mm(170), "height": Mm(195), "full_page": False, "fit": True},
+    # pleine page A4 portrait (marges de 20 mm, 252 mm utiles) : carte en pleine largeur, légende juste dessous
+    "pleine_page": {"width": Mm(170), "height": Mm(235), "full_page": False, "fit": True},
 }
 
 PLACEHOLDER_RE = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")

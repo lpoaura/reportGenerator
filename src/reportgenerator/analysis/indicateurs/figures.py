@@ -281,7 +281,7 @@ def chart_especes(especes: list[dict], path: Path, label_aires: str) -> Path:
     if not especes:
         return _vide(path)
     apply_lpo_theme()
-    fig, ax = plt.subplots(figsize=(7.5, 0.3 * len(especes) + 0.9))
+    fig, ax = plt.subplots(figsize=(7.5, 0.22 * len(especes) + 0.6))   # compact : tient avec la carte de chaleur
     y = range(len(especes))
     freqs = [e["freq_aires"] or 0 for e in especes]
     ax.barh(y, freqs, color=BLEU, height=0.65)
