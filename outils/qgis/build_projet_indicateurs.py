@@ -53,12 +53,15 @@ RECONDUCTION = [("abandon", "Suivi(e) la saison précédente, pas cette année",
                 ("suivie", "Suivi(e) cette année", BLEU_PALE)]
 
 
+TAILLE_POINT = "2.4"   # mm : point au centre de chaque aire (contour blanc : deux points proches restent distincts)
+
+
 def remplissage(couleur, contour="35,35,35,255", largeur="0.15"):
     """Contour de l'aire + point au centre (les petites aires restent visibles à l'échelle de la région)."""
     s = QgsFillSymbol.createSimple({"color": couleur, "outline_color": contour, "outline_width": largeur})
     centre = QgsCentroidFillSymbolLayer()
     centre.setSubSymbol(QgsMarkerSymbol.createSimple({"name": "circle", "color": couleur, "outline_color": "white",
-                                                      "outline_width": "0.2", "size": "1.6"}))
+                                                      "outline_width": "0.35", "size": TAILLE_POINT}))
     s.appendSymbolLayer(centre)
     return s
 

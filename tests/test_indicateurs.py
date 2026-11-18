@@ -793,6 +793,36 @@ def test_graphique_especes_compact(tmp_path):
         assert im.size[1] / im.size[0] <= 0.7
 
 
+def test_emprises_cartes_par_protocole():
+    """Emprise des cartes d'un protocole : étendue de toutes ses aires + marge de chaque côté, étendue minimale
+    (centrée) pour quelques aires proches ; protocole sans aire : pas d'emprise (zone entière)."""
+    from shapely.geometry import Point, box
+    aires = [{"protocole": "stom", "geom": box(900000, 6400000, 902000, 6402000)},
+             {"protocole": "stom", "geom": box(940000, 6460000, 942000, 6462000)},
+             {"protocole": "sterf", "geom": Point(800000, 6500000)}]
+    e = cartes.emprises(aires, minimum_m=20000, marge=0.05)
+    assert e["stom"] == pytest.approx((897900, 6396900, 944100, 6465100))   # 42 × 62 km, marge 5 %
+    assert e["sterf"] == pytest.approx((790000, 6490000, 810000, 6510000))  # point seul : 20 km centrés
+    assert "pop_reptile" not in e
+
+
+def test_brique_cartes_cadre_chaque_protocole(tmp_path, monkeypatch):
+    projet = tmp_path / "p.qgs"
+    projet.write_text('<Layout name="STOM_CARTE"/><Layout name="STOM_CARTE_ABANDONS"/>', encoding="utf-8")
+    configs = []
+    monkeypatch.setattr(bricks_indicateurs, "launch_qgis_render",
+                        lambda project_path, output_dir, config=None: configs.append(config)
+                        or rendu_factice(project_path, output_dir, config))
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, stom, annee_2025", {"stom": jeu_factice("stom")})
+    ctx.dossier = dataclasses.replace(ctx.dossier, qgis_project=projet)
+    for nom in ("ind_socle", "stom"):
+        ctx.results[nom] = get_brick(nom).run(ctx)
+    get_brick("ind_cartes").run(ctx)
+    emprises = configs[0]["layout_extents"]
+    assert set(emprises) == {"STOM_CARTE", "STOM_CARTE_ABANDONS"}
+    assert emprises["STOM_CARTE"] == emprises["STOM_CARTE_ABANDONS"]          # même cadrage pour les 3 cartes
+
+
 def test_couches_cartes_categories_et_reconduction():
     c = cartes.couches_cartes({"stom": jeu_factice("stom")}, {"stom": 2025}, {"wkt": ZONE_WKT}, DEPARTEMENTS, [])
     aires = {r["id_aire"]: r for r in c["ind_aires"]}

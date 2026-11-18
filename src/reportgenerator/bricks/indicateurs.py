@@ -524,7 +524,14 @@ def ind_cartes(ctx):
     # seulement les mises en page des protocoles présents dans le rapport ({PREFIXE}_CARTE…)
     prefixes = {PREFIXES[c] for c, _ in sections}
     layouts = [n for n in qgis_layout_names(projet) if n.split("_")[0] in prefixes]
-    config = {**ctx.params.get("qgis_render", {}), "project_variables": variables, "layouts": layouts}
+    # cadrage de chaque protocole sur l'étendue de ses aires (+ marge, étendue minimale), commun à ses trois cartes
+    p = ctx.params
+    par_code = cartes.emprises(couches["ind_aires"], float(p.get("emprise_min_km", 20)) * 1000,
+                               float(p.get("emprise_marge", 0.05)))
+    code_de = {PREFIXES[c]: c for c, _ in sections}
+    emprises = {n: par_code[code_de[n.split("_")[0]]] for n in layouts if code_de[n.split("_")[0]] in par_code}
+    config = {**p.get("qgis_render", {}), "project_variables": variables, "layouts": layouts,
+              "layout_extents": emprises}
     launch_qgis_render(project_path=copie, output_dir=ctx.output_dirs["maps"], config=config)
     layout = ctx.params.get("map_layout", "normal")
     return AnalysisResult(images={png.stem: ImageBlock(png, layout)

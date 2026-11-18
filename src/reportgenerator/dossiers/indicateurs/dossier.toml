@@ -26,6 +26,8 @@ nb_especes = 20            # espèces du tableau de la section (toutes en annexe
 nb_especes_evolution = 10
 taux_horaire_benevolat = 0   # €/h pour valoriser le temps des bénévoles (0 = non affiché)
 annees_reseau = 10           # saisons du graphique « réseau bénévole »
+emprise_min_km = 20          # cartes cadrées sur les aires du protocole : étendue minimale (km)
+emprise_marge = 0.05         # marge autour des aires (part de l'étendue, de chaque côté)
 map_layout = "pleine_page"    # cartes en pleine page (170 × 235 mm), légende dessous
 
 # Rendu QGIS : une mise en page par protocole (STOC_CARTE…), emprise = zone du rapport

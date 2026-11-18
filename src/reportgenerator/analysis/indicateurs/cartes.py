@@ -37,3 +37,28 @@ def couches_cartes(jeux: dict, saisons: dict, zone: dict, departements: list[dic
         "ind_zbiog": [{"nom": z["nom"], "geom": _geom(z["wkt"])} for z in zbiog],
         "ind_aires": aires,
     }
+
+
+def emprises(aires: list[dict], minimum_m: float = 20000, marge: float = 0.05) -> dict:
+    """Emprise des cartes de chaque protocole : étendue de ses aires (ind_aires), élargie de `marge` de chaque côté,
+    puis portée à `minimum_m` au moins dans chaque dimension (centrée) pour ne pas zoomer à l'échelle d'une commune.
+    Même emprise pour les trois cartes d'un protocole (comparables d'une page à l'autre)."""
+    bornes: dict[str, list] = {}
+    for a in aires:
+        if a.get("geom") is None:
+            continue
+        x0, y0, x1, y1 = a["geom"].bounds
+        b = bornes.setdefault(a["protocole"], [x0, y0, x1, y1])
+        b[:] = [min(b[0], x0), min(b[1], y0), max(b[2], x1), max(b[3], y1)]
+    out = {}
+    for code, (x0, y0, x1, y1) in bornes.items():
+        dx, dy = (x1 - x0) * marge, (y1 - y0) * marge
+        x0, y0, x1, y1 = x0 - dx, y0 - dy, x1 + dx, y1 + dy
+        if x1 - x0 < minimum_m:
+            cx = (x0 + x1) / 2
+            x0, x1 = cx - minimum_m / 2, cx + minimum_m / 2
+        if y1 - y0 < minimum_m:
+            cy = (y0 + y1) / 2
+            y0, y1 = cy - minimum_m / 2, cy + minimum_m / 2
+        out[code] = (x0, y0, x1, y1)
+    return out

@@ -140,7 +140,10 @@ n'a aucune aire dans la zone.
 - **Cartes** (projet QGIS `qgis/projet_indicateurs.qgs`, trois mises en page par protocole) : aires selon leur suivi en
   N (`_CARTE`), aires suivies en N selon la catégorie de leur observateur principal (`_CARTE_CATEGORIES`), aires
   suivies en N-1 mais pas en N, à reprendre (`_CARTE_ABANDONS`). Construit par `outils/qgis/build_projet_indicateurs.py`,
-  modifiable directement dans QGIS (symbologie, mise en page).
+  modifiable directement dans QGIS (symbologie, mise en page). Cadrage (18/11/2026) : les trois cartes d'un protocole
+  sont cadrées sur l'étendue de ses aires dans la zone (`emprise_marge` de chaque côté, au moins `emprise_min_km` ;
+  le rendu ajoute sa propre marge de 5 %), pleine page (170 × 235 mm) ; point au centre de chaque aire de 2,4 mm
+  à contour blanc (pas d'écartement des points superposés pour l'instant).
 
 Template : `outils/word/template_indicateurs.py` (textes fixes repris du rapport 2025, à relire).
 
