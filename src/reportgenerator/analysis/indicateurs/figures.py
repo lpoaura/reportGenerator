@@ -17,6 +17,7 @@ from matplotlib.colors import LinearSegmentedColormap  # noqa: E402
 from matplotlib.ticker import MaxNLocator  # noqa: E402
 
 from reportgenerator.analysis.common.theme import apply_lpo_theme  # noqa: E402
+from reportgenerator.analysis.indicateurs.participants import STATUTS  # noqa: E402
 from reportgenerator.analysis.indicateurs.selections import CATEGORIES  # noqa: E402
 from reportgenerator.analysis.indicateurs.textes import NBSP_FINE, ecart, feminin, nombre, pluriel  # noqa: E402
 
@@ -327,4 +328,136 @@ def chart_evolution(evolution: list[dict], path: Path, libelle) -> Path:
     for cote in ("top", "right", "bottom", "left"):
         ax.spines[cote].set_visible(False)
     ax.tick_params(length=0, colors=ENCRE, labelsize=8.5)
+    return _fin(fig, path)
+
+
+# ---------------------------------------------------------------------------------------------- participants
+COULEURS_STATUTS = {"fidèle": BLEU, "revenant": VERT_EAU, "nouveau": ORANGE, "parti": GRIS}
+LIBELLES_STATUTS = {"fidèle": "Fidèles", "revenant": "Revenants", "nouveau": "Nouveaux", "parti": "Partis"}
+
+
+def chart_renouvellement(serie: list[dict], path: Path, lib_saison) -> Path:
+    """Renouvellement par saison : fidèles, revenants, nouveaux empilés au-dessus de l'axe, partis dessous."""
+    if not any(r[s] for r in serie for s in STATUTS):
+        return _vide(path)
+    apply_lpo_theme()
+    saisons = [r["saison"] for r in serie]
+    fig, ax = plt.subplots(figsize=(7.5, 3.4))
+    bas = [0] * len(saisons)
+    for st in STATUTS[:3]:
+        valeurs = [r[st] for r in serie]
+        ax.bar(saisons, valeurs, bottom=bas, color=COULEURS_STATUTS[st], label=LIBELLES_STATUTS[st],
+               edgecolor="white", linewidth=1, width=0.75)
+        bas = [b + v for b, v in zip(bas, valeurs)]
+    ax.bar(saisons, [-r["parti"] for r in serie], color=COULEURS_STATUTS["parti"], label="Partis",
+           edgecolor="white", linewidth=1, width=0.75)
+    for x, total, r in zip(saisons, bas, serie):
+        ax.text(x, total, f"{total}", ha="center", va="bottom", fontsize=7.5, color=ENCRE)
+        if r["parti"]:
+            ax.text(x, -r["parti"], f"−{r['parti']}", ha="center", va="top", fontsize=7.5, color=ENCRE_2)
+    ax.axhline(0, color="#999999", linewidth=0.8)
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.yaxis.set_major_formatter(lambda v, _: f"{abs(int(v))}")
+    ax.set_ylabel("Participants", fontsize=9, color=ENCRE_2)
+    ax.set_xticks(saisons, [lib_saison(s) for s in saisons], rotation=45 if len(saisons) > 8 else 0,
+                  ha="right" if len(saisons) > 8 else "center")
+    ax.margins(y=0.12)
+    _axes_sobres(ax, grille="y")
+    ax.legend(frameon=False, ncols=4, loc="lower left", bbox_to_anchor=(0, 1.0), fontsize=9)
+    return _fin(fig, path)
+
+
+def chart_statuts_departements(lignes: list[dict], path: Path) -> Path:
+    """Participants de N par département (fidèles, revenants, nouveaux empilés), partis en étiquette."""
+    if not lignes:
+        return _vide(path)
+    apply_lpo_theme()
+    fig, ax = plt.subplots(figsize=(7.5, 0.42 * len(lignes) + 1.0))
+    y = range(len(lignes))
+    gauche = [0] * len(lignes)
+    for st in STATUTS[:3]:
+        valeurs = [r[st] for r in lignes]
+        ax.barh(list(y), valeurs, left=gauche, color=COULEURS_STATUTS[st], label=LIBELLES_STATUTS[st],
+                edgecolor="white", linewidth=1, height=0.62)
+        gauche = [g + v for g, v in zip(gauche, valeurs)]
+    for i, r in enumerate(lignes):
+        partis = f"  ·  {r['parti']} parti{'s' if r['parti'] > 1 else ''}" if r["parti"] else ""
+        ax.text(gauche[i], i, f" {r['total']}{partis}", va="center", fontsize=8, color=ENCRE)
+    ax.set_yticks(list(y), [r["departement"] for r in lignes])
+    ax.invert_yaxis()
+    ax.set_xlim(0, max(gauche + [1]) * 1.3)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_xlabel("Participants", fontsize=9, color=ENCRE_2)
+    _axes_sobres(ax)
+    ax.legend(frameon=False, ncols=3, loc="lower left", bbox_to_anchor=(0, 1.0), fontsize=9)
+    return _fin(fig, path)
+
+
+def chart_anciennete_engagement(anciennete: dict, engagement: dict, path: Path, aire: str) -> Path:
+    """Deux panneaux : participants par ancienneté (saisons de participation) et par nombre d'aires suivies."""
+    if not any(anciennete.values()) and not any(engagement.values()):
+        return _vide(path)
+    apply_lpo_theme()
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(7.5, 2.6))
+    libelles_eng = {"1": f"1 {aire}", "2": f"2 {pluriel(aire)}", "3+": f"3 {pluriel(aire)} et plus"}
+    for ax, valeurs, titre, noms in (
+            (a1, anciennete, "Ancienneté (saisons de participation)", list(anciennete)),
+            (a2, engagement, f"{pluriel(aire).capitalize()} suivies par participant"
+             if feminin(aire) else f"{pluriel(aire).capitalize()} suivis par participant",
+             [libelles_eng.get(k, k) for k in engagement])):
+        vals = list(valeurs.values())
+        ax.bar(range(len(vals)), vals, color=BLEU, width=0.65)
+        for i, v in enumerate(vals):
+            ax.text(i, v, f"{v}", ha="center", va="bottom", fontsize=8, color=ENCRE)
+        ax.set_xticks(range(len(vals)), [n.replace(" et plus", "\net plus").replace(" saisons", "\nsaisons")
+                                         .replace(" saison", "\nsaison") for n in noms], fontsize=8)
+        ax.set_title(titre, fontsize=9, color=ENCRE_2, loc="left")
+        ax.set_yticks([])
+        ax.margins(y=0.15)
+        _axes_sobres(ax, grille="y")
+        ax.spines["left"].set_visible(False)
+    fig.tight_layout(w_pad=2)
+    return _fin(fig, path)
+
+
+def chart_combinaisons(combinaisons: list[tuple], path: Path, labels: dict, maximum: int = 10) -> Path:
+    """Participants à plusieurs protocoles : combinaisons les plus fréquentes (barres horizontales)."""
+    if not combinaisons:
+        return _vide(path, hauteur=0.8)
+    apply_lpo_theme()
+    combinaisons = combinaisons[:maximum]
+    noms = [" + ".join(labels.get(c, c) for c in codes) for codes, _ in combinaisons]
+    vals = [n for _, n in combinaisons]
+    fig, ax = plt.subplots(figsize=(7.5, 0.38 * len(noms) + 0.6))
+    ax.barh(range(len(noms)), vals, color=VERT_EAU, height=0.6)
+    for i, v in enumerate(vals):
+        ax.text(v, i, f" {_n(v)}", va="center", fontsize=8.5, color=ENCRE)
+    ax.set_yticks(range(len(noms)), noms)
+    ax.invert_yaxis()
+    ax.set_xlim(0, max(vals) * 1.15)
+    ax.set_xticks([])
+    for cote in ("top", "right", "bottom"):
+        ax.spines[cote].set_visible(False)
+    ax.spines["left"].set_color("#cccccc")
+    ax.tick_params(colors=ENCRE, labelsize=8.5, length=0)
+    return _fin(fig, path)
+
+
+def chart_reseau(serie: list[dict], path: Path, lib_saison) -> Path:
+    """Participants distincts tous protocoles par saison, saison du rapport mise en avant."""
+    if not serie or not any(r["participants"] for r in serie):
+        return _vide(path)
+    apply_lpo_theme()
+    saisons = [r["saison"] for r in serie]
+    vals = [r["participants"] for r in serie]
+    fig, ax = plt.subplots(figsize=(7.5, 2.8))
+    ax.bar(saisons, vals, color=[VERT_EAU if s == saisons[-1] else "#a8e0cb" for s in saisons], width=0.75)
+    for x, v in zip(saisons, vals):
+        ax.text(x, v, _n(v), ha="center", va="bottom", fontsize=7.5, color=ENCRE)
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_ylabel("Participants", fontsize=9, color=ENCRE_2)
+    ax.set_xticks(saisons, [lib_saison(s) for s in saisons], rotation=45 if len(saisons) > 8 else 0,
+                  ha="right" if len(saisons) > 8 else "center")
+    ax.margins(y=0.12)
+    _axes_sobres(ax, grille="y")
     return _fin(fig, path)

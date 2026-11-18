@@ -263,10 +263,29 @@ def test_figures(tmp_path):
         figures.chart_especes(communes.especes(j, 2025, 20), tmp_path / "e.png", "site"),
         figures.chart_evolution(communes.evolution_especes(j, 2025, 3, 3), tmp_path / "v.png", str),
     ]
+    jb = _avec_benevoles()
+    graphiques += [
+        figures.chart_renouvellement(participants.serie_statuts(jb, 2023, 2025, "Bénévole"), tmp_path / "r.png", str),
+        figures.chart_statuts_departements(participants.statuts_par_departement(jb, 2025, "Bénévole"),
+                                           tmp_path / "sd.png"),
+        figures.chart_anciennete_engagement(participants.anciennete(jb, 2025, "Bénévole"),
+                                            participants.engagement(jb, 2025, "Bénévole"), tmp_path / "ae.png", "site"),
+        figures.chart_combinaisons([(("stoc", "shoc"), 12), (("stom", "sterf", "pop_reptile"), 2)], tmp_path / "cb.png",
+                                   {"stoc": "STOC-EPS", "shoc": "SHOC", "stom": "STOM", "sterf": "STERF",
+                                    "pop_reptile": "POP Reptile"}),
+        figures.chart_reseau([{"saison": 2024, "participants": 300}, {"saison": 2025, "participants": 320}],
+                             tmp_path / "rs.png", str),
+    ]
     assert all(g.exists() and g.stat().st_size > 1000 for g in graphiques)
     vides = [
         figures.chart_categories([], tmp_path / "k0.png", "sites"),
         figures.chart_organismes([], tmp_path / "org0.png", "site"),
+        figures.chart_renouvellement([{"saison": 2025, "fidèle": 0, "revenant": 0, "nouveau": 0, "parti": 0}],
+                                     tmp_path / "r0.png", str),
+        figures.chart_statuts_departements([], tmp_path / "sd0.png"),
+        figures.chart_anciennete_engagement({"1 saison": 0}, {"1": 0}, tmp_path / "ae0.png", "site"),
+        figures.chart_combinaisons([], tmp_path / "cb0.png", {}),
+        figures.chart_reseau([], tmp_path / "rs0.png", str),
         figures.chart_especes([], tmp_path / "e0.png", "site"),
         figures.chart_evolution([], tmp_path / "v0.png", str),
         figures.chart_historique([], tmp_path / "h0.png", libelles, 2023),
