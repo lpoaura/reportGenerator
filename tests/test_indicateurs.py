@@ -9,7 +9,7 @@ import pytest
 from docx import Document
 
 from reportgenerator.analysis.common.filesystem import create_analysis_dirs
-from reportgenerator.analysis.indicateurs import cartes, chargement, communes, figures, textes
+from reportgenerator.analysis.indicateurs import cartes, chargement, communes, figures, participants, textes
 from reportgenerator.analysis.indicateurs import selections as s
 from reportgenerator.analysis.indicateurs import specifiques as sp
 from reportgenerator.analysis.indicateurs.adaptateurs import jeu_monitoring, jeu_vigienature
@@ -290,6 +290,62 @@ def test_tuiles_textes_dans_le_cadre():
             assert cadre.x0 <= b.x0 and b.x1 <= cadre.x1, f"« {t.get_text()} » dépasse de la tuile"
             assert cadre.y0 <= b.y0 and b.y1 <= cadre.y1, f"« {t.get_text()} » dépasse de la tuile"
     figures.plt.close(f)
+
+
+# ------------------------------------------------------------------------------------------------ participants
+def _avec_benevoles(code="stom"):
+    """Jeu factice + bénévoles : b2 revenant (2023, 2025), b3 nouveau sur deux aires (2025), b4 parti (2024 seul),
+    ff:9 sans compte (Non renseigné). role:1 est bénévole fidèle (2023-2025)."""
+    j = jeu_factice(code)
+
+    def obs(ident, cat, *passages):
+        return [{"id_passage": p, "id_observateur": ident, "nom": ident, "organisme": None, "categorie": cat}
+                for p in passages]
+    ajout = (obs("b2", "Bénévole", "P2", "P9") + obs("b3", "Bénévole", "P6", "P8") + obs("b4", "Bénévole", "P5")
+             + obs("ff:9", "Non renseigné", "P7"))
+    j.observateurs = pd.concat([j.observateurs, pd.DataFrame(ajout)], ignore_index=True)
+    return j
+
+
+def test_statuts_participants():
+    j = _avec_benevoles()
+    assert participants.statuts(j, 2025, "Bénévole") == {"role:1": "fidèle", "b2": "revenant", "b3": "nouveau",
+                                                         "b4": "parti"}
+    assert participants.serie_statuts(j, 2023, 2025, "Bénévole") == [
+        {"saison": 2023, "fidèle": 0, "revenant": 0, "nouveau": 2, "parti": 0},
+        {"saison": 2024, "fidèle": 1, "revenant": 0, "nouveau": 1, "parti": 1},
+        {"saison": 2025, "fidèle": 1, "revenant": 1, "nouveau": 1, "parti": 1},
+    ]
+    assert participants.statuts_par_departement(j, 2025, "Bénévole") == [
+        {"departement": "Savoie", "fidèle": 1, "revenant": 0, "nouveau": 1, "parti": 0, "total": 2},
+        {"departement": "Isère", "fidèle": 0, "revenant": 1, "nouveau": 0, "parti": 1, "total": 1},
+    ]
+
+
+def test_statuts_premiere_saison():
+    """Première saison de la série : tous nouveaux, ni fidèle, ni revenant, ni parti."""
+    j = _avec_benevoles()
+    assert participants.statuts(j, 2023, "Bénévole") == {"role:1": "nouveau", "b2": "nouveau"}
+
+
+def test_participants_hors_categorie():
+    """Les « Non renseigné » et les autres catégories ne sont jamais comptés comme bénévoles."""
+    j = _avec_benevoles()
+    assert participants.participants(j, 2025, "Bénévole") == {"role:1", "b2", "b3"}
+    assert participants.participants(j, 2025, "Organisme tiers") == {"role:3"}
+    assert participants.participants(j, 2025, "Non renseigné") == {"ff:9"}
+
+
+def test_anciennete_engagement_travail():
+    j = _avec_benevoles()
+    assert participants.anciennete(j, 2025, "Bénévole") == {"1 saison": 1, "2 à 4 saisons": 2, "5 à 9 saisons": 0,
+                                                            "10 saisons et plus": 0}
+    assert participants.engagement(j, 2025, "Bénévole") == {"1": 2, "2": 1, "3+": 0}
+    t = participants.travail(j, 2025, "Bénévole", TEMPS_MESURE)
+    assert (t["participants"], t["part_observateurs"]) == (3, 50)               # 3 bénévoles sur 6 observateurs
+    assert (t["aires"], t["part_aires"]) == (2, 67)                             # A1 et A4 sur 3 aires suivies
+    assert (t["releves"], t["donnees"]) == (2, 5)                               # P7 (3) et P9 (2)
+    assert t["heures"] == communes.temps_heures(j, 2025, TEMPS_MESURE)["par_categorie"].get("Bénévole", 0)
 
 
 # ------------------------------------------------------------------------------------------ briques et dossier
