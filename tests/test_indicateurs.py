@@ -156,6 +156,21 @@ def test_categories_somme_egale_total():
     assert lignes["Salarié LPO"]["donnees"] == 12 and lignes["Non renseigné"]["donnees"] == 2
 
 
+def test_par_organisme_tiers():
+    """Participation des organismes tiers en N : aires où l'un de leurs observateurs a fait un relevé, observateurs,
+    données de ces relevés ; tri par aires décroissantes. Les autres catégories et saisons sont ignorées."""
+    j = jeu_factice()
+    ofb = {"id_observateur": "role:4", "nom": "Observateur 4", "organisme": "OFB", "categorie": "Organisme tiers"}
+    j.observateurs = pd.concat([j.observateurs, pd.DataFrame([{**ofb, "id_passage": "P6"},
+                                                              {**ofb, "id_passage": "P9"},
+                                                              {**ofb, "id_passage": "P3"}])], ignore_index=True)
+    assert communes.par_organisme(j, 2025) == [
+        {"organisme": "OFB", "aires": 2, "observateurs": 1, "donnees": 14},
+        {"organisme": "CEN Savoie", "aires": 1, "observateurs": 1, "donnees": 7},
+    ]
+    assert communes.par_organisme(j, 2023) == []
+
+
 def test_temps_forfaitaires():
     j = jeu_factice()
     par_aire = {"terrain_h": 5, "unite_terrain": "aire", "complement_h": 1, "unite_complement": "aire"}
@@ -235,6 +250,9 @@ def test_figures(tmp_path):
     graphiques = [
         figures.chart_chiffres(tuiles, tmp_path / "c.png", "2025", "2024"),
         figures.chart_categories(communes.par_categorie(j, 2025, TEMPS_MESURE), tmp_path / "k.png", "sites"),
+        figures.chart_organismes([{"organisme": "OFB", "aires": 2, "observateurs": 1, "donnees": 14},
+                                  {"organisme": "Syndicat mixte d'aménagement des gorges de la Loire " * 2, "aires": 1,
+                                   "observateurs": 1, "donnees": 7}], tmp_path / "org.png", "site"),
         figures.chart_groupes(dep, "departement", tmp_path / "g.png",
                               [("aires", "Suivis", figures.BLEU), ("nouvelles", "Nouveaux", figures.ORANGE)], "Sites"),
         figures.chart_barres({"1 passage": 2, "2 passages": 1}, tmp_path / "b.png", "Carrés"),
@@ -248,12 +266,30 @@ def test_figures(tmp_path):
     assert all(g.exists() and g.stat().st_size > 1000 for g in graphiques)
     vides = [
         figures.chart_categories([], tmp_path / "k0.png", "sites"),
+        figures.chart_organismes([], tmp_path / "org0.png", "site"),
         figures.chart_especes([], tmp_path / "e0.png", "site"),
         figures.chart_evolution([], tmp_path / "v0.png", str),
         figures.chart_historique([], tmp_path / "h0.png", libelles, 2023),
         figures.chart_groupes([], "departement", tmp_path / "g0.png", [("aires", "x", "#000")], "x"),
     ]
     assert all(g.exists() for g in vides)
+
+
+def test_tuiles_textes_dans_le_cadre():
+    """Aucun texte d'une tuile ne dépasse de son fond, même avec de grands nombres et une saison d'hiver."""
+    tuiles = [("Transects visités", 1480, 1295), ("Données", 123456, 98794), ("Temps (h), estimé", 12728, 10642),
+              ("Observateurs", 127, 112), ("Espèces", 116, None), ("Carrés suivis", 148, 130)]
+    f = figures.figure_chiffres(tuiles, "2025-2026", "2024-2025")
+    rendu = f.canvas.get_renderer()
+    for ax in f.axes:
+        if not ax.get_visible():
+            continue
+        cadre = ax.get_window_extent(rendu)
+        for t in ax.texts:
+            b = t.get_window_extent(rendu)
+            assert cadre.x0 <= b.x0 and b.x1 <= cadre.x1, f"« {t.get_text()} » dépasse de la tuile"
+            assert cadre.y0 <= b.y0 and b.y1 <= cadre.y1, f"« {t.get_text()} » dépasse de la tuile"
+    figures.plt.close(f)
 
 
 # ------------------------------------------------------------------------------------------ briques et dossier
@@ -267,6 +303,16 @@ def _ctx(tmp_path, monkeypatch, list_analyse, jeux):
     return ReportContext(service_name="factice", id_area=1, area_name="Test", referee="t", buffer=0, dossier=d,
                          enabled=enabled, output_dirs=create_analysis_dirs(tmp_path / "sortie"), queries=None,
                          params=d.params_for(list_analyse))
+
+
+def test_titre_et_contexte_suivent_les_protocoles_demandes(tmp_path, monkeypatch):
+    """Rapport limité à certains protocoles (list_analyse) : titre complété, contexte sans les autres protocoles."""
+    seul = get_brick("ind_socle").run(_ctx(tmp_path, monkeypatch, "indicateurs, pop_reptile, annee_2025", {})).texts
+    assert seul["TITRE_RAPPORT"] == "Indicateurs de biodiversité en Auvergne-Rhône-Alpes : POP Reptile"
+    assert "POP Reptile" in seul["TEXTE_PROTOCOLES"] and "STOC" not in seul["TEXTE_PROTOCOLES"]
+    tous = get_brick("ind_socle").run(_ctx(tmp_path, monkeypatch, "indicateurs, annee_2025", {})).texts
+    assert tous["TITRE_RAPPORT"] == "Indicateurs de biodiversité en Auvergne-Rhône-Alpes"
+    assert all(n in tous["TEXTE_PROTOCOLES"] for n in ("STOC-EPS", "SHOC", "STOM", "STERF", "POP Amphibien"))
 
 
 def test_section_masquee_sans_aire(tmp_path, monkeypatch):
@@ -394,6 +440,27 @@ def test_synthese_ignore_protocole_vide(tmp_path, monkeypatch):
     assert "nan" not in r.texts["TEXTE_CONCLUSION"] and "STOM" in r.texts["TEXTE_CONCLUSION"]
 
 
+def test_organismes_tiers_section_et_synthese(tmp_path, monkeypatch):
+    """Chaque section montre les organismes tiers participants (graphique + tableau en annexe) ; la synthèse les
+    croise avec les protocoles. Sans organisme tiers : une phrase à la place du graphique."""
+    sans_tiers = jeu_factice("sterf")
+    sans_tiers.observateurs = sans_tiers.observateurs[sans_tiers.observateurs["categorie"] != "Organisme tiers"]
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, stom, sterf, annee_2025",
+               {"stom": jeu_factice("stom"), "sterf": sans_tiers})
+    ctx.results["ind_socle"] = get_brick("ind_socle").run(ctx)
+    for code in ("stom", "sterf"):
+        ctx.results[code] = get_brick(code).run(ctx)
+    stom = ctx.results["stom"]
+    assert [b[0] for b in stom.tables["STOM_BLOCS_ORGANISMES"].data] == ["image", "legende"]
+    assert ("titre", 3, "Organismes tiers participants") in stom.data["annexe"]
+    assert [b[0] for b in ctx.results["sterf"].tables["STERF_BLOCS_ORGANISMES"].data] == ["texte"]
+    synthese = get_brick("ind_synthese").run(ctx).tables["BLOCS_ORGANISMES"].data
+    lignes, colonnes = synthese[0][1], synthese[0][2]
+    assert synthese[0][0] == "tableau"
+    assert [c for c, _ in colonnes] == ["organisme", "stom", "sterf"]
+    assert lignes == [{"organisme": "CEN Savoie", "stom": "1 site · 1 obs.", "sterf": "—"}]
+
+
 # ---------------------------------------------------------------------------------------------------------- cartes
 def test_couches_cartes():
     c = cartes.couches_cartes({"stom": jeu_factice("stom")}, {"stom": 2025}, {"wkt": ZONE_WKT, "nom": "Test"},
@@ -414,7 +481,7 @@ def test_brique_cartes_sans_qgis(tmp_path, monkeypatch):
     for nom in ("ind_socle", "stom"):
         ctx.results[nom] = get_brick(nom).run(ctx)
     r = get_brick("ind_cartes").run(ctx)
-    assert set(r.images) == {"STOM_CARTE", "STOC_CARTE"}
+    assert set(r.images) == {"STOM_CARTE"}   # protocole non demandé (STOC) : carte non rendue
     assert (ctx.output_dirs["data"] / "ind_aires.gpkg").exists()
 
 

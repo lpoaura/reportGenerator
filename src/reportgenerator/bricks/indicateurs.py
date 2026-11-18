@@ -25,8 +25,9 @@ from reportgenerator.bricks.common import qgis_layout_names
 from reportgenerator.core.registry import register_brick
 
 CLES = ("ANNEE_LIBELLE", "TEXTE_PARTICIPATION", "CHART_CHIFFRES", "CHART_CATEGORIES", "NOTE_CATEGORIES",
-        "TEXTE_COUVERTURE", "BLOCS_COUVERTURE", "TEXTE_HISTORIQUE", "CHART_HISTORIQUE", "CHART_OBSERVATEURS",
-        "TEXTE_FIDELISATION", "TEXTE_ESPECES", "CHART_ESPECES", "CHART_EVOLUTION_ESPECES", "BLOCS_SPECIFIQUES")
+        "BLOCS_ORGANISMES", "TEXTE_COUVERTURE", "BLOCS_COUVERTURE", "TEXTE_HISTORIQUE", "CHART_HISTORIQUE",
+        "CHART_OBSERVATEURS", "TEXTE_FIDELISATION", "TEXTE_ESPECES", "CHART_ESPECES", "CHART_EVOLUTION_ESPECES",
+        "BLOCS_SPECIFIQUES")
 # les cartes {PREFIXE}_CARTE, _CARTE_CATEGORIES, _CARTE_ABANDONS sont des mises en page du projet QGIS (ind_cartes) ;
 # les tableaux détaillés de chaque protocole vont en annexe (data["annexe"], repris par ind_synthese)
 
@@ -65,7 +66,8 @@ def blocs(liste) -> TableBlock:
 
 
 # ----------------------------------------------------------------------------------------------------- socle
-@register_brick("ind_socle", provides=["AREA_NAME", "TITRE_RAPPORT", "ANNEE", "DATE_EXTRACTION", "TEXTE_ZONE"])
+@register_brick("ind_socle", provides=["AREA_NAME", "TITRE_RAPPORT", "ANNEE", "DATE_EXTRACTION", "TEXTE_ZONE",
+                                       "TEXTE_PROTOCOLES"])
 def ind_socle(ctx):
     """Emprise du rapport (zone de la demande), départements et zones biogéographiques, année du rapport."""
     p = ctx.params
@@ -78,11 +80,17 @@ def ind_socle(ctx):
                   f"{len(departements)} département{'s' if len(departements) > 1 else ''} ({noms}).")
     print(f"[indicateurs] année {annee}, zone {ctx.area_name} : {len(departements)} départements, "
           f"{len(zbiog)} zones biogéographiques")
+    # rapport limité à certains protocoles (list_analyse) : titre complété, contexte réduit à ces protocoles
+    regles = [p["protocoles"][c] for c in PROTOCOLES if ctx.is_enabled(c)]
+    titre = p.get("titre", "")
+    if titre and 0 < len(regles) < len(PROTOCOLES):
+        titre = f"{titre} : {', '.join(r['label'] for r in regles)}"
     return AnalysisResult(
         data={"annee": annee, "zone": zone, "departements": departements, "zbiog": zbiog,
               "par_departement": len(departements) >= 2, "par_zbiog": len(zbiog) >= 2, "q": q},
-        texts={"AREA_NAME": ctx.area_name, "TITRE_RAPPORT": p.get("titre", ""), "ANNEE": str(annee),
-               "DATE_EXTRACTION": date.today().strftime("%d/%m/%Y"), "TEXTE_ZONE": texte_zone},
+        texts={"AREA_NAME": ctx.area_name, "TITRE_RAPPORT": titre, "ANNEE": str(annee),
+               "DATE_EXTRACTION": date.today().strftime("%d/%m/%Y"), "TEXTE_ZONE": texte_zone,
+               "TEXTE_PROTOCOLES": tx.texte_protocoles(regles)},
     )
 
 
@@ -142,6 +150,7 @@ def section_protocole(ctx, code: str) -> AnalysisResult:
     aires_lib, unites_lib = tx.pluriel(aire).capitalize(), tx.pluriel(r["unite"]).capitalize()
     suivis = "suivies" if tx.feminin(aire) else "suivis"
     categories = k.par_categorie(jeu, saison, temps)
+    organismes = k.par_organisme(jeu, saison)
 
     def valeur(chiffres, cle):   # heures arrondies : l'écart affiché porte sur les valeurs affichées
         v = chiffres[cle] if chiffres else None
@@ -175,6 +184,19 @@ def section_protocole(ctx, code: str) -> AnalysisResult:
                       [{**x, "heures": tx.nombre(round(x["heures"]))} for x in categories],
                       [("categorie", "Catégorie"), ("aires", aires_lib), ("observateurs", "Observateurs"),
                        ("donnees", "Données"), ("heures", "Temps (h)")])
+    if organismes:
+        n_max = 12
+        blocs_org = [("image", fig.chart_organismes(organismes, out / f"{code}_organismes.png", aire, n_max)),
+                     ("legende", f"Figure : organismes tiers ayant participé en {libelle} ({tx.pluriel(aire)} où "
+                                 "l'un de leurs observateurs a fait au moins un relevé"
+                                 + (f" ; les {n_max} premiers, liste complète en annexe)." if len(organismes) > n_max
+                                    else ")."))]
+        annexe += _annexe("Organismes tiers participants",
+                          [{**x, "donnees": tx.nombre(x["donnees"])} for x in organismes],
+                          [("organisme", "Organisme"), ("aires", aires_lib), ("observateurs", "Observateurs"),
+                           ("donnees", "Données")])
+    else:
+        blocs_org = [("texte", f"Aucun organisme tiers n'a participé en {libelle}.")]
     if par == "departement":
         lignes = [{**x, "anciennes": x["aires"] - x["nouvelles"]} for x in couv]
         couverture = [("image", fig.chart_groupes(lignes, "departement", out / f"{code}_departements.png", series,
@@ -213,6 +235,7 @@ def section_protocole(ctx, code: str) -> AnalysisResult:
             annexe += _annexe(b[1], b[2], b[3])
     tables = {
         f"{P}_BLOCS_COUVERTURE": blocs(couverture),
+        f"{P}_BLOCS_ORGANISMES": blocs(blocs_org),
         f"{P}_BLOCS_SPECIFIQUES": blocs([b for b in propres if b[0] != "annexe"]),
     }
     texts = {
@@ -231,7 +254,7 @@ def section_protocole(ctx, code: str) -> AnalysisResult:
           f"{c['donnees']} données")
     return AnalysisResult(
         data={"jeu": jeu, "saison": saison, "libelle": libelle, "chiffres": c, "precedent": c1, "fidelisation": fid,
-              "especes": esp, "vide": False, "regle": r, "annexe": annexe},
+              "especes": esp, "vide": False, "regle": r, "annexe": annexe, "organismes": organismes},
         texts=texts, tables=tables, images={cle: ImageBlock(chemin) for cle, chemin in images.items()},
     )
 
@@ -256,11 +279,31 @@ def _heures(c) -> str:
     return f"{tx.nombre(round(c['heures']))} h" + (" (estimé)" if c["heures_estimees"] else "")
 
 
+def _organismes(sections) -> list[tuple]:
+    """Organismes tiers × protocoles : « n aires · n obs. » par protocole ; tri par nombre de protocoles puis
+    d'observateurs."""
+    par_org: dict[str, dict] = {}
+    for code, d in sections:
+        for x in d["organismes"]:
+            par_org.setdefault(x["organisme"], {})[code] = x
+    if not par_org:
+        return [("texte", "Aucun organisme tiers n'a participé aux protocoles dans la zone.")]
+    ordre = sorted(par_org, key=lambda o: (-len(par_org[o]), -sum(x["observateurs"] for x in par_org[o].values()), o))
+    lignes = []
+    for o in ordre:
+        ligne = {"organisme": o}
+        for code, d in sections:
+            x, aire = par_org[o].get(code), d["regle"]["aire"]
+            ligne[code] = f"{x['aires']} {tx.pluriel(aire, x['aires'])} · {x['observateurs']} obs." if x else "—"
+        lignes.append(ligne)
+    return [("tableau", lignes, [("organisme", "Organisme")] + [(c, d["regle"]["label"]) for c, d in sections])]
+
+
 @register_brick(
     "ind_synthese",
     requires=["ind_socle"],
     provides=["TABLE_CHIFFRES_CLES", "TEXTE_CHIFFRES_CLES", "TEXTE_CONCLUSION", "BLOCS_ANNEXE_TABLEAUX",
-              "BLOCS_ANNEXE_CONTROLE"],
+              "BLOCS_ANNEXE_CONTROLE", "BLOCS_ORGANISMES"],
     last=True,
 )
 def ind_synthese(ctx):
@@ -290,6 +333,7 @@ def ind_synthese(ctx):
                          ("tableau", anomalies, [("code", "Code"), ("libelle", "Anomalie"), ("aire", "Aire"),
                                                  ("unite", "Unité"), ("date", "Date"), ("nom", "Observateur")])]
     jeux = {code: d["jeu"] for code, d in sections}
+    organismes = _organismes(sections)
     multi = k.observateurs_multi_protocoles(jeux, {code: d["saison"] for code, d in sections})
     total_donnees = sum(d["chiffres"]["donnees"] for _, d in sections)
     total_heures = sum(d["chiffres"]["heures"] for _, d in sections)
@@ -307,6 +351,7 @@ def ind_synthese(ctx):
                                                     ("aires", "Aires suivies"), ("observateurs", "Observateurs"),
                                                     ("donnees", "Données"), ("temps", "Temps"),
                                                     ("ecart", "Écart des aires")]),
+            "BLOCS_ORGANISMES": blocs(organismes),
             "BLOCS_ANNEXE_TABLEAUX": blocs(annexe_esp),
             "BLOCS_ANNEXE_CONTROLE": blocs([("a_rediger", "Annexe de contrôle : à supprimer avant envoi.")]
                                            + controle),
@@ -338,7 +383,10 @@ def ind_cartes(ctx):
                       for c in PROTOCOLES})
     variables.update({"zone": ctx.area_name,
                       "sources": "Faune-France (STOC, SHOC) et GeoNature (STOM, STERF, POP), LPO Auvergne-Rhône-Alpes"})
-    config = {**ctx.params.get("qgis_render", {}), "project_variables": variables}
+    # seulement les mises en page des protocoles présents dans le rapport ({PREFIXE}_CARTE…)
+    prefixes = {PREFIXES[c] for c, _ in sections}
+    layouts = [n for n in qgis_layout_names(projet) if n.split("_")[0] in prefixes]
+    config = {**ctx.params.get("qgis_render", {}), "project_variables": variables, "layouts": layouts}
     launch_qgis_render(project_path=copie, output_dir=ctx.output_dirs["maps"], config=config)
     layout = ctx.params.get("map_layout", "normal")
     return AnalysisResult(images={png.stem: ImageBlock(png, layout)

@@ -6,6 +6,7 @@ rampe bleue claire -> foncée pour les fréquences (carte de chaleur). Chaque gr
 donnée » (le Word garde sa légende).
 """
 
+import textwrap
 from pathlib import Path
 
 import matplotlib
@@ -56,28 +57,44 @@ def _axes_sobres(ax, grille="x"):
 # ------------------------------------------------------------------------------------------- chiffres clés
 def chart_chiffres(indicateurs: list[tuple], path: Path, libelle: str, precedent: str) -> Path:
     """Tuiles « chiffre clé » : (libellé, valeur N, valeur N-1) ; écart avec la saison précédente dessous."""
+    return _fin(figure_chiffres(indicateurs, libelle, precedent), path)
+
+
+def figure_chiffres(indicateurs: list[tuple], libelle: str, precedent: str):
     apply_lpo_theme()
     colonnes = 3
     lignes = (len(indicateurs) + colonnes - 1) // colonnes
-    fig, axes = plt.subplots(lignes, colonnes, figsize=(7.5, 1.25 * lignes + 0.3), squeeze=False)
+    fig, axes = plt.subplots(lignes, colonnes, figsize=(7.5, 1.45 * lignes + 0.35), squeeze=False)
+    fig.subplots_adjust(left=0.005, right=0.995, bottom=0.01, top=1 - 0.35 / (1.45 * lignes + 0.35),
+                        wspace=0.06, hspace=0.12)
     for ax in axes.flat:
         ax.set_xticks([])
         ax.set_yticks([])
         for cote in ax.spines.values():
             cote.set_visible(False)
+    rendu = fig.canvas.get_renderer()
     for ax, (lib, v, v1) in zip(axes.flat, indicateurs):
         ax.set_facecolor("#eef4fc")
-        ax.text(0.07, 0.78, lib, transform=ax.transAxes, fontsize=9, color=ENCRE_2, va="center")
-        ax.text(0.07, 0.47, _n(v), transform=ax.transAxes, fontsize=18, fontweight="bold", color=ENCRE,
-                va="center")
         e = ecart(v, v1).replace(NBSP_FINE, " ")   # le signe porte le sens (la police LPO n'a pas de flèches)
-        ax.text(0.07, 0.16, f"{e} par rapport à {precedent}" if v1 is not None else "pas de saison précédente",
-                transform=ax.transAxes, fontsize=7.5, color=ENCRE_2, va="center")
+        textes = [(0.82, lib, 9, "normal", ENCRE_2), (0.56, _n(v), 18, "bold", ENCRE)]
+        if v1 is not None:
+            textes += [(0.30, e, 8.5, "bold", ENCRE_2), (0.13, f"par rapport à {precedent}", 7.5, "normal", ENCRE_2)]
+        else:
+            textes.append((0.22, "pas de saison précédente", 7.5, "normal", ENCRE_2))
+        for y, texte, taille, graisse, couleur in textes:
+            _dans_tuile(ax, ax.text(0.07, y, texte, transform=ax.transAxes, fontsize=taille, fontweight=graisse,
+                                    color=couleur, va="center"), rendu)
     for ax in list(axes.flat)[len(indicateurs):]:
         ax.set_visible(False)
-    fig.suptitle(f"Saison {libelle}", x=0.01, ha="left", fontsize=10, color=ENCRE_2)
-    fig.tight_layout(w_pad=1.2, h_pad=1.0)
-    return _fin(fig, path)
+    fig.suptitle(f"Saison {libelle}", x=0.005, y=0.995, ha="left", va="top", fontsize=10, color=ENCRE_2)
+    return fig
+
+
+def _dans_tuile(ax, texte, rendu, marge=0.06):
+    """Réduit la police d'un texte de tuile jusqu'à ce qu'il tienne dans la largeur (marges comprises)."""
+    largeur = ax.get_window_extent(rendu).width * (1 - 0.07 - marge)
+    while texte.get_window_extent(rendu).width > largeur and texte.get_fontsize() > 5:
+        texte.set_fontsize(texte.get_fontsize() - 0.5)
 
 
 # ----------------------------------------------------------------------------------------------- catégories
@@ -110,6 +127,32 @@ def chart_categories(lignes: list[dict], path: Path, label_aires: str) -> Path:
         ax.spines[cote].set_visible(False)
     ax.tick_params(colors=ENCRE, labelsize=9, length=0)
     ax.legend(frameon=False, ncols=len(cats), loc="lower left", bbox_to_anchor=(0, 1.0), fontsize=9)
+    return _fin(fig, path)
+
+
+def chart_organismes(lignes: list[dict], path: Path, aire: str, maximum: int = 12) -> Path:
+    """Organismes tiers participants : barres horizontales (aires où l'organisme a fait au moins un relevé), nombre
+    d'observateurs en étiquette ; les `maximum` premiers (liste complète en annexe)."""
+    if not lignes:
+        return _vide(path, hauteur=0.8)
+    apply_lpo_theme()
+    lignes = lignes[:maximum]
+    noms = [textwrap.fill(r["organisme"], 45) for r in lignes]
+    fig, ax = plt.subplots(figsize=(7.5, 0.25 + sum(0.3 + 0.15 * n.count("\n") for n in noms)))
+    valeurs = [r["aires"] for r in lignes]
+    ax.barh(range(len(lignes)), valeurs, color=ORANGE, height=0.6)
+    for i, r in enumerate(lignes):
+        obs = r["observateurs"]
+        ax.text(r["aires"], i, f"  {r['aires']} {pluriel(aire) if r['aires'] > 1 else aire} · {obs} "
+                f"observateur{'s' if obs > 1 else ''}", va="center", fontsize=8.5, color=ENCRE)
+    ax.set_yticks(range(len(lignes)), noms)
+    ax.invert_yaxis()
+    ax.set_xlim(0, max(valeurs) * 1.45)
+    ax.set_xticks([])
+    for cote in ("top", "right", "bottom"):
+        ax.spines[cote].set_visible(False)
+    ax.spines["left"].set_color("#cccccc")
+    ax.tick_params(colors=ENCRE, labelsize=8.5, length=0)
     return _fin(fig, path)
 
 

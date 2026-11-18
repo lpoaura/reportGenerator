@@ -43,6 +43,7 @@ dpi = 150
 
 [params.protocoles.stoc]
 label = "STOC-EPS"
+nom_complet = "Suivi Temporel des Oiseaux Communs par Échantillonnages Ponctuels Simples"
 source = "vigienature"
 nom_protocole = ["STOC_EPS"]
 aire = "carré"
@@ -59,6 +60,7 @@ sites = { nom_protocole = ["STOC_SITES", "STOC_ONF", "STOC_SITES_RNF"], motif_n2
 
 [params.protocoles.shoc]
 label = "SHOC"
+nom_complet = "Suivi Hivernal des Oiseaux Communs"
 source = "vigienature"
 nom_protocole = ["SHOC"]
 aire = "carré"
@@ -72,6 +74,7 @@ temps = { terrain_h = 2, unite_terrain = "visite", complement_h = 1, unite_compl
 
 [params.protocoles.stom]
 label = "STOM"
+nom_complet = "Suivi Temporel des Oiseaux de Montagne"
 source = "monitoring"
 module = "stom"
 aire = "site"
@@ -83,6 +86,7 @@ temps = { terrain_h = 5, unite_terrain = "aire", complement_h = 1, unite_complem
 
 [params.protocoles.sterf]
 label = "STERF"
+nom_complet = "Suivi Temporel des Rhopalocères de France"
 source = "monitoring"
 module = "sterf_ebms"
 aire = "site"
@@ -101,6 +105,7 @@ temps = { terrain_h = "mesure", unite_terrain = "visite", complement_h = 0, unit
 
 [params.protocoles.pop_reptile]
 label = "POP Reptile"
+nom_complet = "suivi des populations de reptiles"
 source = "monitoring"
 module = "POPReptile"
 aire = "aire"
@@ -115,6 +120,7 @@ temps = { terrain_h = "mesure", unite_terrain = "visite", complement_h = 0, unit
 
 [params.protocoles.pop_amphibien]
 label = "POP Amphibien"
+nom_complet = "suivi des populations d'amphibiens"
 source = "monitoring"
 module = "POPAmphibien"
 aire = "aire"

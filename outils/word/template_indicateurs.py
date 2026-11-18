@@ -155,16 +155,17 @@ P("Rapport généré le {{DATE_EXTRACTION}} à partir des données saisies dans 
 X("TEXTE_CHIFFRES_CLES")
 X("TABLE_CHIFFRES_CLES")
 L("Tableau : chiffres clés des protocoles suivis dans la zone (temps mesurés ou estimés, voir chaque section).")
+H(2, "Organismes partenaires")
+P("Organismes tiers (hors LPO, hors bénévoles) dont au moins un observateur a réalisé un relevé : nombre d'aires "
+  "où ils sont intervenus et nombre d'observateurs, par protocole.")
+X("BLOCS_ORGANISMES")
+L("Tableau : organismes tiers ayant participé aux protocoles (une aire suivie à plusieurs compte pour chacun).")
 
 H(1, "Contexte")
 P("Évaluer les tendances des populations d'espèces au cours du temps est essentiel pour connaître l'état de santé des "
   "cortèges qui font la richesse de la biodiversité, et alerter les décideurs et le grand public sur les causes de "
-  "son érosion. En Auvergne-Rhône-Alpes, le STOC-EPS est l'indicateur qui apporte le plus d'informations sur "
-  "l'évolution des populations d'oiseaux nicheurs ; il a débuté en 2001, lors de la relance du programme national "
-  "par le MNHN.")
-P("Ce rapport d'exécution dresse l'état du déploiement en région des protocoles STOC, SHOC (Suivi Hivernal des "
-  "Oiseaux Communs), STOM (Suivi Temporel des Oiseaux de Montagne), STERF (Suivi Temporel des Rhopalocères de France) "
-  "et POP (reptiles et amphibiens).")
+  "son érosion.")
+X("TEXTE_PROTOCOLES")   # protocoles du rapport (tous, ou ceux demandés dans list_analyse)
 X("TEXTE_ZONE")
 P("Méthode commune : chaque protocole est décrit de la même façon (aires suivies — carrés, sites ou aires —, unités "
   "— points, transects, mares —, passages, observateurs, données). Une aire est dans la zone si l'une de ses unités "
@@ -189,6 +190,7 @@ for code, prefixe, titre, suivis, textes, regles in PROTOCOLES:
     L(f"Figure : part de chaque catégorie d'observateurs dans les {aires}, les observateurs, les données et le temps, "
       f"saison {n}.")
     X(f"{prefixe}_NOTE_CATEGORIES")
+    X(f"{prefixe}_BLOCS_ORGANISMES")
     X(f"{prefixe}_CARTE_CATEGORIES")
     L(f"Carte : {suivis} en {n} selon la catégorie de leur observateur principal.")
     H(2, "Couverture")

@@ -136,6 +136,21 @@ def par_categorie(jeu, saison, temps: dict) -> list[dict]:
     return lignes
 
 
+def par_organisme(jeu, saison) -> list[dict]:
+    """Organismes tiers ayant participé en N : aires où l'un de leurs observateurs a fait au moins un relevé (une aire
+    peut compter pour plusieurs organismes), observateurs, données de ces relevés. Tri : aires, observateurs, nom."""
+    p = releves(jeu, saison)
+    o = observateurs_de(jeu, p["id_passage"])
+    o = o[o["categorie"] == "Organisme tiers"].merge(p[["id_passage", "id_aire", "nb_donnees"]], on="id_passage")
+    lignes = []
+    for org, g in o.groupby("organisme"):
+        releves_org = g.drop_duplicates("id_passage")
+        lignes.append({"organisme": org, "aires": int(g["id_aire"].nunique()),
+                       "observateurs": int(g["id_observateur"].nunique()),
+                       "donnees": int(releves_org["nb_donnees"].fillna(0).sum())})
+    return sorted(lignes, key=lambda x: (-x["aires"], -x["observateurs"], x["organisme"]))
+
+
 # ----------------------------------------------------------------------------------------------------- couverture
 def statut_aires(jeu, saison) -> dict:
     """Toutes les aires de la zone : « nouvelle » (première saison = N), « suivie », ou « non suivie » en N."""

@@ -17,7 +17,9 @@ Références : conception `docs/indicateurs/conception.md`, plan `docs/indicateu
 
 - **Déclenchement** (`list_analyse`) : `indicateurs` = tous les protocoles ; `indicateurs, stoc, sterf` = ces
   protocoles seulement (jetons `stoc`, `shoc`, `stom`, `sterf`, `pop_reptile`, `pop_amphibien`) ; `annee_2024` force
-  l'année du rapport. Aucune colonne n'est ajoutée à la vue des demandes.
+  l'année du rapport. Aucune colonne n'est ajoutée à la vue des demandes. Un rapport limité à certains protocoles
+  complète le titre (« … : POP Reptile ») et ne cite que ces protocoles dans le contexte (`nom_complet` du
+  `dossier.toml`).
 - **Année** : paramètre `annee` (0 = dernière saison terminée : l'année en cours à partir du 1er octobre, sinon
   l'année précédente). Les données saisies après la saison du rapport (année suivante) sont ignorées.
 - **Date d'extraction** : indiquée en page de garde. Les chiffres évoluent avec les saisies tardives (STOC 2023 : 284
@@ -110,7 +112,12 @@ n'a aucune aire dans la zone.
   (déjà suivies / suivies pour la première fois), historique en petits multiples (aires, observateurs, données, temps),
   espèces les plus fréquentes, évolution des fréquences en carte de chaleur (couleur relative à l'étendue des
   valeurs), analyses propres (passages STOC, STERF vrais, états et suivis POP). Les tableaux détaillés de chaque
-  graphique sont repris en annexe. Une zone d'un seul département garde la liste de ses aires en tableau.
+  graphique sont repris en annexe. Une zone d'un seul département garde la liste de ses aires en tableau. Les tuiles
+  réduisent la police d'un texte qui dépasserait du cadre.
+- **Organismes tiers** (retour du 18/11/2026) : dans chaque section, graphique des organismes tiers ayant participé en
+  N (aires où l'un de leurs observateurs a fait au moins un relevé — une aire peut compter pour plusieurs organismes —,
+  observateurs ; 12 premiers, liste complète avec les données en annexe) ; dans les chiffres clés, tableau croisé
+  organismes × protocoles. L'organisme est celui du compte GeoNature (Faune-France) ou de l'observateur du module.
 - **Couleurs** : catégories d'observateurs dans un ordre fixe (salarié LPO bleu, organisme tiers orange, bénévole vert
   d'eau, non renseigné gris), identiques dans les graphiques et les cartes ; une seule teinte (bleu) pour les
   grandeurs, la saison du rapport en bleu soutenu.

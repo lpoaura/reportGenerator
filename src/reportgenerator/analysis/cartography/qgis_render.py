@@ -291,6 +291,8 @@ def main():
         manager = project.layoutManager()
         layouts_to_export = [layout.name() for layout in manager.layouts()]
         print("Layouts disponibles :", ", ".join(layouts_to_export))
+        if config.get("layouts") is not None:   # liste fournie par la brique : seulement ces mises en page
+            layouts_to_export = [n for n in layouts_to_export if n in config["layouts"]]
 
         # variables de projet (ex. @sources dans le texte « Sources » des mises en page)
         for name, value in (config.get("project_variables") or {}).items():

@@ -88,5 +88,8 @@ def rendu_factice(project_path, output_dir, config=None):
     import re
     from pathlib import Path
     texte = Path(project_path).read_text(encoding="utf-8", errors="ignore")
+    voulues = (config or {}).get("layouts")   # comme qgis_render : seulement ces mises en page si la liste est donnée
     for nom in re.findall(r'<Layout\b[^>]*\bname="([^"]+)"', texte):
+        if voulues is not None and nom not in voulues:
+            continue
         (Path(output_dir) / f"{nom}.png").write_bytes(PNG_1PX)

@@ -63,6 +63,22 @@ def note_temps(temps: dict, estime: bool, aire: str = "aire") -> str:
     return t + "."
 
 
+def texte_protocoles(regles: list[dict]) -> str:
+    """Phrase du contexte : protocoles couverts par le rapport (« label (nom complet) »), STOC-EPS présenté s'il en
+    fait partie."""
+    noms = [f"{r['label']} ({r['nom_complet']})" for r in regles]
+    if not noms:
+        return ""
+    liste = noms[0] if len(noms) == 1 else f"{', '.join(noms[:-1])} et {noms[-1]}"
+    texte = (f"Ce rapport d'exécution dresse l'état du déploiement en région "
+             f"{'du protocole' if len(noms) == 1 else 'des protocoles'} {liste}.")
+    if any(r["label"] == "STOC-EPS" for r in regles):
+        texte = ("En Auvergne-Rhône-Alpes, le STOC-EPS est l'indicateur qui apporte le plus d'informations sur "
+                 "l'évolution des populations d'oiseaux nicheurs ; il a débuté en 2001, lors de la relance du "
+                 "programme national par le MNHN. " + texte)
+    return texte
+
+
 def texte_participation(label, aire, libelle, c: dict, c1: dict | None, temps_note: str) -> str:
     if not c.get("aires"):
         return f"Aucun{'e' if feminin(aire) else ''} {aire} {_suivi(aire, 1)} en {libelle} dans la zone."
