@@ -433,6 +433,25 @@ def test_section_benevoles(tmp_path, monkeypatch):
     assert "€" in get_brick("stom").run(ctx).texts["STOM_TEXTE_BENEVOLES"]
 
 
+def test_tuiles_benevoles_saison_precedente_sans_benevole(tmp_path, monkeypatch):
+    """Saison précédente sans aucun bénévole : l'écart part de 0 (pas « pas de saison précédente »)."""
+    j = jeu_factice("stom")
+    j.observateurs = j.observateurs[~((j.observateurs["categorie"] == "Bénévole")
+                                      & j.observateurs["id_passage"].isin(["P1", "P3"]))]
+    tuiles = {}
+    reel = figures.chart_chiffres
+
+    def capture(indicateurs, path, *a):
+        if "benevoles" in str(path):
+            tuiles.update({lib: (v, v1) for lib, v, v1 in indicateurs})
+        return reel(indicateurs, path, *a)
+    monkeypatch.setattr(figures, "chart_chiffres", capture)
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, stom, annee_2025", {"stom": j})
+    ctx.results["ind_socle"] = get_brick("ind_socle").run(ctx)
+    get_brick("stom").run(ctx)
+    assert tuiles["Nouveaux bénévoles"] == (1, 0) and tuiles["Bénévoles"] == (1, 0)
+
+
 def test_section_sans_benevole(tmp_path, monkeypatch):
     """Protocole sans bénévole : une phrase, pas de graphique, pas d'erreur."""
     j = jeu_factice("stom")

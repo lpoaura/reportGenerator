@@ -287,7 +287,7 @@ def _benevoles(ctx, code, jeu, saison, avec_precedent, debut_obs):
         def v(x, cle):
             return None if x is None else (round(x[cle]) if cle == "heures" else x[cle])
         tuiles = [("Bénévoles", t["participants"], v(t1, "participants")),
-                  ("Nouveaux bénévoles", statuts["nouveau"], statuts1["nouveau"] if statuts1 else None),
+                  ("Nouveaux bénévoles", statuts["nouveau"], statuts1["nouveau"] if statuts1 is not None else None),
                   (f"{aires_lib} des bénévoles", t["aires"], v(t1, "aires")),
                   ("Relevés", t["releves"], v(t1, "releves")), ("Données", t["donnees"], v(t1, "donnees")),
                   ("Temps (h)" + (", estimé" if t["heures_estimees"] else ""), v(t, "heures"), v(t1, "heures"))]
