@@ -230,7 +230,9 @@ def section_protocole(ctx, code: str) -> AnalysisResult:
                           [{cle: (_pct(v) if cle != "nom" else v) for cle, v in e.items()} for e in evo],
                           [("nom", "Espèce")] + [(a, lib_saison(a)) for a in evo[0] if a != "nom"])
 
-    texte_ben, blocs_ben, annexe_ben, travail_ben = _benevoles(ctx, code, jeu, saison, c1 is not None, debut_obs)
+    # observateurs connus après le début du protocole : leur première saison connue ne dit pas qui est nouveau
+    debut_ben = debut_obs + 1 if debut_obs > debut else debut_obs
+    texte_ben, blocs_ben, annexe_ben, travail_ben = _benevoles(ctx, code, jeu, saison, c1 is not None, debut_ben)
     annexe += annexe_ben
 
     # analyses propres : graphiques dans la section, tableaux (blocs « annexe ») en annexe

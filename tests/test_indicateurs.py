@@ -452,6 +452,22 @@ def test_tuiles_benevoles_saison_precedente_sans_benevole(tmp_path, monkeypatch)
     assert tuiles["Nouveaux bénévoles"] == (1, 0) and tuiles["Bénévoles"] == (1, 0)
 
 
+@pytest.mark.parametrize("debut_obs, premiere", [(None, 2023), (2024, 2025)])
+def test_renouvellement_commence_apres_debut_observateurs(tmp_path, monkeypatch, debut_obs, premiere):
+    """Observateurs connus après le début du protocole : la première saison connue mettrait tout le monde en
+    « nouveau » ; le renouvellement commence donc la saison suivante. Sinon, dès le début de la série."""
+    series = []
+    reel = figures.chart_renouvellement
+    monkeypatch.setattr(figures, "chart_renouvellement", lambda s, *a: series.append(s) or reel(s, *a))
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, stom, annee_2025", {"stom": _avec_benevoles("stom")})
+    ctx.params["protocoles"]["stom"]["debut_serie"] = 2023
+    if debut_obs:
+        ctx.params["protocoles"]["stom"]["debut_observateurs"] = debut_obs
+    ctx.results["ind_socle"] = get_brick("ind_socle").run(ctx)
+    get_brick("stom").run(ctx)
+    assert series[0][0]["saison"] == premiere
+
+
 def test_section_sans_benevole(tmp_path, monkeypatch):
     """Protocole sans bénévole : une phrase, pas de graphique, pas d'erreur."""
     j = jeu_factice("stom")

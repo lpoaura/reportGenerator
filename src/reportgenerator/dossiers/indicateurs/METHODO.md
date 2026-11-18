@@ -120,7 +120,9 @@ n'a aucune aire dans la zone.
   N-1 ; revenant : présent en N, absent en N-1, présent avant ; nouveau : première saison = N ; parti : présent en N-1,
   absent en N), bénévoles par département (un bénévole compte dans chaque département où il a fait un relevé),
   ancienneté (saisons distinctes de participation : 1, 2-4, 5-9, 10 et plus) et engagement (aires suivies dans la
-  saison : 1, 2, 3 et plus). Modules GeoNature : aires créées jamais visitées, par catégorie du créateur du site le
+  saison : 1, 2, 3 et plus). Quand les observateurs ne sont connus qu'après le début du protocole
+  (`debut_observateurs`, STOC : 2015), le renouvellement commence la saison suivante (la première saison connue
+  classerait tout le monde en « nouveau »). Modules GeoNature : aires créées jamais visitées, par catégorie du créateur du site le
   plus ancien (`id_inventor`) ; les comptes inscrits sans saisie ne sont pas mesurables (droits des modules dans
   `gn_permissions`, inscriptions STOC/SHOC chez Vigie-Nature). Partie « Le réseau bénévole » avant la conclusion :
   bénévoles distincts tous protocoles (comptes GeoNature, chaque protocole à sa saison ; SHOC compté avec l'année de
