@@ -114,6 +114,19 @@ n'a aucune aire dans la zone.
   valeurs), analyses propres (passages STOC, STERF vrais, états et suivis POP). Les tableaux détaillés de chaque
   graphique sont repris en annexe. Une zone d'un seul département garde la liste de ses aires en tableau. Les tuiles
   réduisent la police d'un texte qui dépasserait du cadre.
+- **Bénévoles** (design `docs/indicateurs/benevoles.md`, validé le 18/11/2026) : chiffres agrégés seulement, aucune
+  liste nominative (le suivi nominatif relève d'un autre outil). Dans chaque protocole, sous-partie « Bénévoles » :
+  tuiles (bénévoles, nouveaux, aires, relevés, données, temps), renouvellement par saison (fidèle : présent en N et
+  N-1 ; revenant : présent en N, absent en N-1, présent avant ; nouveau : première saison = N ; parti : présent en N-1,
+  absent en N), bénévoles par département (un bénévole compte dans chaque département où il a fait un relevé),
+  ancienneté (saisons distinctes de participation : 1, 2-4, 5-9, 10 et plus) et engagement (aires suivies dans la
+  saison : 1, 2, 3 et plus). Modules GeoNature : aires créées jamais visitées, par catégorie du créateur du site le
+  plus ancien (`id_inventor`) ; les comptes inscrits sans saisie ne sont pas mesurables (droits des modules dans
+  `gn_permissions`, inscriptions STOC/SHOC chez Vigie-Nature). Partie « Le réseau bénévole » avant la conclusion :
+  bénévoles distincts tous protocoles (comptes GeoNature, chaque protocole à sa saison ; SHOC compté avec l'année de
+  janvier), sur plusieurs protocoles et combinaisons, par département. Valorisation : heures ×
+  `taux_horaire_benevolat` (0 = non affichée). Calculs paramétrés par catégorie (`participants.py`) pour un futur
+  rapport « participants ». « Non renseigné » n'est jamais compté comme bénévole.
 - **Organismes tiers** (retour du 18/11/2026) : dans chaque section, graphique des organismes tiers ayant participé en
   N (aires où l'un de leurs observateurs a fait au moins un relevé — une aire peut compter pour plusieurs organismes —,
   observateurs ; 12 premiers, liste complète avec les données en annexe) ; dans les chiffres clés, tableau croisé

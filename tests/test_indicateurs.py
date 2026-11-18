@@ -406,11 +406,53 @@ def _ctx(tmp_path, monkeypatch, list_analyse, jeux):
     monkeypatch.setattr(IndicateursQueries, "zone", lambda self: {"wkt": ZONE_WKT, "surface_ha": 600000})
     monkeypatch.setattr(IndicateursQueries, "departements", lambda self: DEPARTEMENTS)
     monkeypatch.setattr(IndicateursQueries, "zones_biogeo", lambda self: [])
+    monkeypatch.setattr(IndicateursQueries, "createurs_aires_monitoring", lambda self, module: [])
     d = load_dossier("indicateurs")
     enabled, _ = d.select_analyses(list_analyse)
     return ReportContext(service_name="factice", id_area=1, area_name="Test", referee="t", buffer=0, dossier=d,
                          enabled=enabled, output_dirs=create_analysis_dirs(tmp_path / "sortie"), queries=None,
                          params=d.params_for(list_analyse))
+
+
+def test_section_benevoles(tmp_path, monkeypatch):
+    """Sous-partie Bénévoles : texte, graphiques (tuiles, renouvellement, départements, ancienneté), annexes ;
+    aucun nom ni identifiant de compte dans les blocs."""
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, stom, annee_2025", {"stom": _avec_benevoles("stom")})
+    ctx.results["ind_socle"] = get_brick("ind_socle").run(ctx)
+    r = get_brick("stom").run(ctx)
+    texte = r.texts["STOM_TEXTE_BENEVOLES"]
+    assert "3 bénévoles" in texte and "€" not in texte                       # valorisation absente (taux = 0)
+    genres = [b[0] for b in r.tables["STOM_BLOCS_BENEVOLES"].data]
+    assert genres.count("image") == 4 and "tableau" not in genres
+    titres = [b[2] for b in r.data["annexe"] if b[0] == "titre"]
+    assert {"Bénévoles : renouvellement par saison", "Bénévoles par département",
+            "Bénévoles : ancienneté et engagement"} <= set(titres)
+    assert not any(x in repr(r.tables["STOM_BLOCS_BENEVOLES"].data) + repr(r.data["annexe"])
+                   for x in ("role:", "b2", "Observateur 1"))
+    ctx.params["taux_horaire_benevolat"] = 12.5
+    assert "€" in get_brick("stom").run(ctx).texts["STOM_TEXTE_BENEVOLES"]
+
+
+def test_section_sans_benevole(tmp_path, monkeypatch):
+    """Protocole sans bénévole : une phrase, pas de graphique, pas d'erreur."""
+    j = jeu_factice("stom")
+    j.observateurs = j.observateurs[j.observateurs["categorie"] != "Bénévole"]
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, stom, annee_2025", {"stom": j})
+    ctx.results["ind_socle"] = get_brick("ind_socle").run(ctx)
+    r = get_brick("stom").run(ctx)
+    assert r.texts["STOM_TEXTE_BENEVOLES"].startswith("Aucun bénévole")
+    assert [b[0] for b in r.tables["STOM_BLOCS_BENEVOLES"].data if b[0] == "image"] == []
+
+
+def test_reseau_synthese(tmp_path, monkeypatch):
+    ctx = _ctx(tmp_path, monkeypatch, "indicateurs, stom, sterf, annee_2025",
+               {"stom": _avec_benevoles("stom"), "sterf": jeu_factice("sterf")})
+    ctx.results["ind_socle"] = get_brick("ind_socle").run(ctx)
+    for code in ("stom", "sterf"):
+        ctx.results[code] = get_brick(code).run(ctx)
+    r = get_brick("ind_synthese").run(ctx)
+    assert "1 bénévole" in r.texts["TEXTE_RESEAU_BENEVOLE"] and "deux protocoles" in r.texts["TEXTE_RESEAU_BENEVOLE"]
+    assert [b[0] for b in r.tables["BLOCS_RESEAU_BENEVOLE"].data].count("image") >= 2
 
 
 def test_titre_et_contexte_suivent_les_protocoles_demandes(tmp_path, monkeypatch):

@@ -215,11 +215,20 @@ for code, prefixe, titre, suivis, textes, regles in PROTOCOLES:
     X(f"{prefixe}_CHART_EVOLUTION_ESPECES")
     L(f"Figure : part des {aires} où l'espèce est notée, sur les dernières saisons (indicateur descriptif ; couleur "
       "du plus clair, fréquence la plus faible du tableau, au plus foncé).")
+    H(2, "Bénévoles")
+    X(f"{prefixe}_TEXTE_BENEVOLES")
+    X(f"{prefixe}_BLOCS_BENEVOLES")
     H(2, "Analyses propres au protocole")
     X(f"{prefixe}_BLOCS_SPECIFIQUES")
     H(2, "Animation et perspectives")
     A("Animation du réseau, formations, communication et perspectives à rédiger par le coordinateur.")
     X(f"/{code}")
+
+H(1, "Le réseau bénévole")
+P("Bénévoles reconnus par leur compte GeoNature d'un protocole à l'autre (chiffres agrégés : aucune liste "
+  "nominative dans ce rapport).")
+X("TEXTE_RESEAU_BENEVOLE")
+X("BLOCS_RESEAU_BENEVOLE")
 
 H(1, "Conclusion et perspectives")
 X("TEXTE_CONCLUSION")

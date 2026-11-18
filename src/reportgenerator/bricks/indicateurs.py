@@ -5,6 +5,7 @@ charge son jeu (modèle commun) et remplit sa section {{#code}} … {{/code}} av
 (STOC_…, SHOC_…). Les analyses propres à un protocole sont des blocs (SPECIFIQUES, analysis/indicateurs/specifiques.py).
 """
 
+from collections import Counter
 from datetime import date
 from pathlib import Path
 from typing import Callable
@@ -15,6 +16,7 @@ from reportgenerator.analysis.common.models import AnalysisResult, ImageBlock, T
 from reportgenerator.analysis.indicateurs import cartes, chargement
 from reportgenerator.analysis.indicateurs import communes as k
 from reportgenerator.analysis.indicateurs import figures as fig
+from reportgenerator.analysis.indicateurs import participants as pt
 from reportgenerator.analysis.indicateurs import specifiques as sp
 from reportgenerator.analysis.indicateurs import textes as tx
 from reportgenerator.analysis.indicateurs.modele import Jeu
@@ -27,7 +29,7 @@ from reportgenerator.core.registry import register_brick
 CLES = ("ANNEE_LIBELLE", "TEXTE_PARTICIPATION", "CHART_CHIFFRES", "CHART_CATEGORIES", "NOTE_CATEGORIES",
         "BLOCS_ORGANISMES", "TEXTE_COUVERTURE", "BLOCS_COUVERTURE", "TEXTE_HISTORIQUE", "CHART_HISTORIQUE",
         "CHART_OBSERVATEURS", "TEXTE_FIDELISATION", "TEXTE_ESPECES", "CHART_ESPECES", "CHART_EVOLUTION_ESPECES",
-        "BLOCS_SPECIFIQUES")
+        "TEXTE_BENEVOLES", "BLOCS_BENEVOLES", "BLOCS_SPECIFIQUES")
 # les cartes {PREFIXE}_CARTE, _CARTE_CATEGORIES, _CARTE_ABANDONS sont des mises en page du projet QGIS (ind_cartes) ;
 # les tableaux détaillés de chaque protocole vont en annexe (data["annexe"], repris par ind_synthese)
 
@@ -228,6 +230,9 @@ def section_protocole(ctx, code: str) -> AnalysisResult:
                           [{cle: (_pct(v) if cle != "nom" else v) for cle, v in e.items()} for e in evo],
                           [("nom", "Espèce")] + [(a, lib_saison(a)) for a in evo[0] if a != "nom"])
 
+    texte_ben, blocs_ben, annexe_ben, travail_ben = _benevoles(ctx, code, jeu, saison, c1 is not None, debut_obs)
+    annexe += annexe_ben
+
     # analyses propres : graphiques dans la section, tableaux (blocs « annexe ») en annexe
     propres = SPECIFIQUES[code](ctx, jeu, saison, r) if code in SPECIFIQUES else []
     for b in propres:
@@ -236,6 +241,7 @@ def section_protocole(ctx, code: str) -> AnalysisResult:
     tables = {
         f"{P}_BLOCS_COUVERTURE": blocs(couverture),
         f"{P}_BLOCS_ORGANISMES": blocs(blocs_org),
+        f"{P}_BLOCS_BENEVOLES": blocs(blocs_ben),
         f"{P}_BLOCS_SPECIFIQUES": blocs([b for b in propres if b[0] != "annexe"]),
     }
     texts = {
@@ -249,14 +255,102 @@ def section_protocole(ctx, code: str) -> AnalysisResult:
         f"{P}_TEXTE_HISTORIQUE": _texte_historique(r, serie, debut, debut_obs),
         f"{P}_TEXTE_FIDELISATION": tx.texte_fidelisation(aire, fid) if c["aires"] else "",
         f"{P}_TEXTE_ESPECES": tx.texte_especes(c, esp, aire) if c["aires"] else "",
+        f"{P}_TEXTE_BENEVOLES": texte_ben,
     }
     print(f"[indicateurs] {code} {libelle} : {c['aires']} {tx.pluriel(aire)}, {c['observateurs']} observateurs, "
           f"{c['donnees']} données")
     return AnalysisResult(
         data={"jeu": jeu, "saison": saison, "libelle": libelle, "chiffres": c, "precedent": c1, "fidelisation": fid,
-              "especes": esp, "vide": False, "regle": r, "annexe": annexe, "organismes": organismes},
+              "especes": esp, "vide": False, "regle": r, "annexe": annexe, "organismes": organismes,
+              "benevoles": travail_ben},
         texts=texts, tables=tables, images={cle: ImageBlock(chemin) for cle, chemin in images.items()},
     )
+
+
+BENEVOLE = "Bénévole"
+
+
+def _benevoles(ctx, code, jeu, saison, avec_precedent, debut_obs):
+    """Sous-partie « Bénévoles » d'un protocole : (texte, blocs, annexe, travail). Chiffres agrégés seulement."""
+    r, s, p = regle(ctx, code), _socle(ctx), ctx.params
+    aire, temps, out = r["aire"], r.get("temps", {}), ctx.output_dirs["dataviz"]
+    libelle = libelle_saison(saison, r["saison"])
+    lib_saison = lambda a: libelle_saison(a, r["saison"])  # noqa: E731
+    t = pt.travail(jeu, saison, BENEVOLE, temps)
+    t1 = pt.travail(jeu, saison - 1, BENEVOLE, temps) if avec_precedent else None
+    statuts = Counter(pt.statuts(jeu, saison, BENEVOLE).values())
+    statuts1 = Counter(pt.statuts(jeu, saison - 1, BENEVOLE).values()) if avec_precedent else None
+    texte = tx.texte_benevoles(r["label"], aire, libelle, t, t1, statuts, p.get("taux_horaire_benevolat", 0))
+    aires_lib = tx.pluriel(aire).capitalize()
+    blocs_ben, annexe = [], []
+    if t["participants"]:
+        def v(x, cle):
+            return None if x is None else (round(x[cle]) if cle == "heures" else x[cle])
+        tuiles = [("Bénévoles", t["participants"], v(t1, "participants")),
+                  ("Nouveaux bénévoles", statuts["nouveau"], statuts1["nouveau"] if statuts1 else None),
+                  (f"{aires_lib} des bénévoles", t["aires"], v(t1, "aires")),
+                  ("Relevés", t["releves"], v(t1, "releves")), ("Données", t["donnees"], v(t1, "donnees")),
+                  ("Temps (h)" + (", estimé" if t["heures_estimees"] else ""), v(t, "heures"), v(t1, "heures"))]
+        serie = pt.serie_statuts(jeu, debut_obs, saison, BENEVOLE)
+        anc, eng = pt.anciennete(jeu, saison, BENEVOLE), pt.engagement(jeu, saison, BENEVOLE)
+        blocs_ben += [
+            ("image", fig.chart_chiffres(tuiles, out / f"{code}_benevoles_chiffres.png", libelle,
+                                         lib_saison(saison - 1))),
+            ("legende", f"Figure : chiffres clés des bénévoles, saison {libelle} ({tx.pluriel(aire)} attribuées à "
+                        "leur observateur principal, relevés selon la catégorie prioritaire de leurs observateurs)."
+             if tx.feminin(aire) else
+             f"Figure : chiffres clés des bénévoles, saison {libelle} ({tx.pluriel(aire)} attribués à leur "
+             "observateur principal, relevés selon la catégorie prioritaire de leurs observateurs)."),
+            ("image", fig.chart_renouvellement(serie, out / f"{code}_benevoles_renouvellement.png", lib_saison)),
+            ("legende", "Figure : bénévoles par saison : fidèles (présents la saison précédente), revenants (après "
+                        "une interruption), nouveaux ; sous l'axe, bénévoles de la saison précédente qui n'ont pas "
+                        "reconduit leur suivi."),
+        ]
+        annexe += _annexe("Bénévoles : renouvellement par saison",
+                          [{**x, "saison": lib_saison(x["saison"])} for x in serie],
+                          [("saison", "Saison"), ("fidèle", "Fidèles"), ("revenant", "Revenants"),
+                           ("nouveau", "Nouveaux"), ("parti", "Partis")])
+        if s["par_departement"]:
+            deps = pt.statuts_par_departement(jeu, saison, BENEVOLE)
+            blocs_ben += [
+                ("image", fig.chart_statuts_departements(deps, out / f"{code}_benevoles_departements.png")),
+                ("legende", f"Figure : bénévoles par département en {libelle} (un bénévole compte dans chaque "
+                            f"département où il a fait un relevé ; partis : départements de la saison précédente)."),
+            ]
+            annexe += _annexe("Bénévoles par département", deps,
+                              [("departement", "Département"), ("total", "Bénévoles"), ("fidèle", "Fidèles"),
+                               ("revenant", "Revenants"), ("nouveau", "Nouveaux"), ("parti", "Partis")])
+        blocs_ben += [
+            ("image", fig.chart_anciennete_engagement(anc, eng, out / f"{code}_benevoles_anciennete.png", aire)),
+            ("legende", f"Figure : bénévoles de {libelle} selon le nombre de saisons de participation au protocole et "
+                        f"le nombre de {tx.pluriel(aire)} {'suivies' if tx.feminin(aire) else 'suivis'} dans la "
+                        "saison."),
+        ]
+        annexe += _annexe("Bénévoles : ancienneté et engagement",
+                          [{"critere": "Ancienneté", "tranche": k_, "benevoles": n} for k_, n in anc.items()]
+                          + [{"critere": f"{aires_lib} {'suivies' if tx.feminin(aire) else 'suivis'}",
+                              "tranche": k_.replace("+", " et plus"), "benevoles": n} for k_, n in eng.items()],
+                          [("critere", "Critère"), ("tranche", "Tranche"), ("benevoles", "Bénévoles")])
+    if r["source"] == "monitoring":
+        jamais = pt.aires_jamais_visitees(jeu, s["q"].createurs_aires_monitoring(r["module"]))
+        n = sum(x["aires"] for x in jamais)
+        nb = sum(x["aires"] for x in jamais if x["categorie"] == BENEVOLE)
+        ces = tx.pluriel(aire, n)
+        blocs_ben.append(("texte", (
+            f"{tx.nombre(n)} {ces} de la zone {'ont' if n > 1 else 'a'} été {'créées' if tx.feminin(aire) else 'créés'}"
+            f" dans le module sans jamais être {'visitées' if tx.feminin(aire) else 'visités'}"
+            f", dont {tx.nombre(nb)} par un bénévole (détail en annexe) : suivis envisagés mais non concrétisés, à "
+            "relancer ou à retirer du module.") if n else
+            f"Toutes les {tx.pluriel(aire)} du module dans la zone ont été visitées au moins une fois."
+            if tx.feminin(aire) else
+            f"Tous les {tx.pluriel(aire)} du module dans la zone ont été visités au moins une fois."))
+        if jamais:
+            annexe += _annexe(f"{aires_lib} créées jamais visitées" if tx.feminin(aire)
+                              else f"{aires_lib} créés jamais visités",
+                              [{**x, "annee_creation": x["annee_creation"] or "—"} for x in jamais],
+                              [("annee_creation", "Année de création"), ("categorie", "Créateur"),
+                               ("aires", aires_lib)])
+    return texte, blocs_ben, annexe, t
 
 
 def _texte_historique(r, serie, debut, debut_obs) -> str:
@@ -299,11 +393,48 @@ def _organismes(sections) -> list[tuple]:
     return [("tableau", lignes, [("organisme", "Organisme")] + [(c, d["regle"]["label"]) for c, d in sections])]
 
 
+def _reseau(ctx, annee, sections):
+    """Partie « Le réseau bénévole » : (texte, blocs, annexe), tous protocoles du rapport, comptes GeoNature."""
+    p, out = ctx.params, ctx.output_dirs["dataviz"]
+    jeux = {code: d["jeu"] for code, d in sections}
+    saisons = {code: d["saison"] for code, d in sections}
+    labels = {code: d["regle"]["label"] for code, d in sections}
+    res = pt.reseau(jeux, saisons, BENEVOLE)
+    res1 = pt.reseau(jeux, {c: s - 1 for c, s in saisons.items()}, BENEVOLE) \
+        if any(d["precedent"] for _, d in sections) else None
+    heures = sum(d["benevoles"]["heures"] for _, d in sections)
+    texte = tx.texte_reseau(annee, res, res1, heures, p.get("taux_horaire_benevolat", 0))
+    if not res["participants"]:
+        return texte, [], []
+    serie = pt.serie_reseau(jeux, annee - int(p.get("annees_reseau", 10)) + 1, annee, BENEVOLE)
+    blocs_r = [("image", fig.chart_reseau(serie, out / "reseau_benevoles.png", str)),
+               ("legende", "Figure : bénévoles distincts (comptes GeoNature) ayant participé à au moins un protocole "
+                           "du rapport, par saison (saison d'hiver du SHOC comptée avec l'année de janvier).")]
+    annexe = _annexe("Bénévoles distincts par saison", serie, [("saison", "Saison"), ("participants", "Bénévoles")])
+    if res["combinaisons"]:
+        combis = [{"protocoles": " + ".join(labels[c] for c in codes), "benevoles": n}
+                  for codes, n in res["combinaisons"]]
+        blocs_r += [("image", fig.chart_combinaisons(res["combinaisons"], out / "reseau_combinaisons.png", labels)),
+                    ("legende", f"Figure : bénévoles participant à plusieurs protocoles en {annee}, par combinaison "
+                                "de protocoles (10 premières, liste complète en annexe).")]
+        annexe += _annexe("Bénévoles sur plusieurs protocoles", combis,
+                          [("protocoles", "Protocoles"), ("benevoles", "Bénévoles")])
+    if _socle(ctx)["par_departement"]:
+        deps = pt.reseau_par_departement(jeux, saisons, BENEVOLE)
+        blocs_r += [("image", fig.chart_barres({x["departement"]: x["participants"] for x in deps},
+                                               out / "reseau_departements.png", "Bénévoles", fig.VERT_EAU)),
+                    ("legende", f"Figure : bénévoles distincts par département en {annee} (un bénévole compte dans "
+                                "chaque département où il a fait un relevé).")]
+        annexe += _annexe("Bénévoles par département (tous protocoles)", deps,
+                          [("departement", "Département"), ("participants", "Bénévoles")])
+    return texte, blocs_r, annexe
+
+
 @register_brick(
     "ind_synthese",
     requires=["ind_socle"],
     provides=["TABLE_CHIFFRES_CLES", "TEXTE_CHIFFRES_CLES", "TEXTE_CONCLUSION", "BLOCS_ANNEXE_TABLEAUX",
-              "BLOCS_ANNEXE_CONTROLE", "BLOCS_ORGANISMES"],
+              "BLOCS_ANNEXE_CONTROLE", "BLOCS_ORGANISMES", "TEXTE_RESEAU_BENEVOLE", "BLOCS_RESEAU_BENEVOLE"],
     last=True,
 )
 def ind_synthese(ctx):
@@ -334,6 +465,9 @@ def ind_synthese(ctx):
                                                  ("unite", "Unité"), ("date", "Date"), ("nom", "Observateur")])]
     jeux = {code: d["jeu"] for code, d in sections}
     organismes = _organismes(sections)
+    texte_reseau, blocs_reseau, annexe_reseau = _reseau(ctx, annee, sections)
+    if annexe_reseau:
+        annexe_esp += [("titre", 2, "Le réseau bénévole"), *annexe_reseau]
     multi = k.observateurs_multi_protocoles(jeux, {code: d["saison"] for code, d in sections})
     total_donnees = sum(d["chiffres"]["donnees"] for _, d in sections)
     total_heures = sum(d["chiffres"]["heures"] for _, d in sections)
@@ -345,13 +479,15 @@ def ind_synthese(ctx):
     if not controle:
         controle = [("texte", "Aucune anomalie de saisie relevée.")]
     return AnalysisResult(
-        texts={"TEXTE_CHIFFRES_CLES": texte, "TEXTE_CONCLUSION": " ".join(phrases) or texte},
+        texts={"TEXTE_CHIFFRES_CLES": texte, "TEXTE_CONCLUSION": " ".join(phrases) or texte,
+               "TEXTE_RESEAU_BENEVOLE": texte_reseau},
         tables={
             "TABLE_CHIFFRES_CLES": tableau(lignes, [("protocole", "Protocole"), ("saison", "Saison"),
                                                     ("aires", "Aires suivies"), ("observateurs", "Observateurs"),
                                                     ("donnees", "Données"), ("temps", "Temps"),
                                                     ("ecart", "Écart des aires")]),
             "BLOCS_ORGANISMES": blocs(organismes),
+            "BLOCS_RESEAU_BENEVOLE": blocs(blocs_reseau),
             "BLOCS_ANNEXE_TABLEAUX": blocs(annexe_esp),
             "BLOCS_ANNEXE_CONTROLE": blocs([("a_rediger", "Annexe de contrôle : à supprimer avant envoi.")]
                                            + controle),

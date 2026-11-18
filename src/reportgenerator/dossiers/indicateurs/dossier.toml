@@ -24,6 +24,8 @@ annees_tableau = 5         # tableau des chiffres clés : N-4 à N
 annees_especes = 5         # observations lues : N-4 à N (espèces, évolution des fréquences)
 nb_especes = 20            # espèces du tableau de la section (toutes en annexe)
 nb_especes_evolution = 10
+taux_horaire_benevolat = 0   # €/h pour valoriser le temps des bénévoles (0 = non affiché)
+annees_reseau = 10           # saisons du graphique « réseau bénévole »
 map_layout = "page_legende"   # cartes en pleine largeur, légende sur la même page
 
 # Rendu QGIS : une mise en page par protocole (STOC_CARTE…), emprise = zone du rapport

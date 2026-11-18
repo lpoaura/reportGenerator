@@ -140,3 +140,54 @@ def texte_especes(c: dict, especes: list[dict], aire: str = "aire") -> str:
     premieres = ", ".join(f"{e['nom']} ({e['freq_aires']} % des {pluriel(aire)})" for e in especes[:5])
     return (f"{nombre(c.get('especes') or len(especes))} espèces ont été notées. Les plus fréquentes : {premieres}. "
             "Ces fréquences sont des indicateurs descriptifs, pas des tendances de population.")
+
+
+def _benevoles(n: int) -> str:
+    return f"{nombre(n)} bénévole{'s' if n > 1 else ''}"
+
+
+def valorisation(h, taux) -> str:
+    """« , soit environ 12 300 € valorisés au taux de 12,5 €/h » ; vide si le taux n'est pas renseigné."""
+    if not taux or not h:
+        return ""
+    t = f"{float(taux):g}".replace(".", ",")
+    return f", soit environ {nombre(round(h * float(taux), -2))} € valorisés au taux de {t} €/h"
+
+
+def texte_benevoles(label, aire, libelle, t: dict, t1: dict | None, statuts: dict, taux=0) -> str:
+    """Synthèse du bénévolat d'un protocole : participants, part, travail, renouvellement (chiffres agrégés)."""
+    n = t["participants"]
+    partis = statuts.get("parti", 0)
+    if not n:
+        fin = f" ; {_benevoles(partis)} de la saison précédente n'ont pas reconduit leur suivi." if partis else "."
+        return f"Aucun bénévole n'a participé au {label} en {libelle}{fin}"
+    ec = f" ({ecart(n, t1['participants'])} par rapport à la saison précédente)" if t1 else ""
+    part_obs = f", {t['part_observateurs']} % des observateurs" if t["part_observateurs"] is not None else ""
+    part_aires = f" ({t['part_aires']} % des {pluriel(aire)} {'suivies' if feminin(aire) else 'suivis'})" \
+        if t["part_aires"] is not None else ""
+    texte = (f"En {libelle}, {_benevoles(n)} {'ont' if n > 1 else 'a'} participé au {label}{ec}{part_obs}. "
+             f"Les bénévoles suivent {nombre(t['aires'])} {pluriel(aire, t['aires'])}{part_aires} et ont produit "
+             f"{nombre(t['donnees'])} données, pour {heures(t['heures'], t['heures_estimees'])}"
+             f"{valorisation(t['heures'], taux)}. ")
+    fid, rev, nouv = (statuts.get(s, 0) for s in ("fidèle", "revenant", "nouveau"))
+    texte += (f"Parmi eux : {nombre(fid)} fidèle{'s' if fid > 1 else ''} (déjà {'présents' if fid > 1 else 'présent'} "
+              f"la saison précédente), {nombre(rev)} revenant{'s' if rev > 1 else ''} après une interruption et "
+              f"{nombre(nouv)} nouveau{'x' if nouv > 1 else ''} ; ")
+    texte += (f"{_benevoles(partis)} de la saison précédente n'ont pas reconduit leur suivi." if partis
+              else "aucun bénévole de la saison précédente n'a arrêté.")
+    return texte
+
+
+def texte_reseau(annee, r: dict, r1: dict | None, h, taux=0) -> str:
+    """Réseau bénévole tous protocoles du rapport : comptes distincts, multi-protocoles, temps."""
+    n = r["participants"]
+    if not n:
+        return f"Aucun bénévole n'a participé aux protocoles du rapport en {annee}."
+    ec = f" ({ecart(n, r1['participants'])} par rapport à {annee - 1})" if r1 else ""
+    texte = (f"En {annee}, {_benevoles(n)} distinct{'s' if n > 1 else ''} (comptes GeoNature){ec} "
+             f"{'ont' if n > 1 else 'a'} participé à au moins un des protocoles du rapport, pour environ "
+             f"{nombre(round(h))} heures de travail (mesurées ou estimées){valorisation(h, taux)}. ")
+    m = r["multi"]
+    texte += (f"{_benevoles(m)} {'participent' if m > 1 else 'participe'} à au moins deux protocoles."
+              if m else "Aucun bénévole ne participe à deux protocoles ou plus.")
+    return texte
