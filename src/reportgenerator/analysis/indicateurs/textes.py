@@ -191,3 +191,21 @@ def texte_reseau(annee, r: dict, r1: dict | None, h, taux=0) -> str:
     texte += (f"{_benevoles(m)} {'participent' if m > 1 else 'participe'} à au moins deux protocoles."
               if m else "Aucun bénévole ne participe à deux protocoles ou plus.")
     return texte
+
+
+def texte_jamais_visitees(aire: str, n: int, nb: int) -> str:
+    """Aires créées dans le module sans jamais être visitées : `n` au total, dont `nb` créées par un bénévole."""
+    f = feminin(aire)
+    if not n:
+        return (f"Toutes les {pluriel(aire)} du module dans la zone ont été visitées au moins une fois." if f
+                else f"Tous les {pluriel(aire)} du module dans la zone ont été visités au moins une fois.")
+    accord = ("e" if f else "") + ("s" if n > 1 else "")
+    if nb == 0:
+        par = ((", aucune" if f else ", aucun") + " par un bénévole") if n > 1 else ""
+    elif nb == n:
+        par = ((", toutes" if f else ", tous") + " par des bénévoles") if n > 1 else ", par un bénévole"
+    else:
+        par = f", dont {nombre(nb)} par {'un bénévole' if nb == 1 else 'des bénévoles'}"
+    return (f"{nombre(n)} {pluriel(aire, n)} de la zone {'ont' if n > 1 else 'a'} été créé{accord} dans le module "
+            f"sans jamais être visité{accord}{par} (détail en annexe) : suivis envisagés mais non concrétisés, à "
+            "relancer ou à retirer du module.")

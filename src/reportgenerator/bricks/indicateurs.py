@@ -337,15 +337,7 @@ def _benevoles(ctx, code, jeu, saison, avec_precedent, debut_obs):
         jamais = pt.aires_jamais_visitees(jeu, s["q"].createurs_aires_monitoring(r["module"]))
         n = sum(x["aires"] for x in jamais)
         nb = sum(x["aires"] for x in jamais if x["categorie"] == BENEVOLE)
-        ces = tx.pluriel(aire, n)
-        blocs_ben.append(("texte", (
-            f"{tx.nombre(n)} {ces} de la zone {'ont' if n > 1 else 'a'} été {'créées' if tx.feminin(aire) else 'créés'}"
-            f" dans le module sans jamais être {'visitées' if tx.feminin(aire) else 'visités'}"
-            f", dont {tx.nombre(nb)} par un bénévole (détail en annexe) : suivis envisagés mais non concrétisés, à "
-            "relancer ou à retirer du module.") if n else
-            f"Toutes les {tx.pluriel(aire)} du module dans la zone ont été visitées au moins une fois."
-            if tx.feminin(aire) else
-            f"Tous les {tx.pluriel(aire)} du module dans la zone ont été visités au moins une fois."))
+        blocs_ben.append(("texte", tx.texte_jamais_visitees(aire, n, nb)))
         if jamais:
             annexe += _annexe(f"{aires_lib} créées jamais visitées" if tx.feminin(aire)
                               else f"{aires_lib} créés jamais visités",

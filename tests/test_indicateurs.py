@@ -843,3 +843,22 @@ def test_analyses_propres_en_graphiques(tmp_path):
     # sans objectif chiffré : pas de graphique des objectifs (il répéterait la couverture par zone)
     b = sp.blocs_sterf(j, 2025, {**regle, "objectifs_zbiog": {}}, sortie=tmp_path)
     assert [x[0] for x in b].count("image") == 1
+
+
+def test_texte_jamais_visitees():
+    """Pas de « dont 0 par un bénévole » ; accords selon le nombre et le genre de l'aire."""
+    t = textes.texte_jamais_visitees
+    assert t("site", 0, 0) == "Tous les sites du module dans la zone ont été visités au moins une fois."
+    assert t("aire", 0, 0) == "Toutes les aires du module dans la zone ont été visitées au moins une fois."
+    debut = "4 sites de la zone ont été créés dans le module sans jamais être visités"
+    fin = " (détail en annexe) : suivis envisagés mais non concrétisés, à relancer ou à retirer du module."
+    assert t("site", 4, 0) == debut + ", aucun par un bénévole" + fin
+    assert t("site", 4, 1) == debut + ", dont 1 par un bénévole" + fin
+    assert t("site", 4, 3) == debut + ", dont 3 par des bénévoles" + fin
+    assert t("site", 4, 4) == debut + ", tous par des bénévoles" + fin
+    assert t("aire", 5, 0).startswith("5 aires de la zone ont été créées dans le module sans jamais être visitées, "
+                                      "aucune par un bénévole (")
+    assert t("aire", 1, 1).startswith("1 aire de la zone a été créée dans le module sans jamais être visitée, "
+                                      "par un bénévole (")
+    assert t("site", 1, 0).startswith("1 site de la zone a été créé dans le module sans jamais être visité "
+                                      "(détail")

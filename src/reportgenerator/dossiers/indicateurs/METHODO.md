@@ -143,7 +143,13 @@ n'a aucune aire dans la zone.
   modifiable directement dans QGIS (symbologie, mise en page). Cadrage (18/11/2026) : les trois cartes d'un protocole
   sont cadrées sur l'étendue de ses aires dans la zone (`emprise_marge` de chaque côté, au moins `emprise_min_km` ;
   le rendu ajoute sa propre marge de 5 %), pleine page (170 × 235 mm) ; point au centre de chaque aire de 2,4 mm
-  à contour blanc (pas d'écartement des points superposés pour l'instant).
+  à contour blanc (pas d'écartement des points superposés pour l'instant). Lisibilité (19/11/2026) : points
+  toujours dessinés devant les limites ; ordre de dessin par niveaux de symboles (statut : premières fois devant,
+  puis suivies, non suivies derrière ; observateurs : catégories au même niveau, « Non renseigné » derrière ;
+  abandons : aires à reprendre devant, aires suivies derrière) ; catégories de contexte (non suivies, non
+  renseignées) en cercle creux gris de 1,7 mm, aires suivies de la carte des abandons en point bleu pâle de 1,7 mm ;
+  fond OSM en niveaux de gris à 55 % d'opacité ; limites fines (zone 0,5 mm, départements 0,2 mm gris clair, zones
+  biogéographiques 0,3 mm en pointillés brun-gris) ; région et départements du fond Natura 2000 retirés (doublons).
 
 Template : `outils/word/template_indicateurs.py` (textes fixes repris du rapport 2025, à relire).
 
