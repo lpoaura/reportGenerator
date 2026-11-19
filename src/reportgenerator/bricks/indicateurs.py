@@ -441,9 +441,10 @@ def ind_synthese(ctx):
                        f"{tx.pluriel(r['aire'], c['aires'])}", "observateurs": tx.nombre(c["observateurs"]),
                        "donnees": tx.nombre(c["donnees"]), "temps": _heures(c),
                        "ecart": tx.ecart(c["aires"], c1["aires"] if c1 else None)})
-        phrases.append(f"{r['label']} ({d['libelle']}) : {tx.nombre(c['aires'])} {tx.pluriel(r['aire'], c['aires'])} "
-                       f"(écart avec la saison précédente : {tx.ecart(c['aires'], c1['aires'] if c1 else None)}), "
-                       f"{tx.nombre(c['observateurs'])} observateurs, {tx.nombre(c['donnees'])} données.")
+        evolution = f", {tx.evolution(c['aires'], c1['aires'], 'la saison précédente')}" if c1 else ""
+        phrases.append(f"{r['label']} ({d['libelle']}) : {tx.nombre(c['aires'])} {tx.pluriel(r['aire'], c['aires'])}"
+                       f"{evolution} ; {tx.nombre(c['observateurs'])} observateurs, {tx.nombre(c['donnees'])} "
+                       "données.")
         especes = k.especes(d["jeu"], d["saison"], None)
         annexe_esp += [("titre", 2, f"{r['label']} - {d['libelle']}"), *d["annexe"],
                        *_annexe("Espèces notées", [

@@ -626,6 +626,8 @@ def test_synthese_ignore_protocole_vide(tmp_path, monkeypatch):
     lignes = r.tables["TABLE_CHIFFRES_CLES"].data
     assert [ligne["protocole"] for ligne in lignes] == ["STOM"]
     assert "nan" not in r.texts["TEXTE_CONCLUSION"] and "STOM" in r.texts["TEXTE_CONCLUSION"]
+    assert not re.search(r"\([^()]*\(", r.texts["TEXTE_CONCLUSION"]), r.texts["TEXTE_CONCLUSION"]
+    assert "par rapport à la saison précédente" in r.texts["TEXTE_CONCLUSION"]
 
 
 def test_organismes_tiers_section_et_synthese(tmp_path, monkeypatch):
@@ -931,3 +933,22 @@ def test_texte_jamais_visitees():
                                       "par un bénévole (")
     assert t("site", 1, 0).startswith("1 site de la zone a été créé dans le module sans jamais être visité "
                                       "(détail")
+
+
+def test_textes_benevoles_sans_parentheses_imbriquees():
+    """Écart avec la saison précédente hors parenthèses (« +3 (+2 %) » en contient déjà) ; écart nul : « stable »."""
+    t = {"participants": 141, "part_observateurs": 65, "aires": 165, "part_aires": 56, "releves": 300,
+         "donnees": 45845, "heures": 1732, "heures_estimees": True}
+    statuts = {"fidèle": 118, "revenant": 4, "nouveau": 19, "parti": 20}
+    texte = textes.texte_benevoles("STOC-EPS", "carré", "2026", t, {**t, "participants": 138}, statuts)
+    assert texte.startswith("En 2026, 141 bénévoles ont participé au STOC-EPS, +3 (+2 %) par rapport à la saison "
+                            "précédente ; ils représentent 65 % des observateurs. ")
+    assert "stable par rapport à la saison précédente" in textes.texte_benevoles("STOC-EPS", "carré", "2026", t, t,
+                                                                                 statuts)
+    r = {"participants": 192, "multi": 60}
+    reseau = textes.texte_reseau(2026, r, {"participants": 185, "multi": 50}, 2541)
+    assert reseau.startswith("En 2026, 192 bénévoles distincts (comptes GeoNature) ont participé à au moins un des "
+                             "protocoles du rapport, +7 (+4 %) par rapport à 2025. Leur travail représente environ "
+                             f"2{textes.NBSP_FINE}541 heures (mesurées ou estimées). ")
+    for x in (texte, reseau):
+        assert not re.search(r"\([^()]*\(", x), x

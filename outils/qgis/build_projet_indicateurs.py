@@ -18,6 +18,7 @@ devant ; « Non renseigné » derrière) ; les catégories de contexte ont un pe
 projet Natura 2000 est remplacé (ses région et départements doublaient ceux du groupe « Fond »).
 """
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -56,6 +57,9 @@ DECO = "https://raw.githubusercontent.com/lpoaura/lpo_qgis_profiles/main/profile
 IMAGES = {"logo_gauche": f"{DECO}/logo_lpo_aura_G.png", "fleche_nord_blanche": f"{DECO}/Fleche_N_blanche.svg"}
 # tailles de police (pt) : titre sur une ou deux lignes dans son bandeau, légende dans le bandeau gauche (61 mm)
 TITRE_PT = 20
+# titre plus long (saisons sur deux années du SHOC : « 2024-2025 ») : police réduite pour rester sur deux lignes
+TITRE_PT_LONG, TITRE_MAX_CAR = 17, 34
+SAISON_DEUX_ANS = {"SHOC"}
 LEGENDE_PT = {QgsLegendStyle.Title: 14, QgsLegendStyle.Group: 11, QgsLegendStyle.Subgroup: 10,
               QgsLegendStyle.SymbolLabel: 8}
 COUPURE = "|"   # coupure de ligne des libellés de légende trop longs
@@ -227,6 +231,16 @@ _, ok = modele.loadFromTemplate(gabarit, QgsReadWriteContext())
 assert ok, f"chargement du modèle impossible : {MODELE_QPT}"
 
 
+def taille_titre(titre: str) -> int:
+    """Taille du titre selon sa plus longue ligne, les variables @annee… remplacées par une saison de leur forme."""
+    longueurs = []
+    for ligne in titre.split("\n"):
+        rendu = re.sub(r"\[% @annee(?:_prec)?_(\w+) %\]",
+                       lambda m: "2025-2026" if m.group(1) in SAISON_DEUX_ANS else "2026", ligne)
+        longueurs.append(len(rendu))
+    return TITRE_PT if max(longueurs) <= TITRE_MAX_CAR else TITRE_PT_LONG
+
+
 def carte(nom, champ, categories, subset, titre, legende):
     """Groupe + mise en page `nom` (clone du modèle) : couche ind_aires filtrée et catégorisée sur `champ`."""
     aires = couche("ind_aires", "Aires", subset=subset)
@@ -273,7 +287,7 @@ def carte(nom, champ, categories, subset, titre, legende):
         if isinstance(it, QgsLayoutItemLabel) and it.id() == "Titre":
             it.setText(titre)
             format_ = it.textFormat()
-            format_.setSize(TITRE_PT)
+            format_.setSize(taille_titre(titre))
             it.setTextFormat(format_)
         if isinstance(it, QgsLayoutItemLabel) and it.id() == "Infos sup":
             it.setText(CARTOUCHE)
