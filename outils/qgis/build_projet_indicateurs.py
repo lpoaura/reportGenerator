@@ -22,8 +22,8 @@ from pathlib import Path
 
 from qgis.core import (QgsApplication, QgsCategorizedSymbolRenderer, QgsCentroidFillSymbolLayer, QgsFillSymbol,
                        QgsHueSaturationFilter, QgsLayerTreeGroup, QgsLayoutItemLabel, QgsLayoutItemLegend,
-                       QgsLayoutItemMap, QgsMapLayerType, QgsMarkerSymbol, QgsProject, QgsRendererCategory,
-                       QgsSingleSymbolRenderer, QgsVectorLayer)
+                       QgsLayoutItemMap, QgsLayoutItemScaleBar, QgsMapLayerLegendUtils, QgsMapLayerType,
+                       QgsMarkerSymbol, QgsProject, QgsRendererCategory, QgsSingleSymbolRenderer, QgsVectorLayer)
 
 QgsApplication.setPrefixPath(os.getenv("QGIS_PREFIX_PATH", r"C:\Program Files\QGIS\3_40\apps\qgis-ltr"), True)
 app = QgsApplication([], False)
@@ -67,6 +67,7 @@ RECONDUCTION = [("abandon", "Suivi(e) la saison précédente, pas cette année",
 TAILLE_POINT = "2.4"     # mm : point au centre de chaque aire (contour blanc : deux points proches restent distincts)
 TAILLE_CONTEXTE = "1.7"  # mm : aires de contexte (non suivies, non renseignées, suivies sur la carte des abandons)
 FOND_OPACITE = 0.55      # fond OSM en niveaux de gris, éclairci : les couleurs des points ressortent
+ECHELLE_MAX_MM = 44      # barre d'échelle (placée à 147 mm sur 210) : le dernier libellé reste dans la page
 
 
 def remplissage(couleur, niveau=1, forme="plein", contour="35,35,35,255", largeur="0.15"):
@@ -163,8 +164,9 @@ def carte(nom, champ, categories, subset, titre, legende):
     noeud = racine.addLayer(aires)
     noeud.setCustomProperty("legend/title-label", legende)
     racine.addLayer(zone)
-    racine.addLayer(deps)
-    racine.addLayer(zbiog)
+    # limites fines et grises : symbole de légende éclairci, lisible sur le fond bleu de la légende
+    QgsMapLayerLegendUtils.setLegendNodeCustomSymbol(racine.addLayer(deps), 0, contour("#e6e6e6", "0.4"))
+    QgsMapLayerLegendUtils.setLegendNodeCustomSymbol(racine.addLayer(zbiog), 0, contour("#f2e3cf", "0.5", "dot"))
     principale.setAutoUpdateModel(False)
     principale.setLegendFilterByMapEnabled(False)
     principale.setResizeToContents(True)
@@ -175,6 +177,9 @@ def carte(nom, champ, categories, subset, titre, legende):
         if isinstance(it, QgsLayoutItemMap):
             it.setKeepLayerSet(False)
             it.setFollowVisibilityPreset(False)
+        if isinstance(it, QgsLayoutItemScaleBar):
+            it.setMaximumBarWidth(ECHELLE_MAX_MM)
+            it.update()
 
 
 for code, prefixe, protocole, aires_, suivis in PROTOCOLES:

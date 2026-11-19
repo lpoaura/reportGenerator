@@ -149,7 +149,9 @@ n'a aucune aire dans la zone.
   abandons : aires à reprendre devant, aires suivies derrière) ; catégories de contexte (non suivies, non
   renseignées) en cercle creux gris de 1,7 mm, aires suivies de la carte des abandons en point bleu pâle de 1,7 mm ;
   fond OSM en niveaux de gris à 55 % d'opacité ; limites fines (zone 0,5 mm, départements 0,2 mm gris clair, zones
-  biogéographiques 0,3 mm en pointillés brun-gris) ; région et départements du fond Natura 2000 retirés (doublons).
+  biogéographiques 0,3 mm en pointillés brun-gris, symboles de légende éclaircis pour le fond bleu) ; région et
+  départements du fond Natura 2000 retirés (doublons) ; barre d'échelle limitée à 44 mm (le libellé « km » sortait
+  de la page).
 
 Template : `outils/word/template_indicateurs.py` (textes fixes repris du rapport 2025, à relire).
 
