@@ -99,6 +99,19 @@ class IndicateursQueries:
             WHERE ST_Intersects(b.geom, z.geom) AND NOT ST_Touches(b.geom, z.geom)
             ORDER BY b.area_name""")
 
+    def villes(self, distance_m: int = 30000) -> list[dict]:
+        """Chefs-lieux à moins de `distance_m` de la zone, étiquetés sur les cartes (à la place des noms du fond de
+        carte) : rang 1 préfecture de région, 2 préfecture, 3 sous-préfecture ; point = centre de la commune."""
+        return self._fetch("""WITH {ZONE}
+            SELECT m.nom_com AS nom,
+                   CASE m.status WHEN 'Préfecture de région' THEN 1 WHEN 'Préfecture' THEN 2 ELSE 3 END AS rang,
+                   ST_AsText(coalesce(a.centroid, ST_PointOnSurface(a.geom))) AS wkt
+            FROM ref_geo.li_municipalities m
+            JOIN ref_geo.l_areas a ON a.id_area = m.id_area AND a.enable, zone z
+            WHERE m.status IN ('Préfecture de région', 'Préfecture', 'Sous-préfecture')
+              AND ST_DWithin(a.geom, z.geom, %(distance)s)
+            ORDER BY rang, nom""", distance=int(distance_m))
+
     def localiser(self, centres: list[tuple]) -> list[dict]:
         """Commune, département et zone biogéographique du centre de chaque aire (département et zone : les plus
         proches si le centre tombe hors de la région, ex. carré à cheval sur une limite)."""

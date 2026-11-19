@@ -14,9 +14,11 @@ def _geom(texte):
     return wkt.loads(texte) if isinstance(texte, str) and texte else None
 
 
-def couches_cartes(jeux: dict, saisons: dict, zone: dict, departements: list[dict], zbiog: list[dict]) -> dict:
-    """ind_zone, ind_departements, ind_zbiog (contours) et ind_aires (protocole ; statut en N : suivie, nouvelle,
-    non suivie ; catégorie de l'aire en N ; reconduction : suivie en N, ou abandon = suivie en N-1 seulement)."""
+def couches_cartes(jeux: dict, saisons: dict, zone: dict, departements: list[dict], zbiog: list[dict],
+                   villes: list[dict] | None = None) -> dict:
+    """ind_zone, ind_departements, ind_zbiog (contours), ind_villes (chefs-lieux étiquetés, rang 1 à 3) et ind_aires
+    (protocole ; statut en N : suivie, nouvelle, non suivie ; catégorie de l'aire en N ; reconduction : suivie en N,
+    ou abandon = suivie en N-1 seulement)."""
     aires = []
     for code, jeu in jeux.items():
         n = saisons[code]
@@ -35,6 +37,7 @@ def couches_cartes(jeux: dict, saisons: dict, zone: dict, departements: list[dic
         "ind_zone": [{"nom": zone.get("nom", ""), "geom": _geom(zone["wkt"])}],
         "ind_departements": [{"nom": d["nom"], "geom": _geom(d["wkt"])} for d in departements],
         "ind_zbiog": [{"nom": z["nom"], "geom": _geom(z["wkt"])} for z in zbiog],
+        "ind_villes": [{"nom": v["nom"], "rang": int(v["rang"]), "geom": _geom(v["wkt"])} for v in villes or []],
         "ind_aires": aires,
     }
 

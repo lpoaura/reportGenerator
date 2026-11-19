@@ -152,7 +152,13 @@ n'a aucune aire dans la zone.
   au même niveau, « Non renseigné » derrière ; abandons : aires à reprendre devant, aires suivies derrière) ; aires de
   contexte en petit point pâle de 1,7 mm (non suivies et non renseignées en gris clair, suivies de la carte des
   abandons en bleu pâle). Fond : tuiles vectorielles OpenMapTiles (OSM) de Mergin Maps, style par défaut à 75 %
-  d'opacité (couleurs adoucies, villes et routes pour se repérer) ; zone 0,6 mm, départements 0,3 mm gris foncé,
+  d'opacité (couleurs adoucies, routes et relief pour se repérer), sans ses noms de lieux : ils se posaient sur les
+  points des aires et ne choisissaient pas les villes utiles (Villeurbanne plutôt que Lyon). Villes : nos propres
+  étiquettes (couche `ind_villes`, chefs-lieux de `ref_geo.li_municipalities` à moins de 30 km de la zone : préfecture
+  de région et préfectures toujours, en gras ; sous-préfectures, point compris, sur les cartes plus zoomées que
+  1/1 500 000), placées autour du point de la ville en évitant les aires (obstacles). Cartouche : sources des données
+  seulement (Faune-France, GeoNature) ; logo et flèche du Nord du dépôt GitHub `lpoaura/lpo_qgis_profiles`.
+  Zone 0,6 mm, départements 0,3 mm gris foncé,
   zones biogéographiques 0,4 mm en tirets bruns (symboles de légende éclaircis pour le bandeau bleu) ; région et
   départements du fond Natura 2000 retirés (doublons). Légende en 8 à 14 pt, libellés longs coupés sur deux lignes ;
   barre d'échelle de 20 à 40 mm (valeurs rondes, dans le bandeau).

@@ -498,7 +498,8 @@ def ind_cartes(ctx):
     s, data_dir = _socle(ctx), ctx.output_dirs["data"]
     sections = _sections(ctx)
     couches = cartes.couches_cartes({c: d["jeu"] for c, d in sections}, {c: d["saison"] for c, d in sections},
-                                    {**s["zone"], "nom": ctx.area_name}, s["departements"], s["zbiog"])
+                                    {**s["zone"], "nom": ctx.area_name}, s["departements"], s["zbiog"],
+                                    s["q"].villes())
     for nom, lignes in couches.items():
         export_gpkg(lignes, data_dir, layer_name=nom, geom_col="geom", crs="EPSG:2154")
     projet = ctx.dossier.qgis_project
@@ -512,7 +513,7 @@ def ind_cartes(ctx):
     variables.update({f"annee_prec_{PREFIXES[c]}": libelle_saison(s["annee"] - 1, regle(ctx, c)["saison"])
                       for c in PROTOCOLES})
     variables.update({"zone": ctx.area_name,
-                      "sources": "Faune-France (STOC, SHOC) et GeoNature (STOM, STERF, POP), LPO Auvergne-Rhône-Alpes"})
+                      "sources": "Faune-France (STOC, SHOC) et GeoNature (STOM, STERF, POP)"})
     # seulement les mises en page des protocoles présents dans le rapport ({PREFIXE}_CARTE…)
     prefixes = {PREFIXES[c] for c, _ in sections}
     layouts = [n for n in qgis_layout_names(projet) if n.split("_")[0] in prefixes]

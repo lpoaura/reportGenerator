@@ -37,6 +37,7 @@ appels = {
     "zone": lambda: q.zone() if False else q._fetch("WITH {ZONE} SELECT * FROM zone"),
     "departements": q.departements,
     "zones_biogeo": q.zones_biogeo,
+    "villes": q.villes,
     "localiser": lambda: q.localiser([("a", 850000.0, 6500000.0)]),
     "aires_vigienature STOC": lambda: q.aires_vigienature(["STOC_EPS"]),
     "releves_vigienature STOC": lambda: q.releves_vigienature(["STOC_EPS"], 2001),

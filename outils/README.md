@@ -120,12 +120,14 @@ dans un dossier sans espace, puis copier le `.qgz`. La connexion passe par le se
 enregistré dans le projet.
 
 **Projet du dossier Indicateurs de biodiversité** : `build_projet_indicateurs.py` part du projet Natura 2000 (groupe
-FDC, dont le fond est remplacé par les tuiles vectorielles OpenMapTiles de Mergin Maps à 75 % d'opacité) et du modèle
+FDC, dont le fond est remplacé par les tuiles vectorielles OpenMapTiles de Mergin Maps à 75 % d'opacité, sans leurs
+noms : les villes sont étiquetées par la couche `ind_villes`, les aires servant d'obstacles) et du modèle
 de mise en page A4 paysage LPO `outils/qgis/modeles/carte_paysage_lpo.qpt` (bandeau bleu à gauche ; logo et flèche du
 Nord via les variables de projet `@logo_gauche` et `@fleche_nord_blanche`, définies par le script). Il crée trois
 mises en page par protocole (`STOC_CARTE`, `_CARTE_CATEGORIES`, `_CARTE_ABANDONS`… pour STOC, SHOC, STOM, STERF,
 POPR, POPA) : couche `ind_aires` filtrée par protocole et catégorisée (un point au centre de chaque aire, niveaux de
-symboles), fond `ind_zone`, `ind_departements`, `ind_zbiog`. Titres : variables `@annee_<PRÉFIXE>` et `@sources`
+symboles), fond `ind_zone`, `ind_departements`, `ind_zbiog`, `ind_villes`. Pour construire le projet, le dossier
+`data\` doit contenir ces couches (dry-run du dossier). Titres : variables `@annee_<PRÉFIXE>` et `@sources`
 fournies par la brique `ind_cartes`. Une fois installé, le projet se retouche directement dans QGIS (symbologie, mise
 en page). Les cartes sont insérées dans le Word sur des pages paysage (`map_layout = "paysage"`, sections créées par
 `outils/word/template_indicateurs.py`).

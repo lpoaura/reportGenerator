@@ -408,6 +408,8 @@ def _ctx(tmp_path, monkeypatch, list_analyse, jeux):
     monkeypatch.setattr(IndicateursQueries, "departements", lambda self: DEPARTEMENTS)
     monkeypatch.setattr(IndicateursQueries, "zones_biogeo", lambda self: [])
     monkeypatch.setattr(IndicateursQueries, "createurs_aires_monitoring", lambda self, module: [])
+    monkeypatch.setattr(IndicateursQueries, "villes",
+                        lambda self: [{"nom": "Lyon", "rang": 1, "wkt": "POINT (842000 6519000)"}])
     d = load_dossier("indicateurs")
     enabled, _ = d.select_analyses(list_analyse)
     return ReportContext(service_name="factice", id_area=1, area_name="Test", referee="t", buffer=0, dossier=d,
@@ -871,6 +873,23 @@ def test_brique_cartes_cadre_chaque_protocole(tmp_path, monkeypatch):
     emprises = configs[0]["layout_extents"]
     assert set(emprises) == {"STOM_CARTE", "STOM_CARTE_ABANDONS"}
     assert emprises["STOM_CARTE"] == emprises["STOM_CARTE_ABANDONS"]          # même cadrage pour les 3 cartes
+    # cartouche : sources des données seulement (le logo LPO est déjà sur la carte)
+    assert configs[0]["project_variables"]["sources"] == "Faune-France (STOC, SHOC) et GeoNature (STOM, STERF, POP)"
+    # étiquettes des villes : couche ind_villes exportée avec les autres
+    assert (ctx.output_dirs["data"] / "ind_villes.gpkg").exists()
+
+
+def test_couches_cartes_villes():
+    """Villes étiquetées sur les cartes (nos étiquettes, pas celles du fond) : chefs-lieux avec leur rang (1
+    préfecture de région, 2 préfecture, 3 sous-préfecture), en point."""
+    villes = [{"nom": "Lyon", "rang": 1, "wkt": "POINT (842000 6519000)"},
+              {"nom": "Vienne", "rang": 3, "wkt": "POINT (846000 6493000)"}]
+    c = cartes.couches_cartes({"stom": jeu_factice("stom")}, {"stom": 2025}, {"wkt": ZONE_WKT}, DEPARTEMENTS, [],
+                              villes)
+    assert [(v["nom"], v["rang"], v["geom"].geom_type) for v in c["ind_villes"]] == [("Lyon", 1, "Point"),
+                                                                                     ("Vienne", 3, "Point")]
+    assert cartes.couches_cartes({"stom": jeu_factice("stom")}, {"stom": 2025}, {"wkt": ZONE_WKT}, DEPARTEMENTS,
+                                 [])["ind_villes"] == []
 
 
 def test_couches_cartes_categories_et_reconduction():

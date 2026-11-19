@@ -26,7 +26,10 @@ from qgis.core import (QgsApplication, QgsCategorizedSymbolRenderer, QgsCentroid
                        QgsExpressionContextUtils, QgsFillSymbol, QgsLayerTreeGroup, QgsLayoutItemLabel,
                        QgsLayoutItemLegend, QgsLayoutItemMap, QgsLayoutItemScaleBar, QgsLayoutPoint, QgsLegendStyle,
                        QgsMapLayerLegendUtils, QgsMarkerSymbol, QgsPrintLayout, QgsProject, QgsReadWriteContext,
-                       QgsRendererCategory, QgsSingleSymbolRenderer, QgsVectorLayer, QgsVectorTileLayer)
+                       QgsRendererCategory, QgsSingleSymbolRenderer, QgsVectorLayer, QgsVectorTileLayer,
+                       QgsLabelObstacleSettings, QgsPalLayerSettings, QgsRuleBasedLabeling, QgsTextBufferSettings,
+                       QgsTextFormat, QgsVectorLayerSimpleLabeling, QgsRuleBasedRenderer)
+from qgis.PyQt.QtGui import QColor, QFont
 from qgis.PyQt.QtXml import QDomDocument
 
 QgsApplication.setPrefixPath(os.getenv("QGIS_PREFIX_PATH", r"C:\Program Files\QGIS\3_40\apps\qgis-ltr"), True)
@@ -48,10 +51,9 @@ MODELE_QPT = Path(sys.argv[3]) if len(sys.argv) > 3 else Path(__file__).parent /
 FOND_URI = ("styleUrl=https://tiles.merginmaps.com/styles/default.json&type=xyz"
             "&url=https://tiles.merginmaps.com/data/default/%7Bz%7D/%7Bx%7D/%7By%7D.pbf&zmax=14&zmin=0")
 # images du modèle : sa source est l'expression @logo_gauche / @fleche_nord_blanche (variables du profil QGIS LPO),
-# définies ici en variables du projet avec les images des cartes portrait
-IMAGES = {"logo_gauche": "Z:/01_Modeles/CHARTE LPO/LOGOS/POUR LE WEB/LPO Auvergne-Rhône-Alpes_GAUCHE_transparent.png",
-          "fleche_nord_blanche": "https://raw.githubusercontent.com/lpoaura/lpo_qgis_profiles/main/profiles/"
-                                 "naturaliste/composer_templates/deco/Fleche_N_blanche.svg"}
+# définies ici en variables du projet avec les images du dépôt lpo_qgis_profiles (comme les autres projets)
+DECO = "https://raw.githubusercontent.com/lpoaura/lpo_qgis_profiles/main/profiles/naturaliste/composer_templates/deco"
+IMAGES = {"logo_gauche": f"{DECO}/logo_lpo_aura_G.png", "fleche_nord_blanche": f"{DECO}/Fleche_N_blanche.svg"}
 # tailles de police (pt) : titre sur une ou deux lignes dans son bandeau, légende dans le bandeau gauche (61 mm)
 TITRE_PT = 20
 LEGENDE_PT = {QgsLegendStyle.Title: 14, QgsLegendStyle.Group: 11, QgsLegendStyle.Subgroup: 10,
@@ -151,6 +153,7 @@ assert fond.isValid(), "fond de carte OpenMapTiles invalide"
 message, ok = fond.loadDefaultStyle()
 assert ok, f"style du fond de carte non chargé : {message}"
 fond.setOpacity(FOND_OPACITE)
+fond.setLabelsEnabled(False)   # noms du fond masqués : nos étiquettes (ind_villes) évitent les points des aires
 P.addMapLayer(fond, False)
 ROOT.findGroup("FDC").addLayer(fond)
 
@@ -164,7 +167,57 @@ deps = couche("ind_departements", "Départements")
 deps.setRenderer(QgsSingleSymbolRenderer(contour("#555555", "0.3")))
 zbiog = couche("ind_zbiog", "Zones biogéographiques")
 zbiog.setRenderer(QgsSingleSymbolRenderer(contour("#8b5a2b", "0.4", "dash")))
-groupe("Fond", [zone, deps, zbiog], visible=True)
+
+# villes : chefs-lieux (rang 1 préfecture de région, 2 préfecture, 3 sous-préfecture) ; préfectures toujours,
+# sous-préfectures à partir de VILLES_ECHELLE_SOUS_PREF (cartes plus zoomées que la région entière)
+VILLES_ECHELLE_SOUS_PREF = 1500000
+
+
+def etiquette(taille, gras):
+    reglage = QgsPalLayerSettings()
+    reglage.fieldName = "nom"
+    reglage.placement = QgsPalLayerSettings.OrderedPositionsAroundPoint
+    reglage.dist = 0.6
+    reglage.priority = 10 if gras else 6
+    texte = QgsTextFormat()
+    police = QFont()
+    police.setBold(gras)
+    texte.setFont(police)
+    texte.setSize(taille)
+    texte.setColor(QColor("#222222"))
+    halo = QgsTextBufferSettings()
+    halo.setEnabled(True)
+    halo.setSize(0.8)
+    halo.setColor(QColor("white"))
+    halo.setOpacity(0.85)
+    texte.setBuffer(halo)
+    reglage.setFormat(texte)
+    return reglage
+
+
+villes = couche("ind_villes", "Villes")
+
+
+def point_ville():
+    return QgsMarkerSymbol.createSimple({"name": "circle", "size": "1.3", "color": "#3a3a3a",
+                                         "outline_color": "white", "outline_width": "0.3"})
+
+
+# point de la ville visible seulement avec son nom (pas de point orphelin pour les sous-préfectures à petite échelle)
+racine_villes = QgsRuleBasedRenderer.Rule(None)
+racine_villes.appendChild(QgsRuleBasedRenderer.Rule(point_ville(), 0, 0, '"rang" <= 2', "Préfectures"))
+racine_villes.appendChild(QgsRuleBasedRenderer.Rule(point_ville(), 0, VILLES_ECHELLE_SOUS_PREF, '"rang" = 3',
+                                                    "Sous-préfectures"))
+villes.setRenderer(QgsRuleBasedRenderer(racine_villes))
+racine_etiquettes = QgsRuleBasedLabeling.Rule(None)
+prefectures = QgsRuleBasedLabeling.Rule(etiquette(9, True), 0, 0, '"rang" <= 2', "Préfectures")
+sous_prefectures = QgsRuleBasedLabeling.Rule(etiquette(7.5, False), 0, VILLES_ECHELLE_SOUS_PREF, '"rang" = 3',
+                                             "Sous-préfectures")
+racine_etiquettes.appendChild(prefectures)
+racine_etiquettes.appendChild(sous_prefectures)
+villes.setLabeling(QgsRuleBasedLabeling(racine_etiquettes))
+villes.setLabelsEnabled(True)
+groupe("Fond", [villes, zone, deps, zbiog], visible=True)
 
 # ================================================================= trois mises en page par protocole
 modele = QgsPrintLayout(P)
@@ -181,6 +234,15 @@ def carte(nom, champ, categories, subset, titre, legende):
         QgsRendererCategory(v, remplissage(c, niveau, forme), lab) for v, lab, c, niveau, forme in categories])
     renderer.setUsingSymbolLevels(True)
     aires.setRenderer(renderer)
+    # aires = obstacles (sans étiquette) : les noms des villes se placent à côté des points
+    obstacle = QgsPalLayerSettings()
+    obstacle.fieldName = "id_aire"
+    obstacle.drawLabels = False
+    obstacle.obstacleSettings().setIsObstacle(True)
+    obstacle.obstacleSettings().setFactor(2.0)
+    obstacle.obstacleSettings().setType(QgsLabelObstacleSettings.ObstacleType.PolygonWhole)
+    aires.setLabeling(QgsVectorLayerSimpleLabeling(obstacle))
+    aires.setLabelsEnabled(True)
     groupe(nom, [aires], en_tete=True)   # points devant les limites du groupe « Fond »
     lay = modele.clone()
     lay.setName(nom)
