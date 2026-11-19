@@ -75,6 +75,7 @@ def sql_vm(monkeypatch):
         def __exit__(self, *a): pass
         def execute(self, sql, *a): captured.append(sql)
         def fetchall(self): return []
+        def fetchone(self): return {"n": 0}  # comptage avant la vue (core/limites.py)
 
     class Conn:
         def cursor(self, **k): return Cur()

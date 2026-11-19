@@ -1,12 +1,19 @@
 #!/bin/python3
 
 import re
+import time
 import uuid
 from datetime import datetime, timedelta
 
+import psycopg
 from psycopg.rows import dict_row
 
+from reportgenerator.core.limites import (ComptageTropLong, Limites, TropDeDonnees, VueTropLongue,
+                                          statement_timeout_ms)
 from reportgenerator.db_auth import get_connection
+
+# requête annulée par la base (statement_timeout dépassé)
+DELAI_DEPASSE = (psycopg.errors.QueryCanceled,)
 
 DEFAULT_GROUPES = [
     "Amphibiens", "Chauves-souris", "Mammifères", "Odonates",
@@ -85,11 +92,14 @@ def sql_literals(values) -> str:
 class SyntheseQueries:
     """Synthese queries"""
 
-    def __init__(self, service_name, id_area, buffer):
+    def __init__(self, service_name, id_area, buffer, limites: Limites | None = None):
         self.service_name = service_name
         self.id_area = id_area
         self.buffer = buffer
         self.vm = vm_name()
+        # seuil de données et délais de la vue (docs/limites/conception.md) ; mesures pour le bilan de génération
+        self.limites = limites or Limites()
+        self.nb_donnees_comptees = self.nb_donnees = self.duree_vue_s = None
         # rayons (km) des anneaux, du plus petit au plus grand (cf. set_global_data)
         self.anneaux_km = [float(buffer)]
 
@@ -132,6 +142,10 @@ class SyntheseQueries:
 
         La maille (geom_maille) est calculée spatialement : le précalcul cor_area_synthese est
         incomplet pour les données récentes. Une donnée hors grille reste dans la vue (maille nulle).
+
+        Limites (self.limites) : les données sont d'abord comptées avec les mêmes filtres (avant dédoublonnage des
+        sources) ; au-delà du seuil, TropDeDonnees sans construire la vue ; comptage ou vue trop longs (annulés par la
+        base, statement_timeout) : ComptageTropLong, VueTropLongue.
         """
         print(f"Création de la vue matérialisée pour le rapport ({self.vm})...")
         self._drop_vues_orphelines()
@@ -364,9 +378,34 @@ class SyntheseQueries:
             from obs_rang s
             group by s.type_geom
         """
+        # comptage avec les filtres de la vue, avant dédoublonnage des sources (majorant) et sans calcul des mailles
+        sql_comptage = f"""
+            with {zone_sql},
+            {donnees_sql.replace("__ETENDUE__", f"<= {GEOM_ETENDUE_MAX_M}")}
+            select count(*) as n from obs_final o where {groupes_filtre_sql}
+        """
+        lim = self.limites
         with get_connection(self.service_name) as conn:
-            with conn.cursor() as cur:
-                cur.execute(sql)
+            with conn.cursor(row_factory=dict_row) as cur:
+                if lim.donnees is not None:
+                    cur.execute(f"set local statement_timeout = {statement_timeout_ms(lim.comptage_min)}")
+                    try:
+                        cur.execute(sql_comptage)
+                    except DELAI_DEPASSE as e:
+                        raise ComptageTropLong(lim.comptage_min) from e
+                    self.nb_donnees_comptees = int(cur.fetchone()["n"])
+                    print(f"Données à traiter (avant dédoublonnage) : {self.nb_donnees_comptees}")
+                    if self.nb_donnees_comptees > lim.donnees:
+                        raise TropDeDonnees(self.nb_donnees_comptees, lim.donnees)
+                cur.execute(f"set local statement_timeout = {statement_timeout_ms(lim.vue_min)}")
+                debut = time.monotonic()
+                try:
+                    cur.execute(sql)
+                except DELAI_DEPASSE as e:
+                    raise VueTropLongue(lim.vue_min, self.nb_donnees_comptees) from e
+                self.duree_vue_s = time.monotonic() - debut
+                cur.execute(f"select count(*) as n from {self.vm}")
+                self.nb_donnees = int(cur.fetchone()["n"])
 
     def geometries_exclues(self):
         """Données écartées de la vue parce que leur géométrie dépasse GEOM_ETENDUE_MAX_M (mêmes filtres que la
@@ -770,17 +809,6 @@ class SyntheseQueries:
             with conn.cursor(row_factory=dict_row) as cur:
                 cur.execute(sql)
                 return cur.fetchall()
-
-    def update_date_reportgenerator(self):
-        print(f"Update date_reportgenerator pour id_area={self.id_area}")
-        id_area = int(self.id_area)
-        sql = f""" SELECT src_gestion.update_reportgenerator_date({id_area}) """
-        with get_connection(self.service_name) as conn:
-            with conn.cursor(row_factory=dict_row) as cur:
-                cur.execute(sql)
-                print("Update terminé")
-                return cur.fetchall()
-                      
 
     def _drop_vues_orphelines(self):
         """Supprime les vues de travail de plus d'un jour (génération interrompue sans nettoyage)."""

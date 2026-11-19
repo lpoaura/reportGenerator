@@ -69,6 +69,10 @@ def main():
     )
     run_parser.add_argument("--buffer", type=int, required=True)
     run_parser.add_argument("--area_name", required=True)
+    run_parser.add_argument(
+        "--sans-limite", action="store_true",
+        help="Lancement manuel d'une demande refusée : ni seuil de données, ni délai de la vue de synthèse",
+    )
 
     # ---- mode batch : tous les rapports en attente ----
     gen_parser = subparsers.add_parser("generate", help="Génère les rapports en attente")
@@ -95,6 +99,7 @@ def main():
             area_name=args.area_name,
             output=args.output,
             output_dir_base=args.output_dir,
+            sans_limite=args.sans_limite,
         )
 
     elif args.command == "generate":

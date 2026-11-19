@@ -51,7 +51,13 @@ def run_pipeline(ctx, output_file: Path) -> set[str]:
 
     for name in plan:
         with timer.step(f"Brique {name}"):
-            ctx.results[name] = get_brick(name).run(ctx)
+            try:
+                ctx.results[name] = get_brick(name).run(ctx)
+            except Exception as e:
+                # brique en cause, reprise dans le bilan de génération (core/limites.py)
+                if not hasattr(e, "brique"):
+                    e.brique = name
+                raise
 
     with timer.step("Génération du rapport Word"):
         # sections {{#brique}} ... {{/brique}} : gardées si la brique a été exécutée et n'a pas demandé à masquer sa

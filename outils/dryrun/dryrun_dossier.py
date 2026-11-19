@@ -3,7 +3,7 @@
 Comme run_single.py, sauf :
 - la VM est créée en table TEMPORAIRE (vm_test) dans une session unique, puis la session passe en lecture seule
   (toute écriture accidentelle échoue) ; toutes les requêtes du générateur passent par cette session ;
-- ni update_date_reportgenerator, ni suppression de vue.
+- ni bilan ni date écrits sur la demande (suivi.ecrire_bilan), ni suppression de vue.
 
 Usage : poetry run python outils/dryrun/dryrun_dossier.py <list_analyse|-> <id_area> <buffer> <area_name> <sortie>
         (list_analyse « - » = vide = rapport générique ; id_area : une zone de type LPO_REPORT_STUDY)
@@ -52,7 +52,7 @@ class FakeCur:
     def __exit__(self, *a): pass
     def execute(self, sql, *a): captured.append(sql)
     def fetchall(self): return []
-    def fetchone(self): return None
+    def fetchone(self): return {"n": 0}  # comptage factice : le vrai est exécuté dans socle_dryrun
 
 
 class FakeConn:
@@ -83,8 +83,17 @@ def socle_dryrun(ctx):
     socle.run(ctx)
     sql = next(s for s in reversed(captured) if "create materialized view" in s)
     select = re.search(r"create materialized view \S+ as(.*?);", sql, re.S).group(1)
+    comptage = next((s for s in reversed(captured) if "select count(*) as n from obs_final" in s), None)
     t0 = time.time()
     with conn.cursor() as cur:
+        # comptage avant la vue (core/limites.py), comme en génération réelle : nombre, durée, seuil
+        if comptage:
+            cur.execute(comptage)
+            n = cur.fetchone()["n"]
+            lim = ctx.queries.limites
+            print(f"[dry-run] comptage avant la vue : {n} données en {time.time() - t0:.0f} s "
+                  f"(seuil {lim.donnees}, délai {lim.comptage_min} min){' : REFUSÉE' if n > lim.donnees else ''}")
+            t0 = time.time()
         # structure seule (rapide), puis contenu : copie locale si elle existe, sinon calcul complet puis copie
         # locale pour les essais suivants
         cur.execute(f"create temporary table vm_test as {select} with no data")

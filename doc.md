@@ -30,6 +30,8 @@ poetry run reportgenerator generate --service gnlpoaura --dry-run      # liste s
 # un rapport précis
 poetry run reportgenerator run --service gnlpoaura --id_area 2337034 --area_name "TEST EOLIEN" \
     --referee "Nom" --buffer 5 --list_analyse "analyse_eolien" --output "TEST EOLIEN.docx"
+# demande refusée (trop de données) : lancement manuel, sans seuil ni délai (de préférence hors des heures de pointe)
+poetry run reportgenerator run ... --sans-limite
 
 # outils (sans base ni QGIS)
 poetry run reportgenerator dossiers                    # types de rapport et leurs analyses
@@ -37,7 +39,7 @@ poetry run reportgenerator check --dossier eolien      # vérifie le template Wo
 poetry run pytest                                      # tests
 ```
 
-⚠️ `run` et `generate` **marquent la demande comme traitée** (`date_reportgenerate`) dès qu'un rapport est produit sans erreur. Pour tester sans clôturer de vraies demandes, utiliser une zone de test dédiée.
+⚠️ `run` et `generate` **marquent la demande comme traitée** (`date_reportgenerate`) à la fin de chaque génération, **réussie ou non**, et écrivent son bilan (voir « Limites et bilan des demandes »). Pour tester sans clôturer de vraies demandes, utiliser les scripts de dry-run (`outils/dryrun/`).
 
 ### Dossier de sortie
 
@@ -70,7 +72,38 @@ Formulaire QGIS ──► src_gestion.v_reportgenerator_areas_lpo (id_area, list
      socle_data (VM) → analyses (textes, tableaux, graphiques) → couches GPKG → cartes QGIS
                           │
                           ▼
-   renderer : template.docx rempli → <zone>.docx ; VM supprimée ; date mise à jour si succès
+   renderer : template.docx rempli → <zone>.docx ; VM supprimée ; bilan et date écrits (succès ou échec)
+```
+
+### Limites et bilan des demandes
+
+Règles communes à tous les dossiers (conception : `docs/limites/conception.md`) :
+
+- **Bilan** : chaque génération écrit, par `src_gestion.update_reportgenerator_bilan` (`docs/limites/sql/`), une
+  ligne lisible dans `ref_geo.l_areas.comment` et le même bilan en jsonb dans `additional_data.reportgenerate`
+  (statut, durée, durée de la vue, nombre de données, seuil, motif, brique en erreur). Statuts : `en_cours` (au
+  démarrage, sans date), `ok`, `refuse`, `erreur` (avec `date_reportgenerate`). **Une demande refusée ou en erreur
+  n'est pas relancée** : pour la relancer, effacer `date_reportgenerate`, ou `run --sans-limite`. Tant que la fonction
+  n'existe pas en base, seule la date est écrite (`update_reportgenerator_date`), le bilan reste dans le journal.
+- **Comptage avant la vue** (`set_global_data`) : mêmes filtres que la VM (emprise tampon ou anneaux compris, années,
+  groupes, validation, rayons par taxon, géométries), avant dédoublonnage des sources. Au-delà de **1 000 000**
+  données, ou si le comptage dépasse **5 min**, la demande est refusée sans construire la vue.
+- **Délai de la vue** : **30 min** (`statement_timeout`, la base annule la requête) ; au-delà, échec « temps de calcul
+  trop long ».
+- Seuils dans `core/limites.py`, surchargeables dans le `[params]` d'un dossier : `limite_donnees`,
+  `limite_comptage_min`, `limite_vue_min`. Les dossiers sans VM (indicateurs, PLSOC) n'ont ni comptage ni seuil.
+- **Un seul `generate` à la fois** : verrou consultatif PostgreSQL ; un second lancement s'arrête aussitôt. Une demande
+  restée `en_cours` au lancement suivant (processus arrêté : mémoire, redémarrage) est marquée en échec
+  « génération interrompue ».
+- Plus de filtre de surface sur les demandes : le comptage le remplace.
+
+Suivi des générations (lecture) :
+
+```sql
+select id_area, area_name, comment, additional_data->'reportgenerate' as bilan
+from ref_geo.l_areas
+where id_type = ref_geo.get_id_area_type('LPO_REPORT_STUDY') and comment is not null
+order by additional_data->'reportgenerate'->>'horodatage' desc;
 ```
 
 ### Organisation du code
@@ -79,12 +112,14 @@ Formulaire QGIS ──► src_gestion.v_reportgenerator_areas_lpo (id_area, list
 src/reportgenerator/
 ├── cli.py                 commandes run / generate / dossiers / check
 ├── run_single.py          génération d'un rapport
-├── run_queue.py           demandes en attente (batch)
+├── run_queue.py           demandes en attente (batch), verrou, demandes interrompues
+├── suivi.py               bilan des demandes en base (update_reportgenerator_bilan)
 ├── queries.py             VM principale (paramétrable) et requêtes communes
 ├── core/
 │   ├── dossier.py         lecture des dossier.toml, choix du type de rapport
 │   ├── registry.py        déclaration des briques (@register_brick)
 │   ├── context.py         ReportContext transmis aux briques
+│   ├── limites.py         seuil de données, délais, textes du bilan
 │   ├── pipeline.py        ordre d'exécution, commande check
 │   └── renderer.py        remplissage du Word
 ├── bricks/                lien entre le métier et les placeholders (common, connaissance, generique, eolien, n2000…)
@@ -288,7 +323,11 @@ def dortoirs(ctx):
 | QGIS s'arrête avec le code `3221226505` (0xC0000409) | Plantage de QGIS lui-même. Relancer le rendu seul pour lire sa sortie (commande affichée dans l'erreur) ; vérifier d'abord la validité des couches. |
 | `cannot dump lists of mixed types` | Une liste Python mêlant entiers et décimaux a été envoyée en paramètre SQL. Convertir les valeurs (ex. `float(x)`). |
 | Texte d'un placeholder en Consolas, sur fond gris | Mise en forme collée dans le template : retaper le placeholder (section 4). |
-| Une brique échoue | Le journal affiche « ✗ Brique … ÉCHEC ». La demande reste en attente, et la VM est supprimée. |
+| Une brique échoue | Le journal affiche « ✗ Brique … ÉCHEC ». La demande est marquée en échec (commentaire avec l'erreur et la brique), la VM est supprimée. Après correction, effacer `date_reportgenerate` pour la relancer. |
+| Commentaire « REFUSÉ … trop de données » ou « comptage trop long » | Zone trop chargée pour le lancement automatique. Lancer à la main avec `run … --sans-limite`, hors des heures de pointe. |
+| Commentaire « ÉCHEC … temps de calcul trop long » | La vue a dépassé 30 min. Même solution, ou réduire l'emprise. |
+| Commentaire « EN COURS » qui reste | Génération arrêtée en route : le `generate` suivant la marque « génération interrompue ». |
+| `generate` affiche « Une autre génération est en cours : arrêt. » | Un `generate` précédent tourne encore (verrou) : normal, le suivant reprendra la file. |
 | Word : « le fichier semble endommagé » | Identifiants en double dans le XML. Les dessins sont corrigés automatiquement au rendu (`dedupe_drawing_ids`). Pour un template, valider avec le script `validate.py` de la compétence docx : il signale notamment les signets en double. |
 | Un paramètre du `dossier.toml` est ignoré, ou lu comme une espèce | Il est placé **après** une sous-table `[params.xxx]` : en TOML, tout ce qui suit une sous-table lui appartient. Les sous-tables doivent rester en fin de fichier. |
 
