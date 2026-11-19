@@ -781,8 +781,47 @@ def test_template_mise_en_page_relue():
             assert bool(p.paragraph_format.page_break_before) == (precedent not in ("Heading 1", "Titre 1")), p.text
         if p.text.strip() and not p.text.startswith("{{#") and not p.text.startswith("{{/"):
             precedent = nom
-    assert d.params["map_layout"] == "pleine_page"
-    assert LAYOUTS["pleine_page"]["height"] > LAYOUTS["page_legende"]["height"]
+    assert d.params["map_layout"] == "paysage"
+    assert LAYOUTS["paysage"]["width"] > LAYOUTS["paysage"]["height"]
+
+
+def _sections_des_paragraphes(doc):
+    """[(texte du paragraphe, sectPr de sa section)] dans l'ordre du corps (la section finit au paragraphe qui porte
+    son sectPr ; le sectPr du corps ferme la dernière)."""
+    body = doc.element.body
+    paragraphes, en_cours = [], []
+    for el in body.iterchildren():
+        if el.tag == qn("w:p"):
+            en_cours.append("".join(t.text or "" for t in el.iter(qn("w:t"))))
+            ppr = el.find(qn("w:pPr"))
+            sect = ppr.find(qn("w:sectPr")) if ppr is not None else None
+            if sect is not None:
+                paragraphes += [(t, sect) for t in en_cours]
+                en_cours = []
+    return paragraphes + [(t, body.find(qn("w:sectPr"))) for t in en_cours]
+
+
+def _paysage(sect):
+    return sect.find(qn("w:pgSz")).get(qn("w:orient")) == "landscape"
+
+
+def test_template_cartes_en_paysage():
+    """Chaque carte (et sa légende) est seule dans une section A4 paysage ; le texte autour reste en portrait ; les
+    sections du rapport gardent le pied de page numéroté (pas de « première page différente »)."""
+    doc = Document(load_dossier("indicateurs").template)
+    paragraphes = _sections_des_paragraphes(doc)
+    cartes = [i for i, (t, _) in enumerate(paragraphes) if re.fullmatch(r"\{\{\w+_CARTE(_\w+)?\}\}", t)]
+    assert len(cartes) == 18
+    for i in cartes:
+        t, sect = paragraphes[i]
+        assert _paysage(sect), t
+        meme_section = [x for x, s in paragraphes if s is sect and x.strip()]
+        assert meme_section[0] == t and len(meme_section) == 2 and meme_section[1].startswith("Carte :"), t
+        assert sect.find(qn("w:titlePg")) is None
+        avant = next(s for x, s in reversed(paragraphes[:i]) if s is not sect)
+        apres = next(s for x, s in paragraphes[i:] if s is not sect)
+        assert not _paysage(avant) and not _paysage(apres), t
+        assert avant.find(qn("w:titlePg")) is None or avant is paragraphes[0][1]
 
 
 def test_graphique_especes_compact(tmp_path):
@@ -804,6 +843,17 @@ def test_emprises_cartes_par_protocole():
     assert e["stom"] == pytest.approx((897900, 6396900, 944100, 6465100))   # 42 × 62 km, marge 5 %
     assert e["sterf"] == pytest.approx((790000, 6490000, 810000, 6510000))  # point seul : 20 km centrés
     assert "pop_reptile" not in e
+
+
+def test_emprises_marge_sous_le_bandeau_titre():
+    """Cartes paysage : le bandeau du titre recouvre le haut de la carte ; l'emprise est rehaussée d'une part de sa
+    hauteur (après marge et étendue minimale) pour qu'aucune aire ne passe dessous."""
+    from shapely.geometry import box
+    aires = [{"protocole": "stom", "geom": box(900000, 6400000, 902000, 6402000)},
+             {"protocole": "stom", "geom": box(940000, 6460000, 942000, 6462000)}]
+    e = cartes.emprises(aires, minimum_m=20000, marge=0.05, marge_haut=0.12)
+    assert e["stom"] == pytest.approx((897900, 6396900, 944100, 6465100 + 68200 * 0.12))
+    assert load_dossier("indicateurs").params["emprise_marge_haut"] == pytest.approx(0.12)
 
 
 def test_brique_cartes_cadre_chaque_protocole(tmp_path, monkeypatch):

@@ -1,29 +1,33 @@
 """Construit le projet QGIS du dossier Indicateurs de biodiversité à partir du projet Natura 2000 (même charte).
 
 Usage : python-qgis-ltr.bat outils/qgis/build_projet_indicateurs.py <projet_n2000.qgs> <dossier de travail>
+            [<modèle de mise en page .qpt>]
   Le dossier de travail doit contenir data/ (couches ind_*.gpkg d'un dry-run du dossier indicateurs). Le projet y est
   écrit (projet_indicateurs.qgs), ses couches pointant vers ./data/<couche>.gpkg. Installation dans le dépôt :
-  outils/qgis/integrer_projet.py.
+  outils/qgis/integrer_projet.py. Modèle par défaut : outils/qgis/modeles/carte_paysage_lpo.qpt (A4 paysage LPO,
+  bandeau bleu à gauche avec la légende, carte à droite).
 
-Contenu : groupe « Fond » (emprise, départements, zones biogéographiques, toujours visible avec le fond FDC) ; un
-groupe et une mise en page par protocole (STOC_CARTE…) avec la couche ind_aires filtrée sur le protocole et
-colorée par statut en N. La symbologie se règle ensuite directement dans QGIS.
+Contenu : groupe « Fond » (emprise, départements, zones biogéographiques) au-dessus du fond FDC (tuiles vectorielles
+OpenMapTiles de Mergin Maps, style par défaut à 75 % d'opacité) ; un groupe et une mise en page par protocole
+(STOC_CARTE…) avec la couche ind_aires filtrée sur le protocole et colorée par statut en N. La symbologie se règle
+ensuite directement dans QGIS.
 
 Lisibilité : les points des aires sont dessinés au-dessus des limites (groupes des cartes en tête de l'arbre) ; dans
 une carte, les niveaux de symboles placent les catégories utiles devant (nouvelles > suivies > non suivies ; abandons
-devant ; « Non renseigné » derrière) ; les catégories de contexte ont un symbole plus petit ou creux ; fond OSM en
-niveaux de gris éclairci ; limites fines (la région et les départements du fond Natura 2000 sont retirés : ils
-doublaient ceux du groupe « Fond »).
+devant ; « Non renseigné » derrière) ; les catégories de contexte ont un petit point pâle ; seul le fond OSM du
+projet Natura 2000 est remplacé (ses région et départements doublaient ceux du groupe « Fond »).
 """
 import os
 import shutil
 import sys
 from pathlib import Path
 
-from qgis.core import (QgsApplication, QgsCategorizedSymbolRenderer, QgsCentroidFillSymbolLayer, QgsFillSymbol,
-                       QgsHueSaturationFilter, QgsLayerTreeGroup, QgsLayoutItemLabel, QgsLayoutItemLegend,
-                       QgsLayoutItemMap, QgsLayoutItemScaleBar, QgsMapLayerLegendUtils, QgsMapLayerType,
-                       QgsMarkerSymbol, QgsProject, QgsRendererCategory, QgsSingleSymbolRenderer, QgsVectorLayer)
+from qgis.core import (QgsApplication, QgsCategorizedSymbolRenderer, QgsCentroidFillSymbolLayer,
+                       QgsExpressionContextUtils, QgsFillSymbol, QgsLayerTreeGroup, QgsLayoutItemLabel,
+                       QgsLayoutItemLegend, QgsLayoutItemMap, QgsLayoutItemScaleBar, QgsLayoutPoint, QgsLegendStyle,
+                       QgsMapLayerLegendUtils, QgsMarkerSymbol, QgsPrintLayout, QgsProject, QgsReadWriteContext,
+                       QgsRendererCategory, QgsSingleSymbolRenderer, QgsVectorLayer, QgsVectorTileLayer)
+from qgis.PyQt.QtXml import QDomDocument
 
 QgsApplication.setPrefixPath(os.getenv("QGIS_PREFIX_PATH", r"C:\Program Files\QGIS\3_40\apps\qgis-ltr"), True)
 app = QgsApplication([], False)
@@ -39,7 +43,25 @@ P = QgsProject.instance()
 assert P.read(str(project_path)), "lecture du projet impossible"
 DATA = work / "data"
 ROOT = P.layerTreeRoot()
-MODELE = "Carte01_localisation"
+MODELE_QPT = Path(sys.argv[3]) if len(sys.argv) > 3 else Path(__file__).parent / "modeles" / "carte_paysage_lpo.qpt"
+# fond de carte : OpenMapTiles (OSM) servi par Mergin Maps, style par défaut
+FOND_URI = ("styleUrl=https://tiles.merginmaps.com/styles/default.json&type=xyz"
+            "&url=https://tiles.merginmaps.com/data/default/%7Bz%7D/%7Bx%7D/%7By%7D.pbf&zmax=14&zmin=0")
+# images du modèle : sa source est l'expression @logo_gauche / @fleche_nord_blanche (variables du profil QGIS LPO),
+# définies ici en variables du projet avec les images des cartes portrait
+IMAGES = {"logo_gauche": "Z:/01_Modeles/CHARTE LPO/LOGOS/POUR LE WEB/LPO Auvergne-Rhône-Alpes_GAUCHE_transparent.png",
+          "fleche_nord_blanche": "https://raw.githubusercontent.com/lpoaura/lpo_qgis_profiles/main/profiles/"
+                                 "naturaliste/composer_templates/deco/Fleche_N_blanche.svg"}
+# tailles de police (pt) : titre sur une ou deux lignes dans son bandeau, légende dans le bandeau gauche (61 mm)
+TITRE_PT = 20
+LEGENDE_PT = {QgsLegendStyle.Title: 14, QgsLegendStyle.Group: 11, QgsLegendStyle.Subgroup: 10,
+              QgsLegendStyle.SymbolLabel: 8}
+COUPURE = "|"   # coupure de ligne des libellés de légende trop longs
+# flèche du Nord et barre d'échelle remontées (mm) : le cartouche des sources (aligné en bas) a besoin de place
+REMONTEE_MM = {"fleche": 30, "echelle": 20}
+# texte du cartouche (sources, conception, date), repris des cartes portrait
+CARTOUCHE = ("Sources :  [% @sources %]\nConception :  [%@user_full_name %] (LPO Auvergne-Rhône-Alpes)\n"
+             "Date de réalisation : $CURRENT_DATE(yyyy-MM-dd)")
 
 # (code, préfixe, protocole, aires, « suivis » accordé) ; titres complétés par @annee_<préfixe> et
 # @annee_prec_<préfixe> (variables de projet fournies par la brique ind_cartes : « 2025 », « 2024-2025 » pour le SHOC)
@@ -50,24 +72,25 @@ PROTOCOLES = [("stoc", "STOC", "STOC-EPS", "carrés", "suivis"),
               ("pop_reptile", "POPR", "POP Reptile", "aires", "suivies"),
               ("pop_amphibien", "POPA", "POP Amphibien", "aires", "suivies")]
 # palette des graphiques du rapport (analysis/indicateurs/figures.py)
-BLEU, ORANGE, VERT_EAU, GRIS, ROUGE, BLEU_PALE = "#2a78d6", "#eb6834", "#1baf7a", "#a6a6a6", "#e34948", "#b7d3f6"
+BLEU, ORANGE, VERT_EAU, ROUGE, BLEU_PALE = "#2a78d6", "#eb6834", "#1baf7a", "#e34948", "#b7d3f6"
+GRIS_PALE = "#c4c4c4"   # contexte (non suivies, non renseignées) : petit point pâle, comme les suivies des abandons
 # (valeur, libellé, couleur, niveau, forme) : niveau = ordre de dessin (le plus grand devant) ;
 # forme « plein » (point de TAILLE_POINT), « petit » (point plein réduit), « creux » (cercle vide réduit : contexte)
 STATUTS = [("suivie", "Suivi(e) cette année", BLEU, 2, "plein"),
-           ("nouvelle", "Suivi(e) pour la première fois", ORANGE, 3, "plein"),
-           ("non suivie", "Non suivi(e) cette année", GRIS, 1, "creux")]
+           ("nouvelle", "Suivi(e) pour la|première fois", ORANGE, 3, "plein"),
+           ("non suivie", "Non suivi(e) cette année", GRIS_PALE, 1, "petit")]
 CATEGORIES = [("Salarié LPO", "Salarié LPO", BLEU, 2, "plein"),
               ("Organisme tiers", "Organisme tiers", ORANGE, 2, "plein"),
               ("Bénévole", "Bénévole", VERT_EAU, 2, "plein"),
-              ("Non renseigné", "Non renseigné", GRIS, 1, "creux")]
-RECONDUCTION = [("abandon", "Suivi(e) la saison précédente, pas cette année", ROUGE, 2, "plein"),
+              ("Non renseigné", "Non renseigné", GRIS_PALE, 1, "petit")]
+RECONDUCTION = [("abandon", "Suivi(e) la saison précédente,|pas cette année", ROUGE, 2, "plein"),
                 ("suivie", "Suivi(e) cette année", BLEU_PALE, 1, "petit")]
 
 
 TAILLE_POINT = "2.4"     # mm : point au centre de chaque aire (contour blanc : deux points proches restent distincts)
 TAILLE_CONTEXTE = "1.7"  # mm : aires de contexte (non suivies, non renseignées, suivies sur la carte des abandons)
-FOND_OPACITE = 0.55      # fond OSM en niveaux de gris, éclairci : les couleurs des points ressortent
-ECHELLE_MAX_MM = 44      # barre d'échelle (placée à 147 mm sur 210) : le dernier libellé reste dans la page
+FOND_OPACITE = 0.75      # fond OpenMapTiles : couleurs adoucies mais présentes (localisation), points lisibles
+ECHELLE_MM = (20, 40)    # barre d'échelle dans le bandeau gauche (61 mm) : plage assez large pour des valeurs rondes
 
 
 def remplissage(couleur, niveau=1, forme="plein", contour="35,35,35,255", largeur="0.15"):
@@ -115,32 +138,40 @@ def groupe(nom, couches, visible=False, en_tete=False):
 
 # ================================================================= nettoyage du projet Natura 2000
 manager = P.layoutManager()
-assert manager.layoutByName(MODELE) is not None, f"mise en page modèle « {MODELE} » absente du projet source"
 for g in [c for c in ROOT.children() if isinstance(c, QgsLayerTreeGroup) and c.name() != "FDC"]:
     for node in g.findLayers():
         P.removeMapLayer(node.layerId())
     ROOT.removeChildNode(g)
-# fond FDC : on ne garde que le fond OSM (région et départements doublaient le groupe « Fond », zone d'étude et
-# contours Natura 2000 sans objet), passé en niveaux de gris et éclairci
+# fond FDC : remplacé par les tuiles vectorielles OpenMapTiles (région et départements du projet Natura 2000
+# doublaient le groupe « Fond », zone d'étude et contours Natura 2000 sans objet)
 for node in ROOT.findGroup("FDC").findLayers():
-    lyr = node.layer()
-    if lyr.type() != QgsMapLayerType.RasterLayer:
-        P.removeMapLayer(node.layerId())
-        continue
-    lyr.hueSaturationFilter().setGrayscaleMode(QgsHueSaturationFilter.GrayscaleLuminosity)
-    lyr.renderer().setOpacity(FOND_OPACITE)
+    P.removeMapLayer(node.layerId())
+fond = QgsVectorTileLayer(FOND_URI, "OpenMapTiles (Mergin Maps)")
+assert fond.isValid(), "fond de carte OpenMapTiles invalide"
+message, ok = fond.loadDefaultStyle()
+assert ok, f"style du fond de carte non chargé : {message}"
+fond.setOpacity(FOND_OPACITE)
+P.addMapLayer(fond, False)
+ROOT.findGroup("FDC").addLayer(fond)
+
+for nom, valeur in IMAGES.items():
+    QgsExpressionContextUtils.setProjectVariable(P, nom, valeur)
 
 # ================================================================= fond commun
 zone = couche("ind_zone", "Zone du rapport")
-zone.setRenderer(QgsSingleSymbolRenderer(contour("#3c3c3c", "0.5")))
+zone.setRenderer(QgsSingleSymbolRenderer(contour("#2b2b2b", "0.6")))
 deps = couche("ind_departements", "Départements")
-deps.setRenderer(QgsSingleSymbolRenderer(contour("#8c8c8c", "0.2")))
+deps.setRenderer(QgsSingleSymbolRenderer(contour("#555555", "0.3")))
 zbiog = couche("ind_zbiog", "Zones biogéographiques")
-zbiog.setRenderer(QgsSingleSymbolRenderer(contour("#6b5a4a", "0.3", "dot")))
+zbiog.setRenderer(QgsSingleSymbolRenderer(contour("#8b5a2b", "0.4", "dash")))
 groupe("Fond", [zone, deps, zbiog], visible=True)
 
 # ================================================================= trois mises en page par protocole
-modele = manager.layoutByName(MODELE)
+modele = QgsPrintLayout(P)
+gabarit = QDomDocument()
+assert gabarit.setContent(MODELE_QPT.read_text(encoding="utf-8")), f"modèle illisible : {MODELE_QPT}"
+_, ok = modele.loadFromTemplate(gabarit, QgsReadWriteContext())
+assert ok, f"chargement du modèle impossible : {MODELE_QPT}"
 
 
 def carte(nom, champ, categories, subset, titre, legende):
@@ -166,7 +197,12 @@ def carte(nom, champ, categories, subset, titre, legende):
     racine.addLayer(zone)
     # limites fines et grises : symbole de légende éclairci, lisible sur le fond bleu de la légende
     QgsMapLayerLegendUtils.setLegendNodeCustomSymbol(racine.addLayer(deps), 0, contour("#e6e6e6", "0.4"))
-    QgsMapLayerLegendUtils.setLegendNodeCustomSymbol(racine.addLayer(zbiog), 0, contour("#f2e3cf", "0.5", "dot"))
+    QgsMapLayerLegendUtils.setLegendNodeCustomSymbol(racine.addLayer(zbiog), 0, contour("#f2e3cf", "0.5", "dash"))
+    for style, taille in LEGENDE_PT.items():
+        format_ = principale.rstyle(style).textFormat()
+        format_.setSize(taille)
+        principale.rstyle(style).setTextFormat(format_)
+    principale.setWrapString(COUPURE)
     principale.setAutoUpdateModel(False)
     principale.setLegendFilterByMapEnabled(False)
     principale.setResizeToContents(True)
@@ -174,12 +210,22 @@ def carte(nom, champ, categories, subset, titre, legende):
     for it in lay.items():
         if isinstance(it, QgsLayoutItemLabel) and it.id() == "Titre":
             it.setText(titre)
+            format_ = it.textFormat()
+            format_.setSize(TITRE_PT)
+            it.setTextFormat(format_)
+        if isinstance(it, QgsLayoutItemLabel) and it.id() == "Infos sup":
+            it.setText(CARTOUCHE)
         if isinstance(it, QgsLayoutItemMap):
             it.setKeepLayerSet(False)
             it.setFollowVisibilityPreset(False)
         if isinstance(it, QgsLayoutItemScaleBar):
-            it.setMaximumBarWidth(ECHELLE_MAX_MM)
+            it.setMinimumBarWidth(ECHELLE_MM[0])
+            it.setMaximumBarWidth(ECHELLE_MM[1])
             it.update()
+        if isinstance(it, QgsLayoutItemScaleBar) or getattr(it, "id", lambda: "")() == "Flèche du Nord":
+            pos = it.positionWithUnits()
+            cle = "echelle" if isinstance(it, QgsLayoutItemScaleBar) else "fleche"
+            it.attemptMove(QgsLayoutPoint(pos.x(), pos.y() - REMONTEE_MM[cle], pos.units()))
 
 
 for code, prefixe, protocole, aires_, suivis in PROTOCOLES:
@@ -188,7 +234,7 @@ for code, prefixe, protocole, aires_, suivis in PROTOCOLES:
     carte(f"{prefixe}_CARTE", "statut", STATUTS, du_protocole,
           f"{protocole} : {aires_} {suivis} en {annee}", aires_.capitalize())
     carte(f"{prefixe}_CARTE_CATEGORIES", "categorie", CATEGORIES, f"{du_protocole} AND \"categorie\" IS NOT NULL",
-          f"{protocole} : observateurs\ndes {aires_} {suivis} en {annee}", "Catégorie de l'observateur principal")
+          f"{protocole} : observateurs\ndes {aires_} {suivis} en {annee}", "Catégorie de l'observateur|principal")
     carte(f"{prefixe}_CARTE_ABANDONS", "reconduction", RECONDUCTION,
           f"{du_protocole} AND \"reconduction\" IS NOT NULL",
           f"{protocole} : {aires_} à reprendre\n({suivis} en {prec}, pas en {annee})", aires_.capitalize())

@@ -519,7 +519,7 @@ def ind_cartes(ctx):
     # cadrage de chaque protocole sur l'étendue de ses aires (+ marge, étendue minimale), commun à ses trois cartes
     p = ctx.params
     par_code = cartes.emprises(couches["ind_aires"], float(p.get("emprise_min_km", 20)) * 1000,
-                               float(p.get("emprise_marge", 0.05)))
+                               float(p.get("emprise_marge", 0.05)), float(p.get("emprise_marge_haut", 0)))
     code_de = {PREFIXES[c]: c for c, _ in sections}
     emprises = {n: par_code[code_de[n.split("_")[0]]] for n in layouts if code_de[n.split("_")[0]] in par_code}
     config = {**p.get("qgis_render", {}), "project_variables": variables, "layouts": layouts,

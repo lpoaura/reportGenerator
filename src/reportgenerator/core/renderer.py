@@ -34,6 +34,8 @@ LAYOUTS = {
     "page_legende": {"width": Mm(170), "height": Mm(195), "full_page": False, "fit": True},
     # pleine page A4 portrait (marges de 20 mm, 252 mm utiles) : carte en pleine largeur, légende juste dessous
     "pleine_page": {"width": Mm(170), "height": Mm(235), "full_page": False, "fit": True},
+    # carte seule dans une section A4 paysage du template (marges de 15 mm : 267 × 180 mm utiles), légende dessous
+    "paysage": {"width": Mm(267), "height": Mm(165), "full_page": False, "fit": True},
 }
 
 PLACEHOLDER_RE = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")

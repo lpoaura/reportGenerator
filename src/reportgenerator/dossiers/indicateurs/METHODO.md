@@ -136,22 +136,26 @@ n'a aucune aire dans la zone.
 - **Couleurs** : catégories d'observateurs dans un ordre fixe (salarié LPO bleu, organisme tiers orange, bénévole vert
   d'eau, non renseigné gris), identiques dans les graphiques et les cartes ; une seule teinte (bleu) pour les
   grandeurs, la saison du rapport en bleu soutenu.
-- **Mise en page** : A4 portrait ; annexes (tableaux larges) en A4 paysage.
+- **Mise en page** : A4 portrait ; cartes (une par page) et annexes (tableaux larges) en A4 paysage.
 - **Cartes** (projet QGIS `qgis/projet_indicateurs.qgs`, trois mises en page par protocole) : aires selon leur suivi en
   N (`_CARTE`), aires suivies en N selon la catégorie de leur observateur principal (`_CARTE_CATEGORIES`), aires
   suivies en N-1 mais pas en N, à reprendre (`_CARTE_ABANDONS`). Construit par `outils/qgis/build_projet_indicateurs.py`,
-  modifiable directement dans QGIS (symbologie, mise en page). Cadrage (18/11/2026) : les trois cartes d'un protocole
-  sont cadrées sur l'étendue de ses aires dans la zone (`emprise_marge` de chaque côté, au moins `emprise_min_km` ;
-  le rendu ajoute sa propre marge de 5 %), pleine page (170 × 235 mm) ; point au centre de chaque aire de 2,4 mm
-  à contour blanc (pas d'écartement des points superposés pour l'instant). Lisibilité (19/11/2026) : points
-  toujours dessinés devant les limites ; ordre de dessin par niveaux de symboles (statut : premières fois devant,
-  puis suivies, non suivies derrière ; observateurs : catégories au même niveau, « Non renseigné » derrière ;
-  abandons : aires à reprendre devant, aires suivies derrière) ; catégories de contexte (non suivies, non
-  renseignées) en cercle creux gris de 1,7 mm, aires suivies de la carte des abandons en point bleu pâle de 1,7 mm ;
-  fond OSM en niveaux de gris à 55 % d'opacité ; limites fines (zone 0,5 mm, départements 0,2 mm gris clair, zones
-  biogéographiques 0,3 mm en pointillés brun-gris, symboles de légende éclaircis pour le fond bleu) ; région et
-  départements du fond Natura 2000 retirés (doublons) ; barre d'échelle limitée à 44 mm (le libellé « km » sortait
-  de la page).
+  modifiable directement dans QGIS (symbologie, mise en page). Mise en page (19/11/2026) : modèle A4 paysage LPO
+  (`outils/qgis/modeles/carte_paysage_lpo.qpt` : bandeau bleu à gauche avec logo, légende, flèche du Nord, échelle et
+  sources ; titre en bandeau sur le haut de la carte), chaque carte seule sur une page paysage du Word avec sa légende
+  dessous (`map_layout = "paysage"`, au plus 267 × 165 mm ; le texte reste en portrait). Cadrage : les trois cartes
+  d'un protocole sont cadrées sur l'étendue de ses aires dans la zone (`emprise_marge` de chaque côté, au moins
+  `emprise_min_km`, plus `emprise_marge_haut` × la hauteur en haut pour qu'aucune aire ne passe sous le bandeau du
+  titre ; le rendu ajoute sa propre marge de 5 %). Symboles : point au centre de chaque aire de 2,4 mm à contour blanc
+  (pas d'écartement des points superposés pour l'instant), toujours dessiné devant les limites ; ordre de dessin par
+  niveaux de symboles (statut : premières fois devant, puis suivies, non suivies derrière ; observateurs : catégories
+  au même niveau, « Non renseigné » derrière ; abandons : aires à reprendre devant, aires suivies derrière) ; aires de
+  contexte en petit point pâle de 1,7 mm (non suivies et non renseignées en gris clair, suivies de la carte des
+  abandons en bleu pâle). Fond : tuiles vectorielles OpenMapTiles (OSM) de Mergin Maps, style par défaut à 75 %
+  d'opacité (couleurs adoucies, villes et routes pour se repérer) ; zone 0,6 mm, départements 0,3 mm gris foncé,
+  zones biogéographiques 0,4 mm en tirets bruns (symboles de légende éclaircis pour le bandeau bleu) ; région et
+  départements du fond Natura 2000 retirés (doublons). Légende en 8 à 14 pt, libellés longs coupés sur deux lignes ;
+  barre d'échelle de 20 à 40 mm (valeurs rondes, dans le bandeau).
 
 Template : `outils/word/template_indicateurs.py` (textes fixes repris du rapport 2025, à relire).
 

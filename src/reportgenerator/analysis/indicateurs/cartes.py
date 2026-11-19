@@ -39,9 +39,10 @@ def couches_cartes(jeux: dict, saisons: dict, zone: dict, departements: list[dic
     }
 
 
-def emprises(aires: list[dict], minimum_m: float = 20000, marge: float = 0.05) -> dict:
+def emprises(aires: list[dict], minimum_m: float = 20000, marge: float = 0.05, marge_haut: float = 0.0) -> dict:
     """Emprise des cartes de chaque protocole : étendue de ses aires (ind_aires), élargie de `marge` de chaque côté,
-    puis portée à `minimum_m` au moins dans chaque dimension (centrée) pour ne pas zoomer à l'échelle d'une commune.
+    puis portée à `minimum_m` au moins dans chaque dimension (centrée) pour ne pas zoomer à l'échelle d'une commune,
+    enfin rehaussée de `marge_haut` × sa hauteur (bandeau du titre posé sur le haut de la carte).
     Même emprise pour les trois cartes d'un protocole (comparables d'une page à l'autre)."""
     bornes: dict[str, list] = {}
     for a in aires:
@@ -60,5 +61,5 @@ def emprises(aires: list[dict], minimum_m: float = 20000, marge: float = 0.05) -
         if y1 - y0 < minimum_m:
             cy = (y0 + y1) / 2
             y0, y1 = cy - minimum_m / 2, cy + minimum_m / 2
-        out[code] = (x0, y0, x1, y1)
+        out[code] = (x0, y0, x1, y1 + (y1 - y0) * marge_haut)
     return out

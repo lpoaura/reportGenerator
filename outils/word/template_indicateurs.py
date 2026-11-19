@@ -8,12 +8,17 @@ annexes. Textes fixes repris du rapport 2025 (à relire par les coordinateurs) ;
 jaune. Le template source n'est pas modifié.
 """
 
+import copy
+import re
 import sys
 
 from docx import Document
 from docx.enum.section import WD_ORIENT, WD_SECTION
 from docx.enum.text import WD_COLOR_INDEX
+from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from docx.shared import Pt
+from docx.text.paragraph import Paragraph
 
 src, dst = sys.argv[1], sys.argv[2]
 doc = Document(src)
@@ -269,6 +274,50 @@ P("Chiffres des graphiques du rapport, par protocole, et liste complète des esp
 X("BLOCS_ANNEXE_TABLEAUX")
 H(2, "Contrôle des saisies")
 X("BLOCS_ANNEXE_CONTROLE")
+
+# cartes en A4 paysage (relecture du 19/11/2026) : chaque carte et sa légende dans leur propre section paysage (marges
+# de 15 mm), le texte autour reste en portrait. Une section sans « première page différente » garde le pied de page
+# numéroté (sinon la première page de chaque section reprise après une carte perdrait son numéro).
+MARGE_CARTE, ENTETE_CARTE = "851", "567"   # 15 mm, 10 mm (twips)
+CARTE_RE = re.compile(r"\{\{\w+_CARTE(_\w+)?\}\}")
+rapport = doc.sections[1]._sectPr   # section du rapport (portrait), entre la page de garde et les annexes
+for t in rapport.findall(qn("w:titlePg")):
+    rapport.remove(t)
+
+
+def section(paysage):
+    s = copy.deepcopy(rapport)
+    for t in s.findall(qn("w:pgNumType")):
+        s.remove(t)
+    if paysage:
+        taille, marges = s.find(qn("w:pgSz")), s.find(qn("w:pgMar"))
+        w, h = taille.get(qn("w:w")), taille.get(qn("w:h"))
+        taille.set(qn("w:w"), h)
+        taille.set(qn("w:h"), w)
+        taille.set(qn("w:orient"), "landscape")
+        for cote in ("top", "right", "bottom", "left"):
+            marges.set(qn(f"w:{cote}"), MARGE_CARTE)
+        marges.set(qn("w:header"), ENTETE_CARTE)
+        marges.set(qn("w:footer"), ENTETE_CARTE)
+    return s
+
+
+def finit_section(p, sect):
+    """Le paragraphe p termine une section de propriétés sect."""
+    p._p.get_or_add_pPr().append(sect)
+
+
+for p in [p for p in doc.paragraphs if CARTE_RE.fullmatch(p.text)]:
+    legende = Paragraph(p._p.getnext(), p._parent)
+    assert legende.text.startswith("Carte :"), p.text
+    saut = OxmlElement("w:p")   # paragraphe vide (1 pt, sans espacement) qui ferme la section portrait précédente
+    p._p.addprevious(saut)
+    saut = Paragraph(saut, p._parent)
+    saut.paragraph_format.space_before = saut.paragraph_format.space_after = Pt(0)
+    saut.paragraph_format.line_spacing = 1.0
+    saut.add_run().font.size = Pt(1)
+    finit_section(saut, section(paysage=False))
+    finit_section(legende, section(paysage=True))
 
 # propriétés du document (héritées du template source) : aucun nom de personne dans les rapports générés
 doc.core_properties.author = "LPO Auvergne-Rhône-Alpes"

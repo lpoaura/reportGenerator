@@ -119,12 +119,16 @@ Le projet source n'est pas modifié. Le lanceur `.bat` de QGIS ne supporte pas l
 dans un dossier sans espace, puis copier le `.qgz`. La connexion passe par le service `gnlpoaura` : aucun identifiant n'est
 enregistré dans le projet.
 
-**Projet du dossier Indicateurs de biodiversité** : `build_projet_indicateurs.py` part du projet Natura 2000 (charte,
-fond FDC, mise en page modèle `Carte01_localisation`) et crée une mise en page par protocole (`STOC_CARTE`,
-`SHOC_CARTE`, `STOM_CARTE`, `STERF_CARTE`, `POPR_CARTE`, `POPA_CARTE`) : couche `ind_aires` filtrée par protocole et
-colorée par statut en N (suivie, nouvelle, non suivie ; un point au centre de chaque aire), fond `ind_zone`,
-`ind_departements`, `ind_zbiog`. Titres : variables `@annee_<PRÉFIXE>` et `@sources` fournies par la brique
-`ind_cartes`. Une fois installé, le projet se retouche directement dans QGIS (symbologie, mise en page).
+**Projet du dossier Indicateurs de biodiversité** : `build_projet_indicateurs.py` part du projet Natura 2000 (groupe
+FDC, dont le fond est remplacé par les tuiles vectorielles OpenMapTiles de Mergin Maps à 75 % d'opacité) et du modèle
+de mise en page A4 paysage LPO `outils/qgis/modeles/carte_paysage_lpo.qpt` (bandeau bleu à gauche ; logo et flèche du
+Nord via les variables de projet `@logo_gauche` et `@fleche_nord_blanche`, définies par le script). Il crée trois
+mises en page par protocole (`STOC_CARTE`, `_CARTE_CATEGORIES`, `_CARTE_ABANDONS`… pour STOC, SHOC, STOM, STERF,
+POPR, POPA) : couche `ind_aires` filtrée par protocole et catégorisée (un point au centre de chaque aire, niveaux de
+symboles), fond `ind_zone`, `ind_departements`, `ind_zbiog`. Titres : variables `@annee_<PRÉFIXE>` et `@sources`
+fournies par la brique `ind_cartes`. Une fois installé, le projet se retouche directement dans QGIS (symbologie, mise
+en page). Les cartes sont insérées dans le Word sur des pages paysage (`map_layout = "paysage"`, sections créées par
+`outils/word/template_indicateurs.py`).
 
 ```powershell
 # 1. couches ind_* : dry-run du dossier (le projet absent, la brique exporte seulement les couches)
