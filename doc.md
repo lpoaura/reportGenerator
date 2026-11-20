@@ -97,6 +97,14 @@ Règles communes à tous les dossiers (conception : `docs/limites/conception.md`
   « génération interrompue ».
 - Plus de filtre de surface sur les demandes : le comptage le remplace.
 
+- **Création des demandes** (`src_gestion.fct_tri_insert_into_view_reportgenerator`) avec `enable = false` : sinon
+  chaque `UPDATE` de la demande (date, bilan) recalcule `gn_synthese.cor_area_synthese` pour toute la zone (déclencheur
+  GeoNature), et chaque import d'observations l'alimente. Le générateur n'utilise pas cette table (intersection dans
+  la VM).
+- **État dans le projet QGIS** : colonnes en lecture seule ajoutées en fin de `src_gestion.v_reportgenerator_areas_lpo`
+  (`docs/limites/sql/v_reportgenerator_areas_lpo.sql`) : `statut_rapport` (En attente, En cours, Fait, Refusé,
+  Échec), `commentaire_rapport`, `date_bilan`, `duree_min`, `nb_donnees`. Le générateur lit des colonnes nommées.
+
 Suivi des générations (lecture) :
 
 ```sql
