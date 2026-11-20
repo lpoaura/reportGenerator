@@ -12,6 +12,7 @@ from psycopg.rows import dict_row
 import reportgenerator.queries as q
 from reportgenerator.core import registry
 from reportgenerator.core.dossier import resolve_dossier
+from reportgenerator.core.limites import statement_timeout_ms
 
 list_analyse = "" if sys.argv[1] == "-" else sys.argv[1]
 id_area, buffer = int(sys.argv[2]), int(sys.argv[3])
@@ -52,9 +53,19 @@ with conn.cursor() as cur:
     plan = [r["QUERY PLAN"] for r in cur.fetchall()]
     print(f"== {dossier.name} id_area={id_area} buffer={buffer} anneaux={sq.anneaux_km}")
     print("EXPLAIN comptage :", plan[0])
+    # même délai qu'en génération (core/limites.py) : au-delà, la demande serait refusée
+    lim = sq.limites
+    cur.execute(f"set local statement_timeout = {statement_timeout_ms(lim.comptage_min)}")
     t = time.time()
-    cur.execute(comptage)
-    print(f"Comptage : {cur.fetchone()['n']} en {time.time() - t:.1f} s")
+    try:
+        cur.execute(comptage)
+    except psycopg.errors.QueryCanceled:
+        print(f"Comptage arrêté après {time.time() - t:.0f} s (délai {lim.comptage_min} min) : demande REFUSÉE")
+        sys.exit(0)
+    n = cur.fetchone()["n"]
+    print(f"Comptage : {n} en {time.time() - t:.1f} s (seuil {lim.donnees})"
+          f"{' : demande REFUSÉE' if n > lim.donnees else ''}")
+    cur.execute("set local statement_timeout = 0")
     if "--sans-vue" not in sys.argv:
         t = time.time()
         cur.execute(f"select count(*) as n from ({select}) v")
