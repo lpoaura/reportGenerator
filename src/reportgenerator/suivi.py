@@ -32,8 +32,8 @@ def ecrire_bilan(service_name: str, id_area: int, bilan: Bilan) -> None:
     except FONCTION_ABSENTE:
         print("[AVERTISSEMENT] src_gestion.update_reportgenerator_bilan absente (docs/limites/sql/) : date seule")
     except Exception as e:
+        # quelle que soit l'erreur, la date doit être écrite pour un bilan final : sinon relance à chaque `generate`
         print(f"[AVERTISSEMENT] Bilan non écrit pour id_area={id_area} : {e}")
-        return
     if bilan.statut == "en_cours":
         return
     try:

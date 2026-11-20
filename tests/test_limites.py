@@ -322,6 +322,14 @@ def test_ecrire_bilan_repli_sur_la_date(monkeypatch):
     assert "update_reportgenerator_date" in base.sql[-1]
 
 
+def test_ecrire_bilan_repli_sur_la_date_quelle_que_soit_l_erreur(monkeypatch):
+    # ex. déclencheur de l_areas en erreur : la date doit quand même être écrite (pas de relance horaire)
+    base = FausseBase(annule="update_reportgenerator_bilan")
+    monkeypatch.setattr(suivi, "get_connection", base.connection)
+    suivi.ecrire_bilan("svc", 7, bilan_echec(TropDeDonnees(2, 1), QUAND, 10, "generique"))
+    assert "update_reportgenerator_date" in base.sql[-1]
+
+
 def test_ecrire_bilan_en_cours_sans_repli(monkeypatch):
     base = FausseBase(annule="update_reportgenerator_bilan")
     monkeypatch.setattr(suivi, "get_connection", base.connection)

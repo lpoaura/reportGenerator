@@ -26,7 +26,9 @@ CREATE OR REPLACE FUNCTION src_gestion.update_reportgenerator_bilan(
     RETURNS void
     LANGUAGE plpgsql
     SECURITY DEFINER
-    SET search_path = pg_catalog, pg_temp
+    -- public : PostGIS et fonctions des déclencheurs de ref_geo.l_areas (fct_tri_transform_geom compare des géométries
+    -- avec l'opérateur = de PostGIS ; sans public : « operator is not unique: public.geometry = public.geometry »)
+    SET search_path = pg_catalog, public, pg_temp
 AS
 $function$
 DECLARE
