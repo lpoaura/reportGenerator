@@ -9,6 +9,10 @@ services:
         OUTPUT_DIR: ${OUTPUT_DIR:-/output}
 
     image: lpoaura/reportgenerator:latest
+    deploy:
+      resources:
+        limits:
+          memory: 4096M
     env_file: .env
     volumes:
       - ${REPORTGENERATOR_OUTPUT_DIR:-./output}:/output
