@@ -20,6 +20,8 @@ DEFAULT_GROUPES = [
     "Oiseaux", "Papillons de jour", "Poissons", "Reptiles",
 ]
 
+# Maille choisie selon l'emprise de la zone. La maille d'une donnée est trouvée par intersection avec ref_geo.l_areas
+# (et non par gn_synthese.cor_area_synthese) : les grilles avec enable = false, comme M0.2, fonctionnent donc aussi.
 GRILLE_AUTO_SQL = """CASE
                             WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 5 THEN 'M0.2'
                             WHEN  ST_Area(ST_Envelope(geom)) / 1000000.0 < 25 THEN 'M0.5'
