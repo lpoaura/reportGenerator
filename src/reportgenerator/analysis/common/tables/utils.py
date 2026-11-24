@@ -37,7 +37,8 @@ def italicize_cell(cell):
 
 def set_cell_background(cell, color):
 
-    shading_elm = parse_xml(rf'<w:shd {nsdecls("w")} w:fill="{color}"/>')
+    # w:val est obligatoire (schéma OOXML) : "clear" = fond uni de la couleur w:fill
+    shading_elm = parse_xml(rf'<w:shd {nsdecls("w")} w:val="clear" w:color="auto" w:fill="{color}"/>')
 
     cell._tc.get_or_add_tcPr().append(shading_elm)
 

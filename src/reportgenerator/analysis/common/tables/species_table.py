@@ -1,10 +1,30 @@
+import unicodedata
+
 from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
-from docx.shared import Inches, Pt
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.shared import Inches, Pt  # noqa: F401
 
 from reportgenerator.analysis.common.tables.utils import (
     apply_status_style_species, italicize_cell_species, set_cell_background,
     set_cell_font, set_cell_text_color)
+from reportgenerator.analysis.connaissance.indicateurs import ordre_groupe
+
+CHAMP_GROUPE = "tx_group2_inpn_v2"
+
+
+def _sans_accents(texte) -> str:
+    return unicodedata.normalize("NFKD", str(texte or "")).encode("ascii", "ignore").decode().casefold()
+
+
+def trier_par_groupe(data, champ_groupe=CHAMP_GROUPE):
+    """Espèces triées par groupe taxonomique (ordre de l'état des connaissances : oiseaux, mammifères, chauves-souris,
+    amphibiens..., autres groupes par ordre alphabétique), puis par nom vernaculaire (accents ignorés : « Écureuil »
+    avec les E), puis nom scientifique."""
+    return sorted(data, key=lambda r: (ordre_groupe(r.get(champ_groupe)), _sans_accents(r.get(champ_groupe)),
+                                       _sans_accents(r.get("nom_vern")), _sans_accents(r.get("lb_nom"))))
+
 
 # =========================================================
 # CONFIGURATION STANDARD DU TABLEAU ESPÈCES
@@ -72,13 +92,38 @@ LPO_BLUE = "0088CC"
 LPO_WHITE = "FFFFFF"
 ROW_BORDER = "D9D9D9"
 LPO_GREY = "626a6e"
+GROUPE_FOND = "D6EAF5"   # ligne d'intertitre d'un groupe (bleu LPO très clair)
 
 # =========================================================
 # INSERTION TABLEAU
 # =========================================================
 
 
-def insert_species_table(document, placeholder, data):
+def _ligne_groupe(table, groupe, nb):
+    """Ligne d'intertitre « Groupe — n espèces » sur toute la largeur, gardée avec l'espèce qui suit."""
+    cells = table.add_row().cells
+    cell = cells[0].merge(cells[-1])
+    cell.text = f"{groupe or 'Autres'} — {nb} espèce{'s' if nb > 1 else ''}"
+    set_cell_background(cell, GROUPE_FOND)
+    set_cell_font(cell, bold=True, size=10)
+    cell.paragraphs[0].paragraph_format.keep_with_next = True
+
+
+def _entete_repete(row):
+    tr_pr = row._tr.get_or_add_trPr()
+    el = OxmlElement("w:tblHeader")
+    el.set(qn("w:val"), "true")
+    tr_pr.append(el)
+
+
+def insert_species_table(document, placeholder, data, par_groupe=True):
+    """Tableau des espèces. par_groupe : espèces triées par groupe taxonomique puis par nom (trier_par_groupe), une
+    ligne d'intertitre par groupe ; sinon dans l'ordre de data. L'en-tête est répété en haut de chaque page."""
+    if par_groupe:
+        data = trier_par_groupe(data)
+        effectifs = {}
+        for item in data:
+            effectifs[item.get(CHAMP_GROUPE)] = effectifs.get(item.get(CHAMP_GROUPE), 0) + 1
 
     for paragraph in document.paragraphs:
 
@@ -101,6 +146,7 @@ def insert_species_table(document, placeholder, data):
         # =====================================================
 
         header_cells = table.rows[0].cells
+        _entete_repete(table.rows[0])
 
         for idx, (field, label) in enumerate(SPECIES_COLUMNS):
 
@@ -128,7 +174,12 @@ def insert_species_table(document, placeholder, data):
         # DONNÉES
         # =====================================================
 
+        groupe_courant = object()
         for item in data:
+
+            if par_groupe and item.get(CHAMP_GROUPE) != groupe_courant:
+                groupe_courant = item.get(CHAMP_GROUPE)
+                _ligne_groupe(table, groupe_courant, effectifs[groupe_courant])
 
             row_cells = table.add_row().cells
 

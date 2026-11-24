@@ -1,0 +1,33 @@
+cd_ref;lb_nom;nom_vern;nse;nhab;dist_gite_m
+60345;Barbastella barbastellus;Barbastelle d'Europe;5;10;10000
+60360;Eptesicus serotinus;Sérotine commune;10;2;10000
+79302;Eptesicus nilssonii;Sérotine de Nilsson;8;2;10000
+60506;Hypsugo savii;Vespère de Savi;8;8;10000
+79305;Miniopterus schreibersii;Minioptère de Schreibers;10;8;20000
+79299;Myotis alcathoe;Murin d'Alcathoé;2;10;5000
+79301;Myotis bechsteinii;Murin de Bechstein;5;10;5000
+60427;Myotis blythii;Petit Murin;10;5;20000
+79300;Myotis brandtii;Murin de Brandt;5;8;10000
+60439;Myotis capaccinii;Murin de Capaccini;2;5;20000
+200118;Myotis daubentonii;Murin de Daubenton;5;5;10000
+60400;Myotis emarginatus;Murin à oreilles échancrées;5;8;10000
+60418;Myotis myotis;Grand Murin;10;5;20000
+912954;Myotis crypticus;Murin cryptique;2;10;5000
+60383;Myotis mystacinus;Murin à moustaches;2;10;5000
+60408;Myotis nattereri;Murin de Natterer;2;10;5000
+60457;Nyctalus lasiopterus;Grande Noctule;8;5;20000
+60461;Nyctalus leisleri;Noctule de Leisler;10;5;10000
+60468;Nyctalus noctula;Noctule commune;10;5;20000
+79303;Pipistrellus kuhlii;Pipistrelle de Kuhl;10;8;5000
+60490;Pipistrellus nathusii;Pipistrelle de Nathusius;10;8;10000
+60479;Pipistrellus pipistrellus;Pipistrelle commune;10;8;5000
+60489;Pipistrellus pygmaeus;Pipistrelle pygmée;10;8;5000
+60518;Plecotus auritus;Oreillard roux;5;8;5000
+60527;Plecotus austriacus;Oreillard gris;5;8;5000
+163463;Plecotus macrobullaris;Oreillard montagnard;5;8;5000
+196414;Plecotus;Oreillard indéterminé;;;5000
+60330;Rhinolophus euryale;Rhinolophe euryale;2;10;10000
+60295;Rhinolophus ferrumequinum;Grand rhinolophe;2;10;10000
+60313;Rhinolophus hipposideros;Petit rhinolophe;2;10;5000
+60557;Tadarida teniotis;Molosse de Cestoni;8;2;20000
+60537;Vespertilio murinus;Sérotine bicolore;10;2;20000

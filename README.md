@@ -1,27 +1,46 @@
 # LPO reportGenerator
 
-Python script to generate Word reports from GeoNature LPO databases.
+Génère des rapports Word (textes chiffrés, tableaux, graphiques, cartes QGIS) à partir des bases GeoNature LPO. Plusieurs types de rapport sont disponibles, choisis par le champ `list_analyse` du formulaire de demande :
+
+| `list_analyse` | Rapport |
+|---|---|
+| `analyse_eolien` | synthèse avifaune pour un projet éolien ([fiche](src/reportgenerator/dossiers/eolien/METHODO.md)) |
+| `atlas_nicheur` | état des connaissances + atlas des nicheurs ([fiche](src/reportgenerator/dossiers/generique/METHODO.md)) |
+| autre valeur / vide | état des connaissances |
+
+Documentation complète : [doc.md](doc.md).
 
 ## Usage
 
 ```bash
 poetry install
 
-poetry run python src/reportgenerator/cli.py generate --service gnlpoaura --limit 1000
-poetry run python src/reportgenerator/cli.py run --service "mon_service_pg" --output "mon_rapport.docx" --id_area 2336982 --referee "Personne référentes" --list_analyse "mes_analyses" --buffer numero_buffer_en_km --area_name "mon_nom_de_projet"
+# toutes les demandes en attente
+poetry run reportgenerator generate --service gnlpoaura --limit 100
+poetry run reportgenerator generate --service gnlpoaura --dry-run
 
+# une demande précise
+poetry run reportgenerator run --service gnlpoaura --id_area 2336982 --area_name "mon_projet" \
+    --referee "Personne référente" --buffer 5 --list_analyse "atlas_nicheur" --output "mon_projet.docx"
+
+# outils (sans base ni QGIS)
+poetry run reportgenerator dossiers                  # types de rapport disponibles
+poetry run reportgenerator check --dossier eolien    # vérifie template Word + analyses
+poetry run pytest
 ```
 
-Sans `--output_dir`, les fichiers sont générés dans `src/reportgenerator/outputs/<area_name>`.
+- `run` et `generate` marquent la demande comme traitée en cas de succès.
+- Sortie : `src/reportgenerator/outputs/<zone>/`, sauf si `--output_dir` ou la variable `OUTPUT_DIR` est définie.
+- Si `poetry run` échoue avec le Python de wapt : `poetry config virtualenvs.use-poetry-python true`.
 
 ## Configuration QGIS
 
-Les rendus QGIS utilisent un interpréteur Python QGIS externe. Par défaut, le projet essaie de le détecter automatiquement:
+Les rendus QGIS utilisent un interpréteur Python QGIS externe. Par défaut, le projet essaie de le détecter automatiquement :
 
-- Windows: `python-qgis-ltr.bat`, `python-qgis.bat`, puis quelques chemins QGIS courants.
-- Linux/Docker: `/usr/bin/python3`, `/usr/bin/python`, puis `python3` ou `python` dans le `PATH`.
+- Windows : `python-qgis-ltr.bat`, `python-qgis.bat`, puis quelques chemins QGIS courants.
+- Linux/Docker : `/usr/bin/python3`, `/usr/bin/python`, puis `python3` ou `python` dans le `PATH`.
 
-Si QGIS est installé ailleurs, configurez explicitement:
+Si QGIS est installé ailleurs, configurez explicitement :
 
 ```bash
 # Linux / Docker

@@ -6,7 +6,14 @@ from reportgenerator.analysis.cartography.export import (copy_qgis_project,
                                                          export_gpkg)
 
 
-def run_cartography(synthese_queries, output_dirs, area_name):
+def run_cartography(
+    synthese_queries,
+    output_dirs,
+    area_name,
+    template_path=None,
+    render_config=None,
+    zonage_rayon_km=None,
+):
 
     timer = RunTimer()
 
@@ -14,7 +21,7 @@ def run_cartography(synthese_queries, output_dirs, area_name):
     raw = synthese_queries.get_raw_geodata()
     area_zone_rows = synthese_queries.get_area_zone()
     knowledge_status_grid = synthese_queries.get_knowledge_status_grid()
-    protected_areas = synthese_queries.get_knowledge_protected_area()
+    protected_areas = synthese_queries.get_knowledge_protected_area(rayon_km=zonage_rayon_km)
 
     gpkg_path = f"{output_dirs['data']}"
 
@@ -43,7 +50,7 @@ def run_cartography(synthese_queries, output_dirs, area_name):
             layer_name="statut_connaissance",
             geom_col="geom_maille",
             crs="EPSG:2154",
-    )
+        )
 
     with timer.step("Export data GPKG Zones protégées"):
         export_gpkg(
@@ -56,15 +63,15 @@ def run_cartography(synthese_queries, output_dirs, area_name):
 
     # 2. QGIS PROJECT
     BASE_DIR = Path(__file__).resolve().parents[2]
-    template_path = BASE_DIR / "templates" / "projet_modele.qgs"
+    template_path = template_path or BASE_DIR / "templates" / "projet_modele.qgs"
     output_path = f"{output_dirs['root']}/projet_{area_name}.qgs"
 
-    project_path = copy_qgis_project(
-        template_path=template_path, output_path=output_path
-    )
+    copy_qgis_project(template_path=template_path, output_path=output_path)
 
     # 3. RENDER QGIS
     with timer.step("Production des cartes QGIS"):
-        launch_qgis_render(project_path=output_path, output_dir=output_dirs["maps"])
+        launch_qgis_render(
+            project_path=output_path, output_dir=output_dirs["maps"], config=render_config
+        )
 
-    total = timer.summary()
+    timer.summary()

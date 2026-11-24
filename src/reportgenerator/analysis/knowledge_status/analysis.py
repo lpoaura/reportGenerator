@@ -6,17 +6,14 @@ from reportgenerator.analysis.knowledge_status.dataviz import (
     create_data_by_group_chart,
     create_species_double_bar_chart,
     create_species_coverage_chart,
-    create_temporal_evolution_chart,
     create_disparition_chart,
 )
 
 
 def run(context, synthese_queries, output_dirs):
+    """Nécessite la vue matérialisée (brique socle_data)."""
 
     timer = RunTimer()
-
-    with timer.step("Preparation des données"):
-        synthese_queries.set_global_data()
 
     # --- Évolution temporelle ---
     with timer.step("Evolution temporelle"):

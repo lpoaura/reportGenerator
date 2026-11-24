@@ -29,11 +29,11 @@ def run_atlas(synthese_queries, output_dirs, area_name, run_render=True):
             tmp_gpkg = Path(tmp) / "atlas.gpkg"
 
             export_atlas_gpkg(data=grid_rows, gpkg_path=tmp_gpkg,
-                            layer_name="atlas_species_grid", geom_col="emprise_presence")
+                              layer_name="atlas_species_grid", geom_col="emprise_presence")
             export_atlas_gpkg(data=summary_rows, gpkg_path=tmp_gpkg,
-                            layer_name="atlas_species_summary", geom_col="geom_maille")
+                              layer_name="atlas_species_summary", geom_col="geom_maille")
             export_atlas_gpkg(data=area_zone_rows, gpkg_path=tmp_gpkg,
-                            layer_name="atlas_area_zone", geom_col="geom")
+                              layer_name="atlas_area_zone", geom_col="geom")
 
             atlas_gpkg_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(tmp_gpkg, atlas_gpkg_path)

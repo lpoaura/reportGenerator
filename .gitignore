@@ -228,4 +228,10 @@ output/
 # PostgreSQL service configuration file
 config/pg_service.conf
 
+# Claude AI
+ClAUDE.md 
+docs/plsoc/audit_pr_oedic.md
+docs/plsoc/sql/pr_oedic_news.sql
 
+# Outils : versionnés (scripts sans données) ; leurs sorties se créent hors du dépôt
+outils/**/__pycache__/

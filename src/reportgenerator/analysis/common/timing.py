@@ -16,10 +16,14 @@ class RunTimer:
         print(f"→ {name}...")
         try:
             yield
-        finally:
+        except Exception:
             duration = time.perf_counter() - start
             self.steps.append({"step": name, "duration_s": round(duration, 2)})
-            print(f"✓ {name} terminé en {duration:.1f}s")
+            print(f"✗ {name} ÉCHEC après {duration:.1f}s")
+            raise
+        duration = time.perf_counter() - start
+        self.steps.append({"step": name, "duration_s": round(duration, 2)})
+        print(f"✓ {name} terminé en {duration:.1f}s")
 
     def summary(self):
         total = sum(s["duration_s"] for s in self.steps)
